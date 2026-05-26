@@ -4,6 +4,9 @@ const helmet = require('helmet');
 const morgan = require('morgan');
 const mongoSanitize = require('express-mongo-sanitize');
 const xssClean = require('xss-clean');
+const mongoose = require('mongoose');
+const connectDB = require('./config/db');
+const logger = require('./utils/logger');
 const { generalLimiter } = require('./middleware/rateLimiter');
 const errorHandler = require('./middleware/errorHandler');
 
@@ -19,6 +22,24 @@ const app = express();
 
 // Trust reverse proxies (important for correct client IP detection behind NATs/reverse-proxies)
 app.set('trust proxy', true);
+
+// --------------- Serverless Database Connection Middleware ---------------
+let isConnected = false;
+app.use(async (req, res, next) => {
+  if (mongoose.connection.readyState === 1) {
+    isConnected = true;
+  }
+  if (!isConnected) {
+    try {
+      logger.info('Stateless serverless invocation: Establishing MongoDB connection...');
+      await connectDB();
+      isConnected = true;
+    } catch (err) {
+      logger.error('Database connection failed in serverless middleware:', err);
+    }
+  }
+  next();
+});
 
 // --------------- Security Middleware ---------------
 // Custom Helmet configuration for premium security headers
