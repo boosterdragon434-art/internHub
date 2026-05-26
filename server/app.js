@@ -17,6 +17,7 @@ const applicationRoutes = require('./routes/applicationRoutes');
 const paymentRoutes = require('./routes/paymentRoutes');
 const userRoutes = require('./routes/userRoutes');
 const notificationRoutes = require('./routes/notificationRoutes');
+const settingsRoutes = require('./routes/settingsRoutes');
 
 const app = express();
 
@@ -108,6 +109,7 @@ app.use('/api/applications', applicationRoutes);
 app.use('/api/payments', paymentRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/notifications', notificationRoutes);
+app.use('/api/settings', settingsRoutes);
 
 // 2. Mounted without prefix (fallback to handle direct Vercel API calls perfectly)
 app.use('/auth', authRoutes);
@@ -116,6 +118,7 @@ app.use('/applications', applicationRoutes);
 app.use('/payments', paymentRoutes);
 app.use('/users', userRoutes);
 app.use('/notifications', notificationRoutes);
+app.use('/settings', settingsRoutes);
 
 // --------------- Health Check ---------------
 const healthHandler = (_req, res) => {

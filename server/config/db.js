@@ -19,6 +19,18 @@ const connectDB = async () => {
 
       logger.info(`MongoDB Connected: ${conn.connection.host}`);
 
+      // Programmatically drop legacy unique index on user+internship to support application cooldowns
+      try {
+        const Application = require('../models/Application');
+        await Application.collection.dropIndex('user_1_internship_1');
+        logger.info('Dropped legacy unique application index successfully');
+      } catch (err) {
+        // Code 27 is IndexNotFound, which is expected on subsequent runs
+        if (err.code !== 27 && err.codeName !== 'IndexNotFound') {
+          logger.warn('Legacy application index drop warning:', err.message);
+        }
+      }
+
       mongoose.connection.on('error', (err) => {
         logger.error('MongoDB connection error:', err);
       });

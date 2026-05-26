@@ -4,7 +4,8 @@ import { Helmet } from 'react-helmet-async';
 import { motion } from 'framer-motion';
 import { FiUser, FiUpload, FiCheck, FiArrowLeft, FiArrowRight } from 'react-icons/fi';
 import { getInternshipDetail } from '../../api/internshipApi';
-import { submitApplication } from '../../api/applicationApi';
+import { submitApplication, getMyApplications } from '../../api/applicationApi';
+import { getCooldownSetting } from '../../api/settingsApi';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import Input from '../../components/common/Input';
@@ -41,6 +42,38 @@ const ApplicationFormPage = () => {
       try {
         const res = await getInternshipDetail(internshipId);
         if (res.success) setInternship(res.data);
+
+        // Fetch application history and cooldown window
+        const [appsRes, cooldownRes] = await Promise.all([
+          getMyApplications(),
+          getCooldownSetting(),
+        ]);
+
+        if (appsRes.success && cooldownRes.success) {
+          const cooldownHours = parseInt(cooldownRes.data.cooldown, 10) || 0;
+          const relevantApps = appsRes.data.filter(
+            (app) => app.internship?._id === internshipId || app.internship === internshipId
+          );
+
+          if (relevantApps.length > 0) {
+            relevantApps.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+            const latestApp = relevantApps[0];
+
+            if (cooldownHours === 0) {
+              toast.error('You have already applied for this internship.');
+              navigate('/student/applications');
+              return;
+            } else {
+              const timeElapsed = (Date.now() - new Date(latestApp.createdAt).getTime()) / (1000 * 60 * 60);
+              if (timeElapsed < cooldownHours) {
+                const remainingHours = Math.ceil(cooldownHours - timeElapsed);
+                toast.error(`You have already applied for this internship. Please wait ${remainingHours} hour(s) before applying again.`);
+                navigate('/student/applications');
+                return;
+              }
+            }
+          }
+        }
       } catch (err) {
         toast.error('Failed to load internship details.');
         navigate('/internships');

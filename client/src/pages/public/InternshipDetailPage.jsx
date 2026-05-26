@@ -5,6 +5,8 @@ import { motion } from 'framer-motion';
 import { FiClock, FiMapPin, FiUsers, FiCalendar, FiArrowLeft, FiBriefcase } from 'react-icons/fi';
 import { FaRupeeSign } from 'react-icons/fa';
 import { getInternshipDetail } from '../../api/internshipApi';
+import { getMyApplications } from '../../api/applicationApi';
+import { getCooldownSetting } from '../../api/settingsApi';
 import { formatDate, formatCurrency, formatDisplayAmount } from '../../utils/formatters';
 import { useAuth } from '../../context/AuthContext';
 import Button from '../../components/common/Button';
@@ -16,6 +18,7 @@ const InternshipDetailPage = () => {
   const navigate = useNavigate();
   const [internship, setInternship] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [hasApplied, setHasApplied] = useState(false);
 
   useEffect(() => {
     const fetch = async () => {
@@ -30,6 +33,51 @@ const InternshipDetailPage = () => {
     };
     fetch();
   }, [id]);
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      const checkApplied = async () => {
+        try {
+          const [appsRes, cooldownRes] = await Promise.all([
+            getMyApplications(),
+            getCooldownSetting(),
+          ]);
+
+          if (appsRes.success && cooldownRes.success) {
+            const cooldownHours = parseInt(cooldownRes.data.cooldown, 10) || 0;
+            const relevantApps = appsRes.data.filter(
+              (app) => app.internship?._id === id || app.internship === id
+            );
+
+            if (relevantApps.length > 0) {
+              // Sort to get the latest application first
+              relevantApps.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+              const latestApp = relevantApps[0];
+
+              if (cooldownHours === 0) {
+                // 0 means infinite cooldown
+                setHasApplied(true);
+              } else {
+                const timeElapsed = (Date.now() - new Date(latestApp.createdAt).getTime()) / (1000 * 60 * 60);
+                if (timeElapsed < cooldownHours) {
+                  setHasApplied(true);
+                } else {
+                  setHasApplied(false);
+                }
+              }
+            } else {
+              setHasApplied(false);
+            }
+          }
+        } catch (err) {
+          console.error('Error checking application status:', err);
+        }
+      };
+      checkApplied();
+    } else {
+      setHasApplied(false);
+    }
+  }, [id, isAuthenticated]);
 
   if (loading) return <FullPageLoader message="Loading internship details..." />;
 
@@ -46,6 +94,7 @@ const InternshipDetailPage = () => {
   }
 
   const handleApply = () => {
+    if (hasApplied) return;
     if (!isAuthenticated) {
       navigate(`/login?redirect=/internships/${id}/apply`);
     } else {
@@ -183,8 +232,14 @@ const InternshipDetailPage = () => {
                     ? 'Joining fee required'
                     : 'No joining fee required'}
               </p>
-              <Button variant="primary" size="lg" className="w-full" onClick={handleApply}>
-                Apply Now
+              <Button
+                variant={hasApplied ? 'outline' : 'primary'}
+                size="lg"
+                className="w-full"
+                onClick={handleApply}
+                disabled={hasApplied}
+              >
+                {hasApplied ? 'Applied' : 'Apply Now'}
               </Button>
 
               {/* Details Grid */}

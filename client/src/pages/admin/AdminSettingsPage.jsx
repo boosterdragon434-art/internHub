@@ -15,6 +15,7 @@ import {
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import { updateProfile, changePassword } from '../../api/userApi';
+import { getCooldownSetting, updateCooldownSetting } from '../../api/settingsApi';
 import Input from '../../components/common/Input';
 import Button from '../../components/common/Button';
 
@@ -161,6 +162,10 @@ const AdminSettingsPage = () => {
   // Email Preview State
   const [selectedTemplate, setSelectedTemplate] = useState(emailTemplatesMockData[0]);
 
+  // Cooldown Settings State
+  const [cooldown, setCooldown] = useState('');
+  const [cooldownLoading, setCooldownLoading] = useState(false);
+
   const handleProfileSubmit = async (e) => {
     e.preventDefault();
     if (!profileForm.name) {
@@ -207,6 +212,36 @@ const AdminSettingsPage = () => {
       toast.error(err.response?.data?.message || 'Failed to change password.');
     } finally {
       setPasswordLoading(false);
+    }
+  };
+
+  // Fetch application cooldown settings on mount
+  React.useEffect(() => {
+    const fetchCooldown = async () => {
+      try {
+        const res = await getCooldownSetting();
+        if (res.success) {
+          setCooldown(res.data.cooldown);
+        }
+      } catch (err) {
+        console.error('Error fetching application cooldown:', err);
+      }
+    };
+    fetchCooldown();
+  }, []);
+
+  const handleCooldownSubmit = async (e) => {
+    e.preventDefault();
+    setCooldownLoading(true);
+    try {
+      const res = await updateCooldownSetting(cooldown);
+      if (res.success) {
+        toast.success('Application cooldown updated successfully!');
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to update cooldown.');
+    } finally {
+      setCooldownLoading(false);
     }
   };
 
@@ -263,6 +298,7 @@ const AdminSettingsPage = () => {
               {/* SYSTEM TAB */}
               {activeTab === 'system' && (
                 <div className="space-y-6">
+                  {/* Status Connections */}
                   <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6">
                     <h2 className="text-base font-extrabold text-slate-900 dark:text-slate-50 mb-1 flex items-center gap-2">
                       <FiCheckCircle className="text-emerald-500" /> API Connections & Services
@@ -287,6 +323,36 @@ const AdminSettingsPage = () => {
                         </div>
                       ))}
                     </div>
+                  </div>
+
+                  {/* Application Cooldown Configuration */}
+                  <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6">
+                    <h2 className="text-base font-extrabold text-slate-900 dark:text-slate-50 mb-1 flex items-center gap-2">
+                      <FiSettings className="text-accent-500" /> Application Control
+                    </h2>
+                    <p className="text-xs text-slate-550 dark:text-slate-400 mb-6">
+                      Define the cooldown window (in hours) after which a member can re-apply to the same internship. Enter 0 to permanently block duplicate submissions.
+                    </p>
+                    
+                    <form onSubmit={handleCooldownSubmit} className="space-y-4 max-w-sm">
+                      <Input
+                        name="cooldown"
+                        label="Application Cooldown (Hours)"
+                        type="number"
+                        min="0"
+                        placeholder="Enter hours (e.g. 24)"
+                        value={cooldown}
+                        onChange={(e) => setCooldown(e.target.value)}
+                        required
+                      />
+                      <Button
+                        type="submit"
+                        variant="primary"
+                        loading={cooldownLoading}
+                      >
+                        Update Cooldown
+                      </Button>
+                    </form>
                   </div>
                 </div>
               )}

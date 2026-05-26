@@ -32,13 +32,38 @@ const createApplication = async (req, res, next) => {
       return next(ApiError.badRequest('No openings available for this internship.'));
     }
 
-    // Prevent duplicate applications
+    // Fetch cooldown settings
+    const Settings = require('../models/Settings');
+    let cooldownHours = 0; // Default 0 means infinite/permanent block
+    try {
+      const cooldownSetting = await Settings.findOne({ key: 'applicationCooldown' });
+      if (cooldownSetting) {
+        cooldownHours = parseInt(cooldownSetting.value, 10) || 0;
+      }
+    } catch (err) {
+      logger.error('Failed to fetch cooldown settings:', err);
+    }
+
+    // Prevent duplicate applications within cooldown duration
     const existingApp = await Application.findOne({
       user: userId,
       internship: internshipId,
-    });
+    }).sort('-createdAt');
+
     if (existingApp) {
-      return next(ApiError.conflict('You have already applied for this internship.'));
+      if (cooldownHours === 0) {
+        return next(ApiError.conflict('You have already applied for this internship.'));
+      }
+      
+      const timeElapsed = (Date.now() - new Date(existingApp.createdAt).getTime()) / (1000 * 60 * 60); // in hours
+      if (timeElapsed < cooldownHours) {
+        const remainingHours = Math.ceil(cooldownHours - timeElapsed);
+        return next(
+          ApiError.conflict(
+            `You have already applied for this internship. Please wait ${remainingHours} hour(s) before applying again.`
+          )
+        );
+      }
     }
 
     // Upload resume to Google Drive
