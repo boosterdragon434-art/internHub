@@ -1,0 +1,116 @@
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Inter:wght@300;400;500;600;700;800&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-slate-50 text-slate-900 font-sans antialiased transition-colors duration-300;
+  }
+  
+  body.dark {
+    @apply bg-[#030712] text-slate-50;
+  }
+
+  /* Custom premium headings using Plus Jakarta Sans */
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Plus Jakarta Sans', 'Inter', sans-serif;
+  }
+}
+
+/* Custom Premium Glassmorphism classes */
+.glass-panel {
+  @apply bg-white/70 dark:bg-slate-900/60 backdrop-blur-md border border-slate-200/50 dark:border-slate-800/50;
+}
+
+.glass-card {
+  @apply bg-white/80 dark:bg-[#0b0f19]/70 backdrop-blur-md border border-slate-100 dark:border-slate-800/40 shadow-sm hover:shadow-xl hover:border-accent-500/20 dark:hover:border-accent-400/20 transition-all duration-300;
+}
+
+/* Hover Lift utility with modern cubic-bezier curve */
+.hover-lift {
+  transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.4s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.hover-lift:hover {
+  transform: translateY(-4px);
+  @apply shadow-xl shadow-slate-100/80 dark:shadow-black/40 border-accent-300 dark:border-accent-800;
+}
+
+/* Premium Gradient Button */
+.btn-premium-gradient {
+  background: linear-gradient(135deg, #f97316, #3b82f6);
+  background-size: 200% auto;
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.btn-premium-gradient:hover {
+  background-position: right center;
+  box-shadow: 0 10px 15px -3px rgba(249, 115, 22, 0.35), 0 4px 6px -4px rgba(59, 130, 246, 0.25);
+  transform: translateY(-1px);
+}
+
+.btn-premium-gradient:active {
+  transform: translateY(0);
+}
+
+/* Scrollbar Customization */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-slate-50 dark:bg-[#030712];
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-slate-300 dark:bg-slate-800 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors;
+}
+
+/* Elegant text highlights */
+.gradient-text-accent {
+  @apply bg-gradient-to-r from-accent-500 via-accent-600 to-secondary-500 bg-clip-text text-transparent font-extrabold;
+}
+
+.gradient-text-blue {
+  @apply bg-gradient-to-r from-secondary-500 to-sky-400 bg-clip-text text-transparent font-extrabold;
+}
+
+/* Elegant inputs focus state */
+.input-premium {
+  @apply bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-2.5 text-xs text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-accent-500/20 focus:border-accent-500 transition-all duration-200;
+}
+
+/* Shimmer Animation for Skeletons */
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.animate-shimmer {
+  background: linear-gradient(
+    90deg,
+    rgba(226, 232, 240, 0.2) 25%,
+    rgba(226, 232, 240, 0.5) 37%,
+    rgba(226, 232, 240, 0.2) 63%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
+
+.dark .animate-shimmer {
+  background: linear-gradient(
+    90deg,
+    rgba(30, 41, 59, 0.2) 25%,
+    rgba(30, 41, 59, 0.5) 37%,
+    rgba(30, 41, 59, 0.2) 63%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
