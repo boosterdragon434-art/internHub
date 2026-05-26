@@ -61,7 +61,25 @@ app.use(
 );
 app.use(
   cors({
-    origin: process.env.CLIENT_URL || 'http://localhost:5173',
+    origin: (origin, callback) => {
+      // Allow requests with no origin (like mobile apps, curls, or server-to-server)
+      if (!origin) return callback(null, true);
+
+      const sanitizedOrigin = origin.replace(/\/$/, '');
+      let configuredClient = process.env.CLIENT_URL || 'http://localhost:5173';
+      configuredClient = configuredClient.replace(/\/$/, '');
+
+      if (
+        sanitizedOrigin === configuredClient ||
+        sanitizedOrigin === 'http://localhost:5173' ||
+        sanitizedOrigin.endsWith('.vercel.app') ||
+        /https?:\/\/intern-hub-front(-[a-z0-9]+)?\.vercel\.app$/.test(sanitizedOrigin)
+      ) {
+        return callback(null, true);
+      }
+
+      return callback(null, false);
+    },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
     allowedHeaders: ['Content-Type', 'Authorization'],
@@ -80,8 +98,10 @@ if (process.env.NODE_ENV === 'development') {
 
 // --------------- Rate Limiting ---------------
 app.use('/api', generalLimiter);
+app.use(generalLimiter);
 
 // --------------- API Routes ---------------
+// 1. Mounted with /api prefix (for local proxying & explicit setups)
 app.use('/api/auth', authRoutes);
 app.use('/api/internships', internshipRoutes);
 app.use('/api/applications', applicationRoutes);
@@ -89,15 +109,25 @@ app.use('/api/payments', paymentRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/notifications', notificationRoutes);
 
+// 2. Mounted without prefix (fallback to handle direct Vercel API calls perfectly)
+app.use('/auth', authRoutes);
+app.use('/internships', internshipRoutes);
+app.use('/applications', applicationRoutes);
+app.use('/payments', paymentRoutes);
+app.use('/users', userRoutes);
+app.use('/notifications', notificationRoutes);
+
 // --------------- Health Check ---------------
-app.get('/api/health', (_req, res) => {
+const healthHandler = (_req, res) => {
   res.status(200).json({
     success: true,
     message: 'InternHub API is running',
     timestamp: new Date().toISOString(),
     environment: process.env.NODE_ENV,
   });
-});
+};
+app.get('/api/health', healthHandler);
+app.get('/health', healthHandler);
 
 // --------------- 404 Handler ---------------
 app.use((_req, res) => {
