@@ -48,10 +48,10 @@ const HomePage = () => {
   ];
 
   const stats = [
-    { value: '500+', label: 'Students Joined' },
-    { value: '50+', label: 'Active Internships' },
-    { value: '20+', label: 'Partner Companies' },
-    { value: '95%', label: 'Satisfaction Rate' },
+    { value: '100+', label: 'Students Joined' },
+    { value: '10+', label: 'Active Internships' },
+    { value: '100+', label: 'Certificates Issued' },
+    { value: '97%', label: 'Satisfaction Rate' },
   ];
 
   return (
