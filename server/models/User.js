@@ -55,8 +55,36 @@ const userSchema = new mongoose.Schema(
     ],
     role: {
       type: String,
-      enum: ['student', 'admin'],
+      enum: ['student', 'admin', 'guide'],
       default: 'student',
+    },
+    // Guide-specific fields
+    assignedGuide: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      default: null,
+    },
+    assignedStudents: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+      },
+    ],
+    expertise: [
+      {
+        type: String,
+        trim: true,
+      },
+    ],
+    bio: {
+      type: String,
+      trim: true,
+      maxlength: [500, 'Bio cannot exceed 500 characters'],
+      default: '',
+    },
+    isActive: {
+      type: Boolean,
+      default: true,
     },
     isEmailVerified: {
       type: Boolean,
@@ -97,6 +125,8 @@ const userSchema = new mongoose.Schema(
 // --------- Indexes ---------
 userSchema.index({ email: 1 }, { unique: true });
 userSchema.index({ role: 1 });
+userSchema.index({ assignedGuide: 1 });
+userSchema.index({ isActive: 1 });
 
 // --------- Pre-save: Hash password ---------
 userSchema.pre('save', async function (next) {

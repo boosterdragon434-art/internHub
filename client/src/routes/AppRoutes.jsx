@@ -8,6 +8,7 @@ import DashboardLayout from '../components/layout/DashboardLayout';
 // Route Guards
 import ProtectedRoute from './ProtectedRoute';
 import AdminRoute from './AdminRoute';
+import GuideRoute from './GuideRoute';
 import PublicRoute from './PublicRoute';
 
 // Loader
@@ -42,6 +43,12 @@ const AdminApplicationsPage = lazy(() => import('../pages/admin/AdminApplication
 const AdminPaymentsPage = lazy(() => import('../pages/admin/AdminPaymentsPage'));
 const AdminUsersPage = lazy(() => import('../pages/admin/AdminUsersPage'));
 const AdminSettingsPage = lazy(() => import('../pages/admin/AdminSettingsPage'));
+
+// Lazy loaded guide pages
+const GuideDashboard = lazy(() => import('../pages/guide/GuideDashboard'));
+const GuideStudentsPage = lazy(() => import('../pages/guide/GuideStudentsPage'));
+const GuideStudentDetailPage = lazy(() => import('../pages/guide/GuideStudentDetailPage'));
+const GuideProfilePage = lazy(() => import('../pages/guide/GuideProfilePage'));
 
 const AppRoutes = () => {
   return (
@@ -124,6 +131,24 @@ const AppRoutes = () => {
           <Route path="applications" element={<MyApplicationsPage />} />
           <Route path="payments" element={<PaymentPage />} />
           <Route path="profile" element={<ProfilePage />} />
+        </Route>
+
+        {/* Guide Dashboard Routes */}
+        <Route
+          path="/guide"
+          element={
+            <ProtectedRoute>
+              <GuideRoute>
+                <DashboardLayout role="guide" />
+              </GuideRoute>
+            </ProtectedRoute>
+          }
+        >
+          <Route index element={<Navigate to="/guide/dashboard" replace />} />
+          <Route path="dashboard" element={<GuideDashboard />} />
+          <Route path="students" element={<GuideStudentsPage />} />
+          <Route path="students/:id" element={<GuideStudentDetailPage />} />
+          <Route path="profile" element={<GuideProfilePage />} />
         </Route>
 
         {/* Admin Dashboard Routes */}

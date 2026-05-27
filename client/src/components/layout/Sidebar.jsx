@@ -11,12 +11,15 @@ import {
   FiChevronLeft,
   FiChevronRight,
   FiLogOut,
+  FiUser,
+  FiX,
 } from 'react-icons/fi';
 
 /**
- * Collapsible admin/student sidebar with active route highlighting.
+ * Collapsible admin/student/guide sidebar with active route highlighting.
+ * Includes a mobile drawer overlay triggered externally via prop.
  */
-const Sidebar = ({ role = 'admin' }) => {
+const Sidebar = ({ role = 'admin', mobileOpen = false, onMobileClose }) => {
   const [collapsed, setCollapsed] = useState(false);
   const { logout } = useAuth();
   const navigate = useNavigate();
@@ -30,27 +33,39 @@ const Sidebar = ({ role = 'admin' }) => {
     { icon: FiSettings, label: 'Settings', to: '/admin/settings' },
   ];
 
+  const guideLinks = [
+    { icon: FiGrid, label: 'Dashboard', to: '/guide/dashboard' },
+    { icon: FiUsers, label: 'My Students', to: '/guide/students' },
+    { icon: FiUser, label: 'Profile', to: '/guide/profile' },
+  ];
+
   const studentLinks = [
     { icon: FiGrid, label: 'Dashboard', to: '/student/dashboard' },
     { icon: FiBriefcase, label: 'Browse Internships', to: '/internships' },
     { icon: FiFileText, label: 'My Applications', to: '/student/applications' },
     { icon: FiCreditCard, label: 'Payments', to: '/student/payments' },
-    { icon: FiUsers, label: 'Profile', to: '/student/profile' },
+    { icon: FiUser, label: 'Profile', to: '/student/profile' },
   ];
 
-  const links = role === 'admin' ? adminLinks : studentLinks;
+  const links =
+    role === 'admin'
+      ? adminLinks
+      : role === 'guide'
+        ? guideLinks
+        : studentLinks;
 
   const handleLogout = () => {
     logout();
     navigate('/');
   };
 
-  return (
-    <aside
-      className={`hidden md:flex sticky top-16 h-[calc(100vh-4rem)] bg-white dark:bg-slate-950 border-r border-slate-200 dark:border-slate-800 flex-col transition-all duration-300 ${
-        collapsed ? 'w-16' : 'w-56'
-      }`}
-    >
+  const handleNavClick = () => {
+    // Close mobile drawer on navigation
+    if (onMobileClose) onMobileClose();
+  };
+
+  const sidebarContent = (
+    <>
       {/* Nav Links */}
       <nav className="flex-1 p-2 space-y-1 overflow-y-auto mt-2">
         {links.map((link) => (
@@ -58,6 +73,7 @@ const Sidebar = ({ role = 'admin' }) => {
             key={link.to}
             to={link.to}
             end={link.to.endsWith('dashboard')}
+            onClick={handleNavClick}
             className={({ isActive }) =>
               `flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 group ${
                 isActive
@@ -66,8 +82,8 @@ const Sidebar = ({ role = 'admin' }) => {
               }`
             }
           >
-            <link.icon className={`h-5 w-5 flex-shrink-0 ${collapsed ? 'mx-auto' : ''}`} />
-            {!collapsed && <span className="truncate">{link.label}</span>}
+            <link.icon className={`h-5 w-5 flex-shrink-0 ${collapsed && !mobileOpen ? 'mx-auto' : ''}`} />
+            {(!collapsed || mobileOpen) && <span className="truncate">{link.label}</span>}
           </NavLink>
         ))}
       </nav>
@@ -77,26 +93,73 @@ const Sidebar = ({ role = 'admin' }) => {
         <button
           onClick={handleLogout}
           className={`flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-sm font-medium text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/20 transition-colors ${
-            collapsed ? 'justify-center' : ''
+            collapsed && !mobileOpen ? 'justify-center' : ''
           }`}
         >
           <FiLogOut className="h-5 w-5 flex-shrink-0" />
-          {!collapsed && <span>Sign Out</span>}
+          {(!collapsed || mobileOpen) && <span>Sign Out</span>}
         </button>
 
-        <button
-          onClick={() => setCollapsed(!collapsed)}
-          className="flex items-center justify-center w-full px-3 py-2 rounded-xl text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-900 transition-colors"
-          aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-        >
-          {collapsed ? (
-            <FiChevronRight className="h-4 w-4" />
-          ) : (
-            <FiChevronLeft className="h-4 w-4" />
-          )}
-        </button>
+        {/* Collapse toggle — desktop only */}
+        {!mobileOpen && (
+          <button
+            onClick={() => setCollapsed(!collapsed)}
+            className="flex items-center justify-center w-full px-3 py-2 rounded-xl text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-900 transition-colors"
+            aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          >
+            {collapsed ? (
+              <FiChevronRight className="h-4 w-4" />
+            ) : (
+              <FiChevronLeft className="h-4 w-4" />
+            )}
+          </button>
+        )}
       </div>
-    </aside>
+    </>
+  );
+
+  return (
+    <>
+      {/* Desktop Sidebar */}
+      <aside
+        className={`hidden md:flex sticky top-16 h-[calc(100vh-4rem)] bg-white dark:bg-slate-950 border-r border-slate-200 dark:border-slate-800 flex-col transition-all duration-300 ${
+          collapsed ? 'w-16' : 'w-56'
+        }`}
+      >
+        {sidebarContent}
+      </aside>
+
+      {/* Mobile Drawer Overlay */}
+      {mobileOpen && (
+        <>
+          {/* Backdrop */}
+          <div
+            className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm md:hidden"
+            onClick={onMobileClose}
+            aria-hidden="true"
+          />
+
+          {/* Drawer */}
+          <aside className="fixed inset-y-0 left-0 z-50 w-64 bg-white dark:bg-slate-950 border-r border-slate-200 dark:border-slate-800 flex flex-col md:hidden animate-slide-in-left">
+            {/* Close button */}
+            <div className="flex items-center justify-between p-4 border-b border-slate-200 dark:border-slate-800">
+              <span className="text-sm font-bold text-slate-700 dark:text-slate-200">
+                Menu
+              </span>
+              <button
+                onClick={onMobileClose}
+                className="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-900 transition-colors"
+                aria-label="Close menu"
+              >
+                <FiX className="h-5 w-5" />
+              </button>
+            </div>
+
+            {sidebarContent}
+          </aside>
+        </>
+      )}
+    </>
   );
 };
 

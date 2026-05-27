@@ -18,11 +18,12 @@ const paymentRoutes = require('./routes/paymentRoutes');
 const userRoutes = require('./routes/userRoutes');
 const notificationRoutes = require('./routes/notificationRoutes');
 const settingsRoutes = require('./routes/settingsRoutes');
+const guideRoutes = require('./routes/guideRoutes');
 
 const app = express();
 
-// Trust reverse proxies (important for correct client IP detection behind NATs/reverse-proxies)
-app.set('trust proxy', true);
+// Trust exactly one reverse proxy layer (prevent IP spoofing with multiple proxies)
+app.set('trust proxy', 1);
 
 // --------------- Serverless Database Connection Middleware ---------------
 let isConnected = false;
@@ -99,7 +100,6 @@ if (process.env.NODE_ENV === 'development') {
 
 // --------------- Rate Limiting ---------------
 app.use('/api', generalLimiter);
-app.use(generalLimiter);
 
 // --------------- API Routes ---------------
 // 1. Mounted with /api prefix (for local proxying & explicit setups)
@@ -110,6 +110,7 @@ app.use('/api/payments', paymentRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/settings', settingsRoutes);
+app.use('/api/guides', guideRoutes);
 
 // 2. Mounted without prefix (fallback to handle direct Vercel API calls perfectly)
 app.use('/auth', authRoutes);
@@ -119,6 +120,7 @@ app.use('/payments', paymentRoutes);
 app.use('/users', userRoutes);
 app.use('/notifications', notificationRoutes);
 app.use('/settings', settingsRoutes);
+app.use('/guides', guideRoutes);
 
 // --------------- Health Check ---------------
 const healthHandler = (_req, res) => {

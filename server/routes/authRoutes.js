@@ -4,6 +4,7 @@ const {
   register,
   login,
   adminLogin,
+  guideLogin,
   verifyEmail,
   forgotPassword,
   resetPassword,
@@ -18,6 +19,7 @@ const { authLimiter } = require('../middleware/rateLimiter');
 router.post('/register', authLimiter, validate(authValidator.register), register);
 router.post('/login', authLimiter, validate(authValidator.login), login);
 router.post('/admin/login', authLimiter, validate(authValidator.login), adminLogin);
+router.post('/guide/login', authLimiter, validate(authValidator.login), guideLogin);
 router.get('/verify-email/:token', authLimiter, verifyEmail);
 router.post('/forgot-password', authLimiter, validate(authValidator.forgotPassword), forgotPassword);
 router.put('/reset-password/:token', authLimiter, validate(authValidator.resetPassword), resetPassword);

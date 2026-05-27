@@ -35,6 +35,7 @@ const INTERNSHIP_STATUS = {
 const USER_ROLES = {
   STUDENT: 'student',
   ADMIN: 'admin',
+  GUIDE: 'guide',
 };
 
 const NOTIFICATION_TYPES = {
@@ -42,6 +43,11 @@ const NOTIFICATION_TYPES = {
   PAYMENT: 'payment',
   GENERAL: 'general',
   ANNOUNCEMENT: 'announcement',
+  TASK: 'task',
+  REMINDER: 'reminder',
+  CERTIFICATE: 'certificate',
+  CHAT: 'chat',
+  SYSTEM: 'system',
 };
 
 const EMAIL_TYPES = {

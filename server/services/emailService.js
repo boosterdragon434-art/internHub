@@ -114,7 +114,7 @@ class EmailService {
   }
 
   async sendPaymentRequest(user, internshipTitle, amount) {
-    const paymentUrl = `${process.env.CLIENT_URL}/dashboard/applications`;
+    const paymentUrl = `${process.env.CLIENT_URL}/student/applications`;
     const html = paymentRequestTemplate(user.name, internshipTitle, amount, paymentUrl);
     await this._sendEmail(
       user.email,

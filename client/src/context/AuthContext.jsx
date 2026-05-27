@@ -113,6 +113,23 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  // Guide login
+  const loginGuide = async (email, password) => {
+    try {
+      const response = await api.post('/auth/guide/login', { email, password });
+      if (response.data && response.data.success) {
+        const { token, user: guideUser } = response.data.data;
+        localStorage.setItem('token', token);
+        localStorage.setItem('user', JSON.stringify(guideUser));
+        setUser(guideUser);
+        return { success: true, message: response.data.message };
+      }
+    } catch (error) {
+      const message = handleAuthError(error, 'Guide login failed');
+      return { success: false, message };
+    }
+  };
+
   // Logout
   const logoutUser = () => {
     localStorage.removeItem('token');
@@ -133,6 +150,20 @@ export const AuthProvider = ({ children }) => {
     });
   };
 
+  // Get the correct dashboard path based on user role
+  const getDashboardPath = () => {
+    if (!user) return '/login';
+    switch (user.role) {
+      case 'admin':
+        return '/admin/dashboard';
+      case 'guide':
+        return '/guide/dashboard';
+      case 'student':
+      default:
+        return '/student/dashboard';
+    }
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -140,11 +171,15 @@ export const AuthProvider = ({ children }) => {
         loading,
         isAuthenticated: !!user,
         isAdmin: user?.role === 'admin',
+        isGuide: user?.role === 'guide',
+        isStudent: user?.role === 'student',
         register: registerUser,
         login: loginUser,
         adminLogin: loginAdmin,
+        guideLogin: loginGuide,
         logout: logoutUser,
         updateLocalUser,
+        getDashboardPath,
       }}
     >
       {children}

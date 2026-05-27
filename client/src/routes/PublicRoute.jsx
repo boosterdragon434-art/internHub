@@ -4,15 +4,16 @@ import { useAuth } from '../context/AuthContext';
 import { FullPageLoader } from '../components/common/Loader';
 
 /**
- * Redirects already-authenticated users away from login/register pages.
+ * Restricts access for already-logged-in users.
+ * Redirects to the appropriate role-based dashboard.
  */
 const PublicRoute = ({ children }) => {
-  const { isAuthenticated, isAdmin, loading } = useAuth();
+  const { isAuthenticated, loading, getDashboardPath } = useAuth();
 
-  if (loading) return <FullPageLoader />;
+  if (loading) return <FullPageLoader message="Checking session..." />;
 
   if (isAuthenticated) {
-    return <Navigate to={isAdmin ? '/admin/dashboard' : '/student/dashboard'} replace />;
+    return <Navigate to={getDashboardPath()} replace />;
   }
 
   return children;

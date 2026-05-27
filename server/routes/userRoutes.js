@@ -6,6 +6,10 @@ const {
   changePassword,
   getAllUsers,
   getUserStats,
+  createGuide,
+  assignGuideToStudent,
+  unassignGuide,
+  getAllGuides,
 } = require('../controllers/userController');
 const { protect, authorize } = require('../middleware/auth');
 const { uploadResume: multerUploadResume } = require('../middleware/upload');
@@ -19,6 +23,10 @@ router.put('/password', protect, validate(userValidator.changePassword), changeP
 
 // Admin-only routes
 router.get('/stats', protect, authorize('admin'), getUserStats);
+router.get('/guides', protect, authorize('admin'), getAllGuides);
+router.post('/guides', protect, authorize('admin'), createGuide);
+router.put('/assign-guide', protect, authorize('admin'), assignGuideToStudent);
+router.put('/unassign-guide', protect, authorize('admin'), unassignGuide);
 router.get('/', protect, authorize('admin'), getAllUsers);
 
 module.exports = router;

@@ -103,6 +103,9 @@ const login = async (req, res, next) => {
         skills: user.skills,
         avatar: user.avatar,
         resumeUrl: user.resumeUrl,
+        bio: user.bio,
+        expertise: user.expertise,
+        isActive: user.isActive,
       },
     });
   } catch (error) {
@@ -152,6 +155,62 @@ const adminLogin = async (req, res, next) => {
         name: user.name,
         email: user.email,
         role: user.role,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * @desc    Guide login
+ * @route   POST /api/auth/guide/login
+ * @access  Public
+ */
+const guideLogin = async (req, res, next) => {
+  try {
+    const { email, password } = req.body;
+
+    const user = await User.findOne({ email, role: 'guide' }).select('+password +loginAttempts +lockUntil');
+    if (!user) {
+      return next(ApiError.unauthorized('Invalid guide credentials.'));
+    }
+
+    if (!user.isActive) {
+      return next(ApiError.forbidden('Your guide account has been deactivated. Contact the administrator.'));
+    }
+
+    // Check account lockout
+    if (user.isLocked()) {
+      const minutesLeft = Math.ceil((user.lockUntil - Date.now()) / 60000);
+      return next(
+        ApiError.tooMany(
+          `Account temporarily locked due to multiple failed attempts. Try again in ${minutesLeft} minute(s).`
+        )
+      );
+    }
+
+    const isMatch = await user.comparePassword(password);
+    if (!isMatch) {
+      await user.incrementLoginAttempts();
+      return next(ApiError.unauthorized('Invalid guide credentials.'));
+    }
+
+    // Successful login — reset lockout counters
+    await user.resetLoginAttempts();
+
+    const token = user.getSignedJwtToken();
+
+    ApiResponse.success(res, 200, 'Guide login successful.', {
+      token,
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        expertise: user.expertise,
+        bio: user.bio,
+        isActive: user.isActive,
       },
     });
   } catch (error) {
@@ -267,22 +326,37 @@ const getMe = async (req, res, next) => {
   try {
     const user = await User.findById(req.user.id);
 
+    const userData = {
+      id: user._id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      phone: user.phone,
+      college: user.college,
+      department: user.department,
+      yearOfStudy: user.yearOfStudy,
+      skills: user.skills,
+      isEmailVerified: user.isEmailVerified,
+      avatar: user.avatar,
+      resumeUrl: user.resumeUrl,
+      isActive: user.isActive,
+      createdAt: user.createdAt,
+    };
+
+    // Include guide-specific fields
+    if (user.role === 'guide') {
+      userData.expertise = user.expertise;
+      userData.bio = user.bio;
+      userData.assignedStudents = user.assignedStudents;
+    }
+
+    // Include student-specific guide assignment
+    if (user.role === 'student') {
+      userData.assignedGuide = user.assignedGuide;
+    }
+
     ApiResponse.success(res, 200, 'User fetched successfully.', {
-      user: {
-        id: user._id,
-        name: user.name,
-        email: user.email,
-        role: user.role,
-        phone: user.phone,
-        college: user.college,
-        department: user.department,
-        yearOfStudy: user.yearOfStudy,
-        skills: user.skills,
-        isEmailVerified: user.isEmailVerified,
-        avatar: user.avatar,
-        resumeUrl: user.resumeUrl,
-        createdAt: user.createdAt,
-      },
+      user: userData,
     });
   } catch (error) {
     next(error);
@@ -293,6 +367,7 @@ module.exports = {
   register,
   login,
   adminLogin,
+  guideLogin,
   verifyEmail,
   forgotPassword,
   resetPassword,
