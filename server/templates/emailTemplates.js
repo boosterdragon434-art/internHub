@@ -155,6 +155,22 @@ const passwordResetTemplate = (name, resetUrl) =>
     ${paragraph(`<span style="color:${grayText};font-size:13px;">If the button doesn't work, copy this link: <br><a href="${resetUrl}" style="color:${brandColor};word-break:break-all;">${resetUrl}</a></span>`)}
   `);
 
+const reminderTemplate = (name, reminderTitle, reminderDescription) =>
+  baseTemplate(`
+    ${greeting(name)}
+    ${paragraph(`This is an automated reminder from InternHub for your upcoming deliverable/alert:`)}
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin:20px 0;background:${bgLight};border-radius:8px;border:1px solid #E2E8F0;">
+      <tr>
+        <td style="padding:20px;">
+          <p style="color:${brandColor};font-size:14px;font-weight:700;margin:0 0 8px;text-transform:uppercase;">${reminderTitle}</p>
+          <p style="color:#334155;font-size:15px;line-height:1.6;margin:0;">${reminderDescription || 'No additional description provided.'}</p>
+        </td>
+      </tr>
+    </table>
+    ${actionButton('Open Workspace Dashboard', process.env.CLIENT_URL + '/dashboard')}
+    ${paragraph('Please review and complete any associated tasks in a timely manner. Thank you!')}
+  `);
+
 module.exports = {
   registrationTemplate,
   emailVerificationTemplate,
@@ -165,4 +181,5 @@ module.exports = {
   paymentSuccessTemplate,
   joiningConfirmationTemplate,
   passwordResetTemplate,
+  reminderTemplate,
 };

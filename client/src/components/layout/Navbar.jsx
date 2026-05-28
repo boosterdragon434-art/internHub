@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { useSocket } from '../../context/SocketContext';
 import { useClickOutside } from '../../hooks/useClickOutside';
 import { getNotifications, markNotificationAsRead, markAllNotificationsAsRead } from '../../api/notificationApi';
 import {
@@ -22,6 +23,7 @@ import { formatDate } from '../../utils/formatters';
 
 const Navbar = () => {
   const { user, isAuthenticated, logout, isAdmin } = useAuth();
+  const { socket } = useSocket();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -83,6 +85,21 @@ const Navbar = () => {
     }
     return () => clearInterval(interval);
   }, [isAuthenticated, location.pathname]);
+
+  // Synchronise live notifications via WebSockets
+  useEffect(() => {
+    if (!socket) return;
+
+    const handleSocketNotif = (notif) => {
+      setNotifications((prev) => [notif, ...prev]);
+      setUnreadCount((c) => c + 1);
+    };
+
+    socket.on('notification', handleSocketNotif);
+    return () => {
+      socket.off('notification', handleSocketNotif);
+    };
+  }, [socket]);
 
   const handleMarkAllRead = async () => {
     try {
@@ -271,7 +288,7 @@ const Navbar = () => {
                     className="flex items-center gap-1.5 p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors text-left"
                   >
                     <div className="w-8 h-8 rounded-full bg-accent-500/10 text-accent-600 dark:text-accent-400 font-extrabold flex items-center justify-center text-sm border border-accent-500/20">
-                      {user.name.charAt(0).toUpperCase()}
+                      {user?.name ? user.name.charAt(0).toUpperCase() : 'U'}
                     </div>
                     <FiChevronDown className="h-4 w-4 text-slate-500" />
                   </button>
@@ -280,10 +297,10 @@ const Navbar = () => {
                     <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-xl z-50 overflow-hidden">
                       <div className="px-4 py-2.5 border-b border-slate-200 dark:border-slate-800">
                         <p className="text-xs font-bold text-slate-900 dark:text-slate-100 truncate">
-                          {user.name}
+                          {user?.name || 'User'}
                         </p>
                         <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate">
-                          {user.email}
+                          {user?.email || ''}
                         </p>
                       </div>
                       <div className="p-1">
@@ -387,14 +404,14 @@ const Navbar = () => {
               {/* User Profile Info Card */}
               <div className="flex items-center gap-3 px-1.5 py-1">
                 <div className="w-10 h-10 rounded-full bg-accent-500/10 text-accent-600 dark:text-accent-400 font-extrabold flex items-center justify-center text-base border border-accent-500/20">
-                  {user.name.charAt(0).toUpperCase()}
+                  {user?.name ? user.name.charAt(0).toUpperCase() : 'U'}
                 </div>
                 <div className="truncate">
                   <p className="text-xs font-bold text-slate-900 dark:text-slate-100 truncate">
-                    {user.name}
+                    {user?.name || 'User'}
                   </p>
                   <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate">
-                    {user.email}
+                    {user?.email || ''}
                   </p>
                 </div>
               </div>

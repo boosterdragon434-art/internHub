@@ -14,9 +14,15 @@ const startServer = async () => {
   try {
     await connectDB();
 
+    const { startReminderScheduler } = require('./services/reminderService');
+    startReminderScheduler();
+
     const server = app.listen(PORT, () => {
       logger.info(`InternHub server running on port ${PORT} [${process.env.NODE_ENV}]`);
     });
+
+    const { initSocket } = require('./services/socketService');
+    initSocket(server);
 
     // Graceful shutdown handlers
     const shutdown = (signal) => {

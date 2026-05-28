@@ -9,6 +9,7 @@ const connectDB = require('./config/db');
 const logger = require('./utils/logger');
 const { generalLimiter } = require('./middleware/rateLimiter');
 const errorHandler = require('./middleware/errorHandler');
+const { passiveReminderCheck } = require('./services/reminderService');
 
 // Route imports
 const authRoutes = require('./routes/authRoutes');
@@ -19,6 +20,10 @@ const userRoutes = require('./routes/userRoutes');
 const notificationRoutes = require('./routes/notificationRoutes');
 const settingsRoutes = require('./routes/settingsRoutes');
 const guideRoutes = require('./routes/guideRoutes');
+const taskRoutes = require('./routes/taskRoutes');
+const reminderRoutes = require('./routes/reminderRoutes');
+const certificateRoutes = require('./routes/certificateRoutes');
+const chatRoutes = require('./routes/chatRoutes');
 
 const app = express();
 
@@ -93,6 +98,7 @@ app.use(xssClean());
 // --------------- General Middleware ---------------
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+app.use(passiveReminderCheck);
 
 if (process.env.NODE_ENV === 'development') {
   app.use(morgan('dev'));
@@ -111,6 +117,10 @@ app.use('/api/users', userRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/settings', settingsRoutes);
 app.use('/api/guides', guideRoutes);
+app.use('/api/tasks', taskRoutes);
+app.use('/api/reminders', reminderRoutes);
+app.use('/api/certificates', certificateRoutes);
+app.use('/api/chat', chatRoutes);
 
 // 2. Mounted without prefix (fallback to handle direct Vercel API calls perfectly)
 app.use('/auth', authRoutes);
@@ -121,6 +131,10 @@ app.use('/users', userRoutes);
 app.use('/notifications', notificationRoutes);
 app.use('/settings', settingsRoutes);
 app.use('/guides', guideRoutes);
+app.use('/tasks', taskRoutes);
+app.use('/reminders', reminderRoutes);
+app.use('/certificates', certificateRoutes);
+app.use('/chat', chatRoutes);
 
 // --------------- Health Check ---------------
 const healthHandler = (_req, res) => {

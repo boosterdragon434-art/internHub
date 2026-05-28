@@ -10,6 +10,8 @@ import Badge from '../../components/common/Badge';
 import { formatDate } from '../../utils/formatters';
 import { DashboardSkeleton } from '../../components/ui/SkeletonCard';
 
+import ReminderWidget from '../../components/productivity/ReminderWidget';
+
 const StudentDashboard = () => {
   const { user } = useAuth();
   const [applications, setApplications] = useState([]);
@@ -68,46 +70,54 @@ const StudentDashboard = () => {
         <StatsCard title="Payment Pending" value={paymentPending} icon={FiCreditCard} color="purple" />
       </div>
 
-      {/* Recent Applications */}
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-slate-800">
-          <h2 className="text-sm font-bold text-slate-900 dark:text-slate-50">Recent Applications</h2>
-          <Link to="/student/applications" className="text-xs font-semibold text-accent-600 dark:text-accent-400 hover:text-accent-700">
-            View All
-          </Link>
-        </div>
-        <div className="overflow-x-auto">
-          {applications.length === 0 ? (
-            <div className="p-10 text-center text-xs text-slate-500">
-              No applications yet.{' '}
-              <Link to="/internships" className="font-semibold text-accent-600 dark:text-accent-400">Browse internships</Link>
-            </div>
-          ) : (
-            <table className="w-full text-left">
-              <thead>
-                <tr className="bg-slate-50 dark:bg-slate-900/50 border-b border-slate-200 dark:border-slate-800">
-                  <th className="px-6 py-3 text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Internship</th>
-                  <th className="px-6 py-3 text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Status</th>
-                  <th className="px-6 py-3 text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Applied On</th>
-                </tr>
-              </thead>
-              <tbody>
-                {applications.slice(0, 5).map((app) => (
-                  <tr key={app._id} className="border-b border-slate-100 dark:border-slate-800/60 hover:bg-slate-50/50 dark:hover:bg-slate-900/30 transition-colors">
-                    <td className="px-6 py-3 text-sm font-semibold text-slate-900 dark:text-slate-50 whitespace-nowrap">
-                      {app.internship?.title || 'N/A'}
-                    </td>
-                    <td className="px-6 py-3 whitespace-nowrap">
-                      <Badge status={app.status} />
-                    </td>
-                    <td className="px-6 py-3 text-xs text-slate-500 whitespace-nowrap">
-                      {formatDate(app.createdAt)}
-                    </td>
+      {/* Split Grid for Applications & Alerts */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+        {/* Recent Applications */}
+        <div className="lg:col-span-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-sm">
+          <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-slate-800">
+            <h2 className="text-sm font-bold text-slate-900 dark:text-slate-50">Recent Applications</h2>
+            <Link to="/student/applications" className="text-xs font-semibold text-accent-600 dark:text-accent-400 hover:text-accent-700">
+              View All
+            </Link>
+          </div>
+          <div className="overflow-x-auto">
+            {applications.length === 0 ? (
+              <div className="p-10 text-center text-xs text-slate-500">
+                No applications yet.{' '}
+                <Link to="/internships" className="font-semibold text-accent-600 dark:text-accent-400">Browse internships</Link>
+              </div>
+            ) : (
+              <table className="w-full text-left">
+                <thead>
+                  <tr className="bg-slate-50 dark:bg-slate-900/50 border-b border-slate-200 dark:border-slate-800">
+                    <th className="px-6 py-3 text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Internship</th>
+                    <th className="px-6 py-3 text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Status</th>
+                    <th className="px-6 py-3 text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Applied On</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
+                </thead>
+                <tbody>
+                  {applications.slice(0, 5).map((app) => (
+                    <tr key={app._id} className="border-b border-slate-100 dark:border-slate-800/60 hover:bg-slate-50/50 dark:hover:bg-slate-900/30 transition-colors">
+                      <td className="px-6 py-3 text-sm font-semibold text-slate-900 dark:text-slate-50 whitespace-nowrap">
+                        {app.internship?.title || 'N/A'}
+                      </td>
+                      <td className="px-6 py-3 whitespace-nowrap">
+                        <Badge status={app.status} />
+                      </td>
+                      <td className="px-6 py-3 text-xs text-slate-500 whitespace-nowrap">
+                        {formatDate(app.createdAt)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        </div>
+
+        {/* Productivity Alerts */}
+        <div className="lg:col-span-1">
+          <ReminderWidget />
         </div>
       </div>
     </>

@@ -11,6 +11,7 @@ const {
   paymentSuccessTemplate,
   joiningConfirmationTemplate,
   passwordResetTemplate,
+  reminderTemplate,
 } = require('../templates/emailTemplates');
 
 /**
@@ -148,6 +149,11 @@ class EmailService {
     const resetUrl = `${process.env.CLIENT_URL}/reset-password/${token}`;
     const html = passwordResetTemplate(user.name, resetUrl);
     await this._sendEmail(user.email, 'Password Reset — InternHub', html, 'password_reset');
+  }
+
+  async sendReminderEmail(user, title, description) {
+    const html = reminderTemplate(user.name, title, description);
+    await this._sendEmail(user.email, `Reminder Alert — ${title} ⏰`, html, 'reminder');
   }
 }
 

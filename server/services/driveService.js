@@ -145,6 +145,30 @@ class DriveService {
   }
 
   /**
+   * Download a file from Google Drive as a binary Buffer.
+   * Used primarily to fetch custom certificate template backgrounds for PDF compilation.
+   * @param {string} fileId - Google Drive file ID
+   * @returns {Promise<Buffer>} File content as a Buffer
+   */
+  async downloadFile(fileId) {
+    try {
+      if (!fileId) {
+        throw new Error('File ID is required for download');
+      }
+      const drive = this._getClient();
+      const response = await drive.files.get(
+        { fileId, alt: 'media' },
+        { responseType: 'arraybuffer' }
+      );
+      logger.info(`File downloaded from Drive: ${fileId}`);
+      return Buffer.from(response.data);
+    } catch (error) {
+      logger.error(`Drive download error for ${fileId}:`, error);
+      throw new Error(`Failed to download file from Google Drive: ${error.message}`);
+    }
+  }
+
+  /**
    * Get file metadata from Google Drive.
    * @param {string} fileId
    * @returns {Promise<object>} File metadata

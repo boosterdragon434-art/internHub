@@ -1,0 +1,204 @@
+const mongoose = require('mongoose');
+
+/**
+ * Overlay sub-schema — defines a single text/wipe element positioned on the certificate canvas.
+ * Coordinates are stored as percentage (0–100) of the canvas dimensions.
+ */
+const overlaySchema = new mongoose.Schema(
+  {
+    id: {
+      type: String,
+      required: true,
+    },
+    field: {
+      type: String,
+      enum: ['studentName', 'courseName', 'date', 'certificateId', 'serialNumber', 'instructorName', 'customText', 'wipe'],
+      required: true,
+    },
+    x: {
+      type: Number,
+      default: 50,
+      min: 0,
+      max: 100,
+    },
+    y: {
+      type: Number,
+      default: 50,
+      min: 0,
+      max: 100,
+    },
+    fontSize: {
+      type: Number,
+      default: 24,
+      min: 4,
+      max: 120,
+    },
+    fontWeight: {
+      type: String,
+      enum: ['normal', 'bold'],
+      default: 'normal',
+    },
+    fontFamily: {
+      type: String,
+      default: 'Helvetica-Bold',
+      trim: true,
+    },
+    color: {
+      type: String,
+      default: '#000000',
+      trim: true,
+    },
+    align: {
+      type: String,
+      enum: ['left', 'center', 'right'],
+      default: 'center',
+    },
+    maxWidth: {
+      type: Number,
+      default: 60,
+      min: 1,
+      max: 100,
+    },
+    height: {
+      type: Number,
+      default: 5,
+      min: 0.1,
+      max: 100,
+    },
+    uppercase: {
+      type: Boolean,
+      default: false,
+    },
+    rotation: {
+      type: Number,
+      default: 0,
+      min: 0,
+      max: 360,
+    },
+    opacity: {
+      type: Number,
+      default: 1,
+      min: 0,
+      max: 1,
+    },
+    lineHeight: {
+      type: Number,
+      default: 1.2,
+      min: 0.5,
+      max: 3,
+    },
+    letterSpacing: {
+      type: Number,
+      default: 0,
+    },
+    visible: {
+      type: Boolean,
+      default: true,
+    },
+    customText: {
+      type: String,
+      default: '',
+      trim: true,
+    },
+    dateFormat: {
+      type: String,
+      default: 'DD/MM/YYYY',
+      trim: true,
+    },
+  },
+  { _id: false }
+);
+
+/**
+ * CertificateTemplate Schema — Layout configurations for PDF certificate backgrounds,
+ * overlay-based text field positioning, and editor metadata.
+ */
+const certificateTemplateSchema = new mongoose.Schema(
+  {
+    name: {
+      type: String,
+      required: [true, 'Template name is required'],
+      trim: true,
+      maxlength: [100, 'Template name cannot exceed 100 characters'],
+    },
+    description: {
+      type: String,
+      trim: true,
+      default: '',
+    },
+    backgroundImageUrl: {
+      type: String,
+      default: '',
+    },
+    backgroundImageDriveId: {
+      type: String,
+      default: '',
+    },
+    // Canvas pixel dimensions of the original template image
+    width: {
+      type: Number,
+      default: 842,
+    },
+    height: {
+      type: Number,
+      default: 595,
+    },
+    logoUrl: {
+      type: String,
+      default: '',
+    },
+    signatureUrl: {
+      type: String,
+      default: '',
+    },
+    // Dynamic overlay-based positioning system (replaces fixed layout)
+    overlays: [overlaySchema],
+    // Legacy fixed layout (kept for backward compatibility)
+    layout: {
+      namePosition: {
+        x: { type: Number, default: 300 },
+        y: { type: Number, default: 220 },
+      },
+      datePosition: {
+        x: { type: Number, default: 150 },
+        y: { type: Number, default: 420 },
+      },
+      idPosition: {
+        x: { type: Number, default: 150 },
+        y: { type: Number, default: 450 },
+      },
+      qrPosition: {
+        x: { type: Number, default: 480 },
+        y: { type: Number, default: 400 },
+      },
+    },
+    typography: {
+      fontFamily: { type: String, default: 'Helvetica' },
+      fontSize: { type: Number, default: 28 },
+      color: { type: String, default: '#1E293B' },
+    },
+    // Editor state metadata (zoom, grid settings)
+    metadata: {
+      editorZoom: { type: Number, default: 100 },
+      showGrid: { type: Boolean, default: false },
+      gridSize: { type: Number, default: 10 },
+    },
+    isDefault: {
+      type: Boolean,
+      default: false,
+    },
+    createdBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      required: [true, 'Creator is required'],
+    },
+  },
+  {
+    timestamps: true,
+  }
+);
+
+// --------- Indexes ---------
+certificateTemplateSchema.index({ isDefault: 1 });
+
+module.exports = mongoose.model('CertificateTemplate', certificateTemplateSchema);

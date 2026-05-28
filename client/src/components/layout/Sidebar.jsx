@@ -13,6 +13,10 @@ import {
   FiLogOut,
   FiUser,
   FiX,
+  FiCheckSquare,
+  FiCalendar,
+  FiAward,
+  FiMessageSquare,
 } from 'react-icons/fi';
 
 /**
@@ -30,12 +34,19 @@ const Sidebar = ({ role = 'admin', mobileOpen = false, onMobileClose }) => {
     { icon: FiFileText, label: 'Applications', to: '/admin/applications' },
     { icon: FiCreditCard, label: 'Payments', to: '/admin/payments' },
     { icon: FiUsers, label: 'Users', to: '/admin/users' },
+    { icon: FiCheckSquare, label: 'Workspace Tasks', to: '/admin/tasks' },
+    { icon: FiCalendar, label: 'Calendar Planner', to: '/admin/calendar' },
+    { icon: FiAward, label: 'Issue Credentials', to: '/admin/certificates' },
+    { icon: FiMessageSquare, label: 'Discussions', to: '/admin/chat' },
     { icon: FiSettings, label: 'Settings', to: '/admin/settings' },
   ];
 
   const guideLinks = [
     { icon: FiGrid, label: 'Dashboard', to: '/guide/dashboard' },
     { icon: FiUsers, label: 'My Students', to: '/guide/students' },
+    { icon: FiCheckSquare, label: 'Workspace Tasks', to: '/guide/tasks' },
+    { icon: FiCalendar, label: 'Cohort Planner', to: '/guide/calendar' },
+    { icon: FiMessageSquare, label: 'Discussions', to: '/guide/chat' },
     { icon: FiUser, label: 'Profile', to: '/guide/profile' },
   ];
 
@@ -43,6 +54,10 @@ const Sidebar = ({ role = 'admin', mobileOpen = false, onMobileClose }) => {
     { icon: FiGrid, label: 'Dashboard', to: '/student/dashboard' },
     { icon: FiBriefcase, label: 'Browse Internships', to: '/internships' },
     { icon: FiFileText, label: 'My Applications', to: '/student/applications' },
+    { icon: FiCheckSquare, label: 'My Tasks', to: '/student/tasks' },
+    { icon: FiCalendar, label: 'My Calendar', to: '/student/calendar' },
+    { icon: FiAward, label: 'My Certificates', to: '/student/certificates' },
+    { icon: FiMessageSquare, label: 'Discussions', to: '/student/chat' },
     { icon: FiCreditCard, label: 'Payments', to: '/student/payments' },
     { icon: FiUser, label: 'Profile', to: '/student/profile' },
   ];

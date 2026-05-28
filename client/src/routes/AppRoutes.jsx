@@ -35,6 +35,9 @@ const ApplicationFormPage = lazy(() => import('../pages/student/ApplicationFormP
 const MyApplicationsPage = lazy(() => import('../pages/student/MyApplicationsPage'));
 const PaymentPage = lazy(() => import('../pages/student/PaymentPage'));
 const ProfilePage = lazy(() => import('../pages/student/ProfilePage'));
+const StudentTasksPage = lazy(() => import('../pages/student/StudentTasksPage'));
+const StudentCalendarPage = lazy(() => import('../pages/student/StudentCalendarPage'));
+const MyCertificatesPage = lazy(() => import('../pages/student/MyCertificatesPage'));
 
 // Lazy loaded admin pages
 const AdminDashboard = lazy(() => import('../pages/admin/AdminDashboard'));
@@ -43,12 +46,21 @@ const AdminApplicationsPage = lazy(() => import('../pages/admin/AdminApplication
 const AdminPaymentsPage = lazy(() => import('../pages/admin/AdminPaymentsPage'));
 const AdminUsersPage = lazy(() => import('../pages/admin/AdminUsersPage'));
 const AdminSettingsPage = lazy(() => import('../pages/admin/AdminSettingsPage'));
+const AdminTasksPage = lazy(() => import('../pages/admin/AdminTasksPage'));
+const AdminCalendarPage = lazy(() => import('../pages/admin/AdminCalendarPage'));
+const CertificateGeneratorPage = lazy(() => import('../pages/admin/CertificateGeneratorPage'));
 
 // Lazy loaded guide pages
 const GuideDashboard = lazy(() => import('../pages/guide/GuideDashboard'));
 const GuideStudentsPage = lazy(() => import('../pages/guide/GuideStudentsPage'));
 const GuideStudentDetailPage = lazy(() => import('../pages/guide/GuideStudentDetailPage'));
 const GuideProfilePage = lazy(() => import('../pages/guide/GuideProfilePage'));
+const GuideTasksPage = lazy(() => import('../pages/guide/GuideTasksPage'));
+const GuideCalendarPage = lazy(() => import('../pages/guide/GuideCalendarPage'));
+const CertificateVerifyPage = lazy(() => import('../pages/public/CertificateVerifyPage'));
+
+// Lazy loaded Chat page
+const ChatPage = lazy(() => import('../pages/chat/ChatPage'));
 
 const AppRoutes = () => {
   return (
@@ -61,6 +73,7 @@ const AppRoutes = () => {
           <Route path="/internships/:id" element={<InternshipDetailPage />} />
           <Route path="/about" element={<AboutPage />} />
           <Route path="/contact" element={<ContactPage />} />
+          <Route path="/verify-certificate/:certificateId" element={<CertificateVerifyPage />} />
           
           {/* Protected apply route (uses public layout header/footer) */}
           <Route
@@ -129,8 +142,12 @@ const AppRoutes = () => {
           <Route index element={<Navigate to="/student/dashboard" replace />} />
           <Route path="dashboard" element={<StudentDashboard />} />
           <Route path="applications" element={<MyApplicationsPage />} />
+          <Route path="tasks" element={<StudentTasksPage />} />
+          <Route path="calendar" element={<StudentCalendarPage />} />
+          <Route path="certificates" element={<MyCertificatesPage />} />
           <Route path="payments" element={<PaymentPage />} />
           <Route path="profile" element={<ProfilePage />} />
+          <Route path="chat" element={<ChatPage />} />
         </Route>
 
         {/* Guide Dashboard Routes */}
@@ -148,7 +165,10 @@ const AppRoutes = () => {
           <Route path="dashboard" element={<GuideDashboard />} />
           <Route path="students" element={<GuideStudentsPage />} />
           <Route path="students/:id" element={<GuideStudentDetailPage />} />
+          <Route path="tasks" element={<GuideTasksPage />} />
+          <Route path="calendar" element={<GuideCalendarPage />} />
           <Route path="profile" element={<GuideProfilePage />} />
+          <Route path="chat" element={<ChatPage />} />
         </Route>
 
         {/* Admin Dashboard Routes */}
@@ -168,7 +188,11 @@ const AppRoutes = () => {
           <Route path="applications" element={<AdminApplicationsPage />} />
           <Route path="payments" element={<AdminPaymentsPage />} />
           <Route path="users" element={<AdminUsersPage />} />
+          <Route path="tasks" element={<AdminTasksPage />} />
+          <Route path="calendar" element={<AdminCalendarPage />} />
+          <Route path="certificates" element={<CertificateGeneratorPage />} />
           <Route path="settings" element={<AdminSettingsPage />} />
+          <Route path="chat" element={<ChatPage />} />
         </Route>
       </Routes>
     </Suspense>
