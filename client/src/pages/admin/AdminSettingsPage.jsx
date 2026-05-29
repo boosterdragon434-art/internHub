@@ -11,6 +11,7 @@ import {
   FiUser,
   FiCheckCircle,
   FiEye,
+  FiClock,
 } from 'react-icons/fi';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
@@ -18,6 +19,7 @@ import { updateProfile, changePassword } from '../../api/userApi';
 import { getCooldownSetting, updateCooldownSetting } from '../../api/settingsApi';
 import Input from '../../components/common/Input';
 import Button from '../../components/common/Button';
+import AdminAttendanceSettingsSection from './AdminAttendanceSettingsSection';
 
 // High-fidelity Client-Side HTML Email Template Generators for Real-time Previews
 const mockBaseTemplate = (title, content) => `
@@ -264,9 +266,10 @@ const AdminSettingsPage = () => {
       {/* Tabs Layout */}
       <div className="flex flex-col lg:flex-row gap-8">
         {/* Sidebar Tabs Selector */}
-        <div className="lg:w-64 flex flex-row lg:flex-col gap-2 overflow-x-auto lg:overflow-x-visible pb-2 lg:pb-0 border-b lg:border-b-0 lg:border-r border-slate-200 dark:border-slate-800 pr-0 lg:pr-6 shrink-0">
+        <div className="lg:w-64 flex flex-row lg:flex-col gap-2 overflow-x-auto lg:overflow-x-visible pb-2 lg:pb-0 border-b lg:border-b-0 lg:border-r border-slate-200 dark:border-slate-800 pr-0 lg:pr-6 shrink-0 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
           {[
             { id: 'system', label: 'System Integration', icon: FiSettings },
+            { id: 'attendance', label: 'Attendance Rules', icon: FiClock },
             { id: 'templates', label: 'Email Templates', icon: FiMail },
             { id: 'profile', label: 'Admin Security', icon: FiUser },
           ].map((tab) => (
@@ -406,6 +409,9 @@ const AdminSettingsPage = () => {
                   </div>
                 </div>
               )}
+
+              {/* ATTENDANCE SETTINGS TAB */}
+              {activeTab === 'attendance' && <AdminAttendanceSettingsSection />}
 
               {/* ADMIN PROFILE TAB */}
               {activeTab === 'profile' && (

@@ -24,6 +24,8 @@ const taskRoutes = require('./routes/taskRoutes');
 const reminderRoutes = require('./routes/reminderRoutes');
 const certificateRoutes = require('./routes/certificateRoutes');
 const chatRoutes = require('./routes/chatRoutes');
+const attendanceRoutes = require('./routes/attendanceRoutes');
+const teamRoutes = require('./routes/teamRoutes');
 
 const app = express();
 
@@ -121,6 +123,8 @@ app.use('/api/tasks', taskRoutes);
 app.use('/api/reminders', reminderRoutes);
 app.use('/api/certificates', certificateRoutes);
 app.use('/api/chat', chatRoutes);
+app.use('/api/attendance', attendanceRoutes);
+app.use('/api/teams', teamRoutes);
 
 // 2. Mounted without prefix (fallback to handle direct Vercel API calls perfectly)
 app.use('/auth', authRoutes);
@@ -135,6 +139,8 @@ app.use('/tasks', taskRoutes);
 app.use('/reminders', reminderRoutes);
 app.use('/certificates', certificateRoutes);
 app.use('/chat', chatRoutes);
+app.use('/attendance', attendanceRoutes);
+app.use('/teams', teamRoutes);
 
 // --------------- Health Check ---------------
 const healthHandler = (_req, res) => {

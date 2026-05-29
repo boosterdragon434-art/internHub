@@ -38,6 +38,7 @@ const ProfilePage = lazy(() => import('../pages/student/ProfilePage'));
 const StudentTasksPage = lazy(() => import('../pages/student/StudentTasksPage'));
 const StudentCalendarPage = lazy(() => import('../pages/student/StudentCalendarPage'));
 const MyCertificatesPage = lazy(() => import('../pages/student/MyCertificatesPage'));
+const StudentAttendancePage = lazy(() => import('../pages/student/StudentAttendancePage'));
 
 // Lazy loaded admin pages
 const AdminDashboard = lazy(() => import('../pages/admin/AdminDashboard'));
@@ -49,6 +50,8 @@ const AdminSettingsPage = lazy(() => import('../pages/admin/AdminSettingsPage'))
 const AdminTasksPage = lazy(() => import('../pages/admin/AdminTasksPage'));
 const AdminCalendarPage = lazy(() => import('../pages/admin/AdminCalendarPage'));
 const CertificateGeneratorPage = lazy(() => import('../pages/admin/CertificateGeneratorPage'));
+const AdminAttendancePage = lazy(() => import('../pages/admin/AdminAttendancePage'));
+const AdminTeamsPage = lazy(() => import('../pages/admin/AdminTeamsPage'));
 
 // Lazy loaded guide pages
 const GuideDashboard = lazy(() => import('../pages/guide/GuideDashboard'));
@@ -57,6 +60,7 @@ const GuideStudentDetailPage = lazy(() => import('../pages/guide/GuideStudentDet
 const GuideProfilePage = lazy(() => import('../pages/guide/GuideProfilePage'));
 const GuideTasksPage = lazy(() => import('../pages/guide/GuideTasksPage'));
 const GuideCalendarPage = lazy(() => import('../pages/guide/GuideCalendarPage'));
+const GuideAttendancePage = lazy(() => import('../pages/guide/GuideAttendancePage'));
 const CertificateVerifyPage = lazy(() => import('../pages/public/CertificateVerifyPage'));
 
 // Lazy loaded Chat page
@@ -147,6 +151,7 @@ const AppRoutes = () => {
           <Route path="certificates" element={<MyCertificatesPage />} />
           <Route path="payments" element={<PaymentPage />} />
           <Route path="profile" element={<ProfilePage />} />
+          <Route path="attendance" element={<StudentAttendancePage />} />
           <Route path="chat" element={<ChatPage />} />
         </Route>
 
@@ -168,6 +173,7 @@ const AppRoutes = () => {
           <Route path="tasks" element={<GuideTasksPage />} />
           <Route path="calendar" element={<GuideCalendarPage />} />
           <Route path="profile" element={<GuideProfilePage />} />
+          <Route path="attendance" element={<GuideAttendancePage />} />
           <Route path="chat" element={<ChatPage />} />
         </Route>
 
@@ -192,6 +198,8 @@ const AppRoutes = () => {
           <Route path="calendar" element={<AdminCalendarPage />} />
           <Route path="certificates" element={<CertificateGeneratorPage />} />
           <Route path="settings" element={<AdminSettingsPage />} />
+          <Route path="attendance" element={<AdminAttendancePage />} />
+          <Route path="teams" element={<AdminTeamsPage />} />
           <Route path="chat" element={<ChatPage />} />
         </Route>
       </Routes>

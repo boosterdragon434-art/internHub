@@ -42,4 +42,16 @@ const paymentLimiter = rateLimit({
   legacyHeaders: false,
 });
 
-module.exports = { generalLimiter, authLimiter, paymentLimiter };
+/** Attendance endpoints rate limiter — 600 requests per 15 minutes */
+const attendanceLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 600,
+  message: {
+    success: false,
+    message: 'Too many attendance requests. Please try again after 15 minutes.',
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+module.exports = { generalLimiter, authLimiter, paymentLimiter, attendanceLimiter };

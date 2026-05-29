@@ -38,6 +38,13 @@ const USER_ROLES = {
   GUIDE: 'guide',
 };
 
+const ATTENDANCE_STATUS = {
+  CHECKED_IN: 'checked-in',
+  ON_BREAK: 'on-break',
+  CHECKED_OUT: 'checked-out',
+  MISSED_CHECKOUT: 'missed-checkout',
+};
+
 const NOTIFICATION_TYPES = {
   APPLICATION: 'application',
   PAYMENT: 'payment',
@@ -48,6 +55,7 @@ const NOTIFICATION_TYPES = {
   CERTIFICATE: 'certificate',
   CHAT: 'chat',
   SYSTEM: 'system',
+  ATTENDANCE: 'attendance',
 };
 
 const EMAIL_TYPES = {
@@ -88,6 +96,7 @@ module.exports = {
   INTERNSHIP_MODE,
   INTERNSHIP_STATUS,
   USER_ROLES,
+  ATTENDANCE_STATUS,
   NOTIFICATION_TYPES,
   EMAIL_TYPES,
   PAGINATION,
