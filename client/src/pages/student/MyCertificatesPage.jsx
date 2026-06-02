@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Helmet } from 'react-helmet-async';
 import { motion } from 'framer-motion';
 import { FiAward, FiDownload, FiExternalLink, FiAward as FiBadgeIcon } from 'react-icons/fi';
-import { getMyCertificates } from '../../api/certificateApi';
+import { getMyCertificates, downloadCertificate } from '../../api/certificateApi';
 import { toast } from 'react-hot-toast';
 import EmptyState from '../../components/common/EmptyState';
 
@@ -108,14 +108,27 @@ const MyCertificatesPage = () => {
                 >
                   <FiExternalLink className="w-3.5 h-3.5" /> Verify Portal
                 </a>
-                <a
-                  href={cert.pdfUrl}
-                  target="_blank"
-                  rel="noreferrer"
+                <button
+                  onClick={async () => {
+                    try {
+                      const response = await downloadCertificate(cert._id);
+                      const blob = new Blob([response.data], { type: 'application/pdf' });
+                      const url = window.URL.createObjectURL(blob);
+                      const a = document.createElement('a');
+                      a.href = url;
+                      a.download = `Certificate_${cert.certificateId}.pdf`;
+                      document.body.appendChild(a);
+                      a.click();
+                      a.remove();
+                      window.URL.revokeObjectURL(url);
+                    } catch (err) {
+                      toast.error('Failed to download certificate. Try again later.');
+                    }
+                  }}
                   className="flex-1 py-2 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition shadow-lg shadow-indigo-600/15"
                 >
                   <FiDownload className="w-3.5 h-3.5" /> Download PDF
-                </a>
+                </button>
               </div>
             </motion.div>
           ))}

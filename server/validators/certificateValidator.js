@@ -35,7 +35,7 @@ const typographySchema = Joi.object({
 const overlayItemSchema = Joi.object({
   id: Joi.string().required(),
   field: Joi.string()
-    .valid('studentName', 'courseName', 'date', 'certificateId', 'serialNumber', 'instructorName', 'customText', 'wipe')
+    .valid('studentName', 'courseName', 'date', 'certificateId', 'serialNumber', 'instructorName', 'startDate', 'endDate', 'collegeName', 'companyName', 'grade', 'skills', 'performance', 'customText', 'wipe')
     .required(),
   x: Joi.number().min(0).max(100).optional(),
   y: Joi.number().min(0).max(100).optional(),
@@ -74,17 +74,46 @@ const certificateValidator = {
       'any.required': 'Application ID is required',
     }),
     grade: Joi.string().trim().max(10).default('A').optional(),
-    skillsAcquired: Joi.array().items(Joi.string().trim()).optional(),
+    skillsAcquired: Joi.array().items(Joi.string().trim().max(100)).max(20).optional(),
+    performance: Joi.string().trim().max(50).optional(),
+    overwrite: Joi.boolean().optional(),
     templateId: Joi.string().regex(objectIdPattern).message('Invalid Template ID format').optional(),
-  }),
+  }).unknown(true),
+
+  bulkGenerate: Joi.object({
+    applicationIds: Joi.array()
+      .items(Joi.string().regex(objectIdPattern).message('Invalid Application ID format'))
+      .min(1)
+      .max(50)
+      .required()
+      .messages({
+        'any.required': 'At least one Application ID is required',
+        'array.max': 'Maximum 50 applications per bulk generation',
+      }),
+    grade: Joi.string().trim().max(10).default('A').optional(),
+    skillsAcquired: Joi.array().items(Joi.string().trim().max(100)).max(20).optional(),
+    performance: Joi.string().trim().max(50).optional(),
+    overwrite: Joi.boolean().optional(),
+    templateId: Joi.string().regex(objectIdPattern).message('Invalid Template ID format').optional(),
+  }).unknown(true),
 
   createTemplate: Joi.object({
-    name: Joi.string().trim().min(1).max(100).required().messages({
-      'any.required': 'Template name is required',
-      'string.max': 'Template name cannot exceed 100 characters',
-    }),
+    name: Joi.string()
+      .trim()
+      .min(1)
+      .max(100)
+      .pattern(/^[a-zA-Z0-9\s\-_.,()&]+$/)
+      .required()
+      .messages({
+        'any.required': 'Template name is required',
+        'string.max': 'Template name cannot exceed 100 characters',
+        'string.pattern.base': 'Template name can only contain letters, numbers, spaces, and basic punctuation',
+      }),
     description: Joi.string().trim().max(500).allow('').optional(),
-    backgroundImage: Joi.string().optional(),
+    backgroundImage: Joi.string().max(14 * 1024 * 1024).optional().messages({
+      'string.max': 'Background image exceeds maximum size of 10MB',
+    }),
+    templateType: Joi.string().valid('image', 'pdf').optional(),
     layout: layoutSchema.optional(),
     typography: typographySchema.optional(),
     overlays: Joi.array().items(overlayItemSchema).max(50).optional(),
@@ -95,9 +124,20 @@ const certificateValidator = {
   }),
 
   updateTemplate: Joi.object({
-    name: Joi.string().trim().min(1).max(100).optional(),
+    name: Joi.string()
+      .trim()
+      .min(1)
+      .max(100)
+      .pattern(/^[a-zA-Z0-9\s\-_.,()&]+$/)
+      .optional()
+      .messages({
+        'string.pattern.base': 'Template name can only contain letters, numbers, spaces, and basic punctuation',
+      }),
     description: Joi.string().trim().max(500).allow('').optional(),
-    backgroundImage: Joi.string().optional(),
+    backgroundImage: Joi.string().max(14 * 1024 * 1024).optional().messages({
+      'string.max': 'Background image exceeds maximum size of 10MB',
+    }),
+    templateType: Joi.string().valid('image', 'pdf').optional(),
     layout: layoutSchema.optional(),
     typography: typographySchema.optional(),
     overlays: Joi.array().items(overlayItemSchema).max(50).optional(),
@@ -105,6 +145,13 @@ const certificateValidator = {
     width: Joi.number().min(100).max(5000).optional(),
     height: Joi.number().min(100).max(5000).optional(),
     isDefault: Joi.boolean().optional(),
+  }),
+
+  toggleStatus: Joi.object({
+    status: Joi.string().valid('active', 'inactive').required().messages({
+      'any.required': 'Status is required',
+      'any.only': 'Status must be either active or inactive',
+    }),
   }),
 };
 

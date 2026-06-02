@@ -76,19 +76,34 @@ const PAGINATION = {
   MAX_LIMIT: 100,
 };
 
+const CERTIFICATE_STATUS = {
+  DRAFT: 'draft',
+  ISSUED: 'issued',
+  REVOKED: 'revoked',
+};
+
+const TEMPLATE_STATUS = {
+  ACTIVE: 'active',
+  INACTIVE: 'inactive',
+};
+
 const FILE_LIMITS = {
   RESUME_MAX_SIZE: 5 * 1024 * 1024, // 5MB
   IMAGE_MAX_SIZE: 5 * 1024 * 1024, // 5MB
+  CERTIFICATE_TEMPLATE_MAX_SIZE: 10 * 1024 * 1024, // 10MB
   ALLOWED_RESUME_TYPES: ['application/pdf'],
   ALLOWED_IMAGE_TYPES: ['image/jpeg', 'image/png', 'image/webp'],
+  ALLOWED_TEMPLATE_TYPES: ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'],
+  /** Maximum base64 string length (~13.3MB base64 = 10MB binary) */
+  MAX_BASE64_LENGTH: 14 * 1024 * 1024,
 };
 
-const DRIVE_FOLDERS = {
-  RESUMES: 'Resumes',
-  CERTIFICATES: 'Certificates',
-  RECEIPTS: 'Receipts',
-  IMAGES: 'InternshipImages',
-};
+
+/** Prefix for collision-resistant certificate IDs */
+const CERTIFICATE_ID_PREFIX = 'CERT';
+
+/** Maximum number of applications for bulk certificate generation */
+const BULK_GENERATION_LIMIT = 50;
 
 module.exports = {
   APPLICATION_STATUS,
@@ -100,6 +115,9 @@ module.exports = {
   NOTIFICATION_TYPES,
   EMAIL_TYPES,
   PAGINATION,
+  CERTIFICATE_STATUS,
+  TEMPLATE_STATUS,
   FILE_LIMITS,
-  DRIVE_FOLDERS,
+  CERTIFICATE_ID_PREFIX,
+  BULK_GENERATION_LIMIT,
 };

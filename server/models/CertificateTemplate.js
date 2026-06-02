@@ -12,7 +12,7 @@ const overlaySchema = new mongoose.Schema(
     },
     field: {
       type: String,
-      enum: ['studentName', 'courseName', 'date', 'certificateId', 'serialNumber', 'instructorName', 'customText', 'wipe'],
+      enum: ['studentName', 'courseName', 'date', 'certificateId', 'serialNumber', 'instructorName', 'startDate', 'endDate', 'collegeName', 'companyName', 'grade', 'skills', 'performance', 'customText', 'wipe'],
       required: true,
     },
     x: {
@@ -121,6 +121,25 @@ const certificateTemplateSchema = new mongoose.Schema(
       trim: true,
       maxlength: [100, 'Template name cannot exceed 100 characters'],
     },
+    documentCategory: {
+      type: String,
+      enum: ['certificate', 'offer_letter', 'joining_letter', 'completion_letter', 'appreciation_letter', 'custom'],
+      default: 'certificate',
+    },
+    customTextTemplate: {
+      type: String,
+      default: '',
+    },
+    pageFormat: {
+      type: String,
+      enum: ['A4', 'Letter', 'Custom'],
+      default: 'A4',
+    },
+    orientation: {
+      type: String,
+      enum: ['portrait', 'landscape'],
+      default: 'landscape',
+    },
     description: {
       type: String,
       trim: true,
@@ -130,9 +149,34 @@ const certificateTemplateSchema = new mongoose.Schema(
       type: String,
       default: '',
     },
-    backgroundImageDriveId: {
+    /** Cloudinary public ID for secure deletion and downloading */
+    cloudinaryPublicId: {
       type: String,
       default: '',
+    },
+    /** Template status for admin dashboard management */
+    status: {
+      type: String,
+      enum: ['active', 'inactive'],
+      default: 'active',
+    },
+    /** Original file type of the uploaded template */
+    templateType: {
+      type: String,
+      enum: ['image', 'pdf'],
+      default: 'image',
+    },
+    /** File size in bytes of the uploaded background */
+    fileSize: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+    /** SHA-256 hash of the uploaded file for duplicate detection */
+    fileHash: {
+      type: String,
+      default: '',
+      trim: true,
     },
     // Canvas pixel dimensions of the original template image
     width: {
@@ -200,5 +244,7 @@ const certificateTemplateSchema = new mongoose.Schema(
 
 // --------- Indexes ---------
 certificateTemplateSchema.index({ isDefault: 1 });
+certificateTemplateSchema.index({ status: 1, createdAt: -1 });
+certificateTemplateSchema.index({ fileHash: 1 });
 
 module.exports = mongoose.model('CertificateTemplate', certificateTemplateSchema);

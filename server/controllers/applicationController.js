@@ -4,10 +4,10 @@ const Notification = require('../models/Notification');
 const User = require('../models/User');
 const ApiError = require('../utils/ApiError');
 const ApiResponse = require('../utils/ApiResponse');
-const driveService = require('../services/driveService');
+const cloudinaryService = require('../services/cloudinaryService');
 const emailService = require('../services/emailService');
 const csvService = require('../services/csvService');
-const { APPLICATION_STATUS, PAGINATION, DRIVE_FOLDERS } = require('../config/constants');
+const { APPLICATION_STATUS, PAGINATION } = require('../config/constants');
 const logger = require('../utils/logger');
 
 /**
@@ -66,18 +66,17 @@ const createApplication = async (req, res, next) => {
       }
     }
 
-    // Upload resume to Google Drive
+    // Upload resume to Cloudinary
     let resumeUrl = '';
-    let resumeDriveId = '';
+    let resumePublicId = '';
     if (req.file) {
-      const result = await driveService.uploadFile(
+      const result = await cloudinaryService.uploadFile(
         req.file.buffer,
-        `resume_${req.body.name}_${Date.now()}.pdf`,
-        req.file.mimetype,
-        DRIVE_FOLDERS.RESUMES
+        'internhub/resumes',
+        'auto'
       );
-      resumeUrl = result.webViewLink;
-      resumeDriveId = result.fileId;
+      resumeUrl = result.secureUrl;
+      resumePublicId = result.publicId;
     }
 
     const {
@@ -103,7 +102,7 @@ const createApplication = async (req, res, next) => {
       skills,
       joiningDate,
       resumeUrl,
-      resumeDriveId,
+      resumePublicId,
     });
 
     // Create notification
@@ -330,18 +329,18 @@ const bulkAction = async (req, res, next) => {
         message = `${applicationIds.length} applications moved to under review.`;
         break;
       case 'delete': {
-        const appsToDelete = await Application.find({ _id: { $in: applicationIds } }).select('resumeDriveId');
-        const driveIds = appsToDelete
-          .map((app) => app.resumeDriveId)
+        const appsToDelete = await Application.find({ _id: { $in: applicationIds } }).select('resumePublicId');
+        const publicIds = appsToDelete
+          .map((app) => app.resumePublicId)
           .filter((id) => !!id);
 
-        if (driveIds.length > 0) {
+        if (publicIds.length > 0) {
           await Promise.all(
-            driveIds.map(async (fileId) => {
+            publicIds.map(async (fileId) => {
               try {
-                await driveService.deleteFile(fileId);
+                await cloudinaryService.deleteFile(fileId, 'auto');
               } catch (err) {
-                logger.error(`Failed to delete Drive file ${fileId} during bulk delete:`, err);
+                logger.error(`Failed to delete Cloudinary file ${fileId} during bulk delete:`, err);
               }
             })
           );

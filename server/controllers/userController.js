@@ -1,8 +1,8 @@
 const User = require('../models/User');
 const ApiError = require('../utils/ApiError');
 const ApiResponse = require('../utils/ApiResponse');
-const driveService = require('../services/driveService');
-const { DRIVE_FOLDERS, PAGINATION } = require('../config/constants');
+const cloudinaryService = require('../services/cloudinaryService');
+const { PAGINATION } = require('../config/constants');
 const logger = require('../utils/logger');
 
 /**
@@ -58,24 +58,23 @@ const uploadResume = async (req, res, next) => {
 
     const user = await User.findById(req.user.id);
 
-    // Delete old resume from Drive
-    if (user.resumeDriveId) {
-      await driveService.deleteFile(user.resumeDriveId);
+    // Delete old resume from Cloudinary
+    if (user.resumePublicId) {
+      await cloudinaryService.deleteFile(user.resumePublicId, 'auto');
     }
 
-    const { fileId, webViewLink } = await driveService.uploadFile(
+    const { publicId, secureUrl } = await cloudinaryService.uploadFile(
       req.file.buffer,
-      `resume_${user.name}_${Date.now()}.pdf`,
-      req.file.mimetype,
-      DRIVE_FOLDERS.RESUMES
+      'internhub/resumes',
+      'auto'
     );
 
-    user.resumeUrl = webViewLink;
-    user.resumeDriveId = fileId;
+    user.resumeUrl = secureUrl;
+    user.resumePublicId = publicId;
     await user.save({ validateBeforeSave: false });
 
     ApiResponse.success(res, 200, 'Resume uploaded successfully.', {
-      resumeUrl: webViewLink,
+      resumeUrl: secureUrl,
     });
   } catch (error) {
     next(error);

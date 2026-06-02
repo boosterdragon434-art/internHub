@@ -57,7 +57,7 @@ const applicationSchema = new mongoose.Schema(
       type: String,
       default: '',
     },
-    resumeDriveId: {
+    resumePublicId: {
       type: String,
       default: '',
     },

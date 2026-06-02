@@ -158,6 +158,18 @@ const CertificateVerifyPage = () => {
                 </div>
               </div>
 
+              {data.verificationHash && (
+                <>
+                  <div className="h-px bg-slate-850" />
+                  <div>
+                    <span className="block text-slate-500 font-semibold mb-0.5 flex items-center gap-1"><FiShield className="w-3 h-3"/> SHA-256 SIGNATURE</span>
+                    <span className="block font-mono text-slate-400 text-[9px] break-all">
+                      {data.verificationHash}
+                    </span>
+                  </div>
+                </>
+              )}
+
               {data.skillsAcquired && data.skillsAcquired.length > 0 && (
                 <>
                   <div className="h-px bg-slate-850" />

@@ -37,7 +37,6 @@ const PaymentPage = lazy(() => import('../pages/student/PaymentPage'));
 const ProfilePage = lazy(() => import('../pages/student/ProfilePage'));
 const StudentTasksPage = lazy(() => import('../pages/student/StudentTasksPage'));
 const StudentCalendarPage = lazy(() => import('../pages/student/StudentCalendarPage'));
-const MyCertificatesPage = lazy(() => import('../pages/student/MyCertificatesPage'));
 const StudentAttendancePage = lazy(() => import('../pages/student/StudentAttendancePage'));
 
 // Lazy loaded admin pages
@@ -148,7 +147,6 @@ const AppRoutes = () => {
           <Route path="applications" element={<MyApplicationsPage />} />
           <Route path="tasks" element={<StudentTasksPage />} />
           <Route path="calendar" element={<StudentCalendarPage />} />
-          <Route path="certificates" element={<MyCertificatesPage />} />
           <Route path="payments" element={<PaymentPage />} />
           <Route path="profile" element={<ProfilePage />} />
           <Route path="attendance" element={<StudentAttendancePage />} />

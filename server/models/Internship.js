@@ -92,9 +92,9 @@ const internshipSchema = new mongoose.Schema(
       type: String,
       default: '',
     },
-    imageDriveId: {
+    imagePublicId: {
       type: String,
-      default: '',
+      default: null,
     },
     status: {
       type: String,

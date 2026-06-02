@@ -61,7 +61,6 @@ const Sidebar = ({ role = 'admin', mobileOpen = false, onMobileClose }) => {
     { icon: FiCheckSquare, label: 'My Tasks', to: '/student/tasks' },
     { icon: FiClock, label: 'Attendance', to: '/student/attendance' },
     { icon: FiCalendar, label: 'My Calendar', to: '/student/calendar' },
-    { icon: FiAward, label: 'My Certificates', to: '/student/certificates' },
     { icon: FiMessageSquare, label: 'Discussions', to: '/student/chat' },
     { icon: FiCreditCard, label: 'Payments', to: '/student/payments' },
     { icon: FiUser, label: 'Profile', to: '/student/profile' },

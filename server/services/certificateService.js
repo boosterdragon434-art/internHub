@@ -1,16 +1,19 @@
+const crypto = require('crypto');
 const PDFDocument = require('pdfkit');
 const QRCode = require('qrcode');
 const logger = require('../utils/logger');
+const { CERTIFICATE_ID_PREFIX } = require('../config/constants');
 
 /**
  * Generates a base64 QR Code Data URL for the given verification text link.
+ * Uses high error correction for print reliability.
  */
 const generateQRCode = async (text) => {
   try {
     return await QRCode.toDataURL(text, {
       errorCorrectionLevel: 'H',
       margin: 1,
-      width: 120,
+      width: 150,
       color: {
         dark: '#0F172A',
         light: '#FFFFFF',
@@ -20,6 +23,45 @@ const generateQRCode = async (text) => {
     logger.error('Failed to generate QR Code data url:', err);
     throw err;
   }
+};
+
+/**
+ * Generate a cryptographically secure, collision-resistant certificate ID.
+ * Format: CERT-YYYYMMDD-XXXXXXXX (prefix + date + 8 hex chars from crypto)
+ * @returns {string}
+ */
+const generateSecureCertificateId = () => {
+  const now = new Date();
+  const datePart = [
+    now.getFullYear(),
+    String(now.getMonth() + 1).padStart(2, '0'),
+    String(now.getDate()).padStart(2, '0'),
+  ].join('');
+  const randomPart = crypto.randomBytes(4).toString('hex').toUpperCase();
+  return `${CERTIFICATE_ID_PREFIX}-${datePart}-${randomPart}`;
+};
+
+/**
+ * Generate a SHA-256 verification hash for tamper detection.
+ * @param {object} params
+ * @param {string} params.certificateId
+ * @param {string} params.studentName
+ * @param {string} params.internshipTitle
+ * @param {Date} params.completionDate
+ * @returns {string} Hex hash
+ */
+const generateVerificationHash = ({ certificateId, studentName, internshipTitle, completionDate }) => {
+  const payload = `${certificateId}|${studentName}|${internshipTitle}|${new Date(completionDate).toISOString()}`;
+  return crypto.createHash('sha256').update(payload).digest('hex');
+};
+
+/**
+ * Compute SHA-256 hash of a buffer for duplicate file detection.
+ * @param {Buffer} buffer
+ * @returns {string} Hex hash
+ */
+const computeFileHash = (buffer) => {
+  return crypto.createHash('sha256').update(buffer).digest('hex');
 };
 
 /**
@@ -85,30 +127,70 @@ const resolvePDFFont = (fontFamily, fontWeight = 'normal') => {
 };
 
 /**
- * Compiles a premium landscape A4 Certificate PDF.
- * Supports three modes:
- *   1. Overlays mode — uses template.overlays[] for dynamic per-field positioning
- *   2. Custom background mode — legacy fixed layout positions with custom BG image
- *   3. Classic mode — default gold-border vector certificate design
+ * Parses dynamic variables inside custom text fields like {{student_name}}
+ */
+const parsePlaceholders = (text, certData, dataMap) => {
+  if (!text) return '';
+  let parsedText = text;
+
+  const variables = {
+    ...dataMap,
+    student_name: certData.studentName || '',
+    internship_role: certData.internshipTitle || '',
+    department: certData.department || '',
+    college_name: certData.college || '',
+    start_date: certData.joiningDate ? formatDate(certData.joiningDate, 'DD/MM/YYYY') : '',
+    end_date: certData.completionDate ? formatDate(certData.completionDate, 'DD/MM/YYYY') : '',
+    duration: certData.duration || '',
+    certificate_id: certData.certificateId || '',
+    issue_date: certData.issueDate ? formatDate(certData.issueDate, 'DD/MM/YYYY') : formatDate(new Date(), 'DD/MM/YYYY'),
+    company_name: certData.companyName || 'InternHub',
+    guide_name: certData.guideName || '',
+    skills: Array.isArray(certData.skillsAcquired) ? certData.skillsAcquired.join(', ') : (certData.skillsAcquired || ''),
+    performance: certData.grade || '',
+    verification_url: certData.verificationUrl || '',
+  };
+
+  for (const [key, value] of Object.entries(variables)) {
+    const regex = new RegExp(`{{${key}}}`, 'gi');
+    parsedText = parsedText.replace(regex, value);
+  }
+
+  return parsedText;
+};
+
+/**
+ * Compiles a premium PDF Certificate or Letter.
+ * Supports multiple formats (A4, Letter) and orientations (Portrait, Landscape).
  *
  * @param {Object} certData
  */
 const buildCertificatePDF = (certData) => {
   return new Promise((resolve, reject) => {
     try {
+      const pageFormat = certData.pageFormat || 'A4';
+      const orientation = certData.orientation || 'landscape';
+
       const doc = new PDFDocument({
-        size: 'A4',
-        layout: 'landscape',
+        size: pageFormat,
+        layout: orientation,
         margins: { top: 0, bottom: 0, left: 0, right: 0 },
       });
 
       const buffers = [];
       doc.on('data', (chunk) => buffers.push(chunk));
       doc.on('end', () => resolve(Buffer.concat(buffers)));
+      doc.on('error', (err) => reject(err));
 
-      // Landscape A4 dimensions in PDF points
-      const pdfW = 841.89;
-      const pdfH = 595.28;
+      let pdfW, pdfH;
+      if (pageFormat === 'Letter') {
+        pdfW = orientation === 'landscape' ? 792 : 612;
+        pdfH = orientation === 'landscape' ? 612 : 792;
+      } else {
+        // A4 by default
+        pdfW = orientation === 'landscape' ? 841.89 : 595.28;
+        pdfH = orientation === 'landscape' ? 595.28 : 841.89;
+      }
 
       const hasCustomBg = certData.backgroundImageBuffer && certData.backgroundImageBuffer.length > 0;
       const hasOverlays = certData.overlays && certData.overlays.length > 0;
@@ -138,7 +220,13 @@ const buildCertificatePDF = (certData) => {
  */
 const _buildOverlayPDF = (doc, certData, pdfW, pdfH) => {
   // Draw background
-  doc.image(certData.backgroundImageBuffer, 0, 0, { width: pdfW, height: pdfH });
+  try {
+    doc.image(certData.backgroundImageBuffer, 0, 0, { width: pdfW, height: pdfH });
+  } catch (imgErr) {
+    logger.error('Failed to draw background image in overlay mode:', imgErr.message);
+    // Fallback to white background
+    doc.rect(0, 0, pdfW, pdfH).fill('#FFFFFF');
+  }
 
   // Build data mapping for dynamic field resolution
   const dataMap = {
@@ -148,10 +236,17 @@ const _buildOverlayPDF = (doc, certData, pdfW, pdfH) => {
     certificateId: certData.certificateId || 'CERT-0000',
     serialNumber: certData.certificateId?.split('-').pop() || '0000',
     instructorName: certData.guideName || 'InternHub Advisor',
+    startDate: formatDate(certData.startDate || new Date(), 'DD/MM/YYYY'),
+    endDate: formatDate(certData.endDate || new Date(), 'DD/MM/YYYY'),
+    collegeName: certData.collegeName || 'Student College',
+    companyName: certData.companyName || 'InternHub',
+    grade: certData.grade || 'A',
+    skills: certData.skills || 'HTML, CSS, JS',
+    performance: certData.performance || 'Good',
   };
 
-  const canvasW = certData.canvasWidth || 842;
-  const canvasH = certData.canvasHeight || 595;
+  const canvasW = certData.canvasWidth || (pdfW > pdfH ? 842 : 595);
+  const canvasH = certData.canvasHeight || (pdfW > pdfH ? 595 : 842);
 
   // Process each overlay
   for (const overlay of certData.overlays) {
@@ -184,7 +279,7 @@ const _buildOverlayPDF = (doc, certData, pdfW, pdfH) => {
     // Resolve text value
     let text = '';
     if (overlay.field === 'customText') {
-      text = overlay.customText || '';
+      text = parsePlaceholders(overlay.customText || '', certData, dataMap);
     } else if (overlay.field === 'date') {
       text = formatDate(certData.completionDate || new Date(), overlay.dateFormat || 'DD/MM/YYYY');
     } else {
@@ -219,29 +314,24 @@ const _buildOverlayPDF = (doc, certData, pdfW, pdfH) => {
       textX = x - maxWidthPt;
     }
 
+    // Auto-scale long text that would overflow the box
+    let finalFontSize = fontSize;
+    const textWidth = doc.widthOfString(text, { width: maxWidthPt });
+    const textHeight = doc.heightOfString(text, { width: maxWidthPt });
+    if (textHeight > heightPt && finalFontSize > 6) {
+      const scaleFactor = Math.max(0.5, heightPt / textHeight);
+      finalFontSize = Math.max(6, finalFontSize * scaleFactor);
+      doc.fontSize(finalFontSize);
+    }
+
     // Render text with proper alignment and wrapping
-    doc.text(text, textX, y - heightPt / 2 + (heightPt - fontSize) / 2, {
+    doc.text(text, textX, y - heightPt / 2 + (heightPt - finalFontSize) / 2, {
       width: maxWidthPt,
       align: align,
-      lineGap: fontSize * ((overlay.lineHeight || 1.2) - 1),
+      lineGap: finalFontSize * ((overlay.lineHeight || 1.2) - 1),
     });
 
     doc.restore();
-  }
-
-  // Always render QR code at bottom-right corner if available
-  if (certData.qrCodeBase64) {
-    const qrBuffer = Buffer.from(
-      certData.qrCodeBase64.replace(/^data:image\/\w+;base64,/, ''),
-      'base64'
-    );
-    doc.image(qrBuffer, pdfW - 110, pdfH - 110, { width: 85, height: 85 });
-    doc.fillColor('#64748B').fontSize(7).font('Helvetica').text(
-      `ID: ${certData.certificateId}`,
-      pdfW - 115,
-      pdfH - 20,
-      { width: 95, align: 'center' }
-    );
   }
 };
 
@@ -262,40 +352,48 @@ const _buildCustomTemplatePDF = (doc, certData, pdfW, pdfH) => {
   const fontSize = typo.fontSize || 28;
   const fontColor = typo.color || '#1E293B';
 
-  doc.image(certData.backgroundImageBuffer, 0, 0, { width: pdfW, height: pdfH });
+  try {
+    doc.image(certData.backgroundImageBuffer, 0, 0, { width: pdfW, height: pdfH });
+  } catch (imgErr) {
+    logger.error('Failed to draw background in custom template mode:', imgErr.message);
+    doc.rect(0, 0, pdfW, pdfH).fill('#F8FAFC');
+  }
 
-  doc.fillColor(fontColor).fontSize(fontSize).font(`${fontFamily}-Bold`);
+  const resolvedBoldFont = resolvePDFFont(fontFamily, 'bold');
+  const resolvedFont = resolvePDFFont(fontFamily, 'normal');
+
+  doc.fillColor(fontColor).fontSize(fontSize).font(resolvedBoldFont);
   doc.text(certData.studentName.toUpperCase(), namePos.x, namePos.y, {
     width: pdfW - namePos.x - 50,
     align: 'left',
   });
 
-  doc.fillColor(fontColor).fontSize(Math.max(12, fontSize - 14)).font(fontFamily);
+  doc.fillColor(fontColor).fontSize(Math.max(12, fontSize - 14)).font(resolvedFont);
   doc.text(formatDate(certData.completionDate, 'MMMM DD, YYYY'), datePos.x, datePos.y, {
     width: 300,
     align: 'left',
   });
 
-  doc.fillColor('#64748B').fontSize(Math.max(9, fontSize - 18)).font(fontFamily);
+  doc.fillColor('#64748B').fontSize(Math.max(9, fontSize - 18)).font(resolvedFont);
   doc.text(`ID: ${certData.certificateId}`, idPos.x, idPos.y, {
     width: 300,
     align: 'left',
   });
 
-  doc.fillColor(fontColor).fontSize(Math.max(16, fontSize - 8)).font(`${fontFamily}-Bold`);
+  doc.fillColor(fontColor).fontSize(Math.max(16, fontSize - 8)).font(resolvedBoldFont);
   doc.text(certData.internshipTitle, namePos.x, namePos.y + fontSize + 15, {
     width: pdfW - namePos.x - 50,
     align: 'left',
   });
 
-  doc.fillColor('#6366F1').fontSize(Math.max(14, fontSize - 10)).font(`${fontFamily}-Bold`);
+  doc.fillColor('#6366F1').fontSize(Math.max(14, fontSize - 10)).font(resolvedBoldFont);
   doc.text(`Grade: ${certData.grade}`, namePos.x, namePos.y + fontSize + 50, {
     width: 200,
     align: 'left',
   });
 
   if (certData.guideName) {
-    doc.fillColor(fontColor).fontSize(Math.max(11, fontSize - 16)).font(fontFamily);
+    doc.fillColor(fontColor).fontSize(Math.max(11, fontSize - 16)).font(resolvedFont);
     doc.text(`Guide: ${certData.guideName}`, namePos.x, namePos.y + fontSize + 75, {
       width: 300,
       align: 'left',
@@ -303,11 +401,15 @@ const _buildCustomTemplatePDF = (doc, certData, pdfW, pdfH) => {
   }
 
   if (certData.qrCodeBase64) {
-    const qrBuffer = Buffer.from(
-      certData.qrCodeBase64.replace(/^data:image\/\w+;base64,/, ''),
-      'base64'
-    );
-    doc.image(qrBuffer, qrPos.x, qrPos.y, { width: 85, height: 85 });
+    try {
+      const qrBuffer = Buffer.from(
+        certData.qrCodeBase64.replace(/^data:image\/\w+;base64,/, ''),
+        'base64'
+      );
+      doc.image(qrBuffer, qrPos.x, qrPos.y, { width: 85, height: 85 });
+    } catch (qrErr) {
+      logger.warn('Failed to embed QR code in custom template PDF:', qrErr.message);
+    }
   }
 };
 
@@ -338,8 +440,16 @@ const _buildClassicPDF = (doc, certData, pdfW, pdfH) => {
   doc.fillColor('#64748B').fontSize(13).font('Helvetica-Oblique');
   doc.text('This is proudly presented to', 0, 125, { align: 'center' });
 
-  doc.fillColor('#6366F1').fontSize(28).font('Helvetica-Bold');
-  doc.text(certData.studentName.toUpperCase(), 0, 160, { align: 'center' });
+  // Auto-scale long student names
+  const nameText = certData.studentName.toUpperCase();
+  let nameFontSize = 28;
+  doc.font('Helvetica-Bold').fontSize(nameFontSize);
+  while (doc.widthOfString(nameText) > pdfW - 200 && nameFontSize > 16) {
+    nameFontSize -= 1;
+    doc.fontSize(nameFontSize);
+  }
+  doc.fillColor('#6366F1').fontSize(nameFontSize).font('Helvetica-Bold');
+  doc.text(nameText, 0, 160, { align: 'center' });
 
   doc.lineWidth(2);
   doc.moveTo(pdfW / 2 - 180, 195).lineTo(pdfW / 2 + 180, 195).stroke('#6366F1');
@@ -381,8 +491,12 @@ const _buildClassicPDF = (doc, certData, pdfW, pdfH) => {
   const footerY = 440;
 
   if (certData.qrCodeBase64) {
-    const qrBuffer = Buffer.from(certData.qrCodeBase64.replace(/^data:image\/\w+;base64,/, ''), 'base64');
-    doc.image(qrBuffer, 85, footerY, { width: 85, height: 85 });
+    try {
+      const qrBuffer = Buffer.from(certData.qrCodeBase64.replace(/^data:image\/\w+;base64,/, ''), 'base64');
+      doc.image(qrBuffer, 85, footerY, { width: 85, height: 85 });
+    } catch (qrErr) {
+      logger.warn('Failed to embed QR code in classic PDF:', qrErr.message);
+    }
   }
 
   doc.fillColor('#64748B').fontSize(9).font('Helvetica-Bold').text('SECURE VERIFICATION', 185, footerY + 25, { width: 150 });
@@ -397,5 +511,9 @@ const _buildClassicPDF = (doc, certData, pdfW, pdfH) => {
 
 module.exports = {
   generateQRCode,
+  generateSecureCertificateId,
+  generateVerificationHash,
+  computeFileHash,
   buildCertificatePDF,
+  formatDate,
 };

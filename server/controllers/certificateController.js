@@ -3,9 +3,16 @@ const CertificateTemplate = require('../models/CertificateTemplate');
 const Application = require('../models/Application');
 const User = require('../models/User');
 const Notification = require('../models/Notification');
-const driveService = require('../services/driveService');
-const { generateQRCode, buildCertificatePDF } = require('../services/certificateService');
-const { DRIVE_FOLDERS } = require('../config/constants');
+const cloudinaryService = require('../services/cloudinaryService');
+const {
+  generateQRCode,
+  buildCertificatePDF,
+  generateSecureCertificateId,
+  generateVerificationHash,
+  computeFileHash,
+} = require('../services/certificateService');
+const { DRIVE_FOLDERS, BULK_GENERATION_LIMIT } = require('../config/constants');
+const { validateBase64MagicBytes } = require('../middleware/upload');
 const ApiError = require('../utils/ApiError');
 const ApiResponse = require('../utils/ApiResponse');
 const logger = require('../utils/logger');
@@ -16,17 +23,68 @@ const emailService = require('../services/emailService');
 // ─────────────────────────────────────────────────────────────
 
 /**
- * @desc    Get all certificate templates
+ * @desc    Get all certificate templates with search, filter, and pagination
  * @route   GET /api/certificates/templates
  * @access  Admin
  */
 const getTemplates = async (req, res, next) => {
   try {
-    const templates = await CertificateTemplate.find()
-      .sort({ isDefault: -1, createdAt: -1 })
+    const { search, status, sort = '-createdAt', page = 1, limit = 50 } = req.query;
+
+    const filter = {};
+    if (status && ['active', 'inactive'].includes(status)) {
+      filter.status = status;
+    }
+    if (req.query.documentCategory) {
+      filter.documentCategory = req.query.documentCategory;
+    }
+    if (search) {
+      filter.name = { $regex: search, $options: 'i' };
+    }
+
+    const skip = (Math.max(1, parseInt(page)) - 1) * Math.min(100, parseInt(limit));
+    const total = await CertificateTemplate.countDocuments(filter);
+
+    const templates = await CertificateTemplate.find(filter)
+      .sort(sort === 'name' ? { name: 1 } : { isDefault: -1, createdAt: -1 })
+      .skip(skip)
+      .limit(Math.min(100, parseInt(limit)))
       .populate('createdBy', 'name email');
 
-    ApiResponse.success(res, 200, 'Templates fetched successfully.', templates);
+    ApiResponse.success(res, 200, 'Templates fetched successfully.', templates, ApiResponse.paginate(
+      parseInt(page), Math.min(100, parseInt(limit)), total
+    ));
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * @desc    Get template statistics (count, storage usage)
+ * @route   GET /api/certificates/templates/stats
+ * @access  Admin
+ */
+const getTemplateStats = async (req, res, next) => {
+  try {
+    const [totalCount, activeCount, storageResult] = await Promise.all([
+      CertificateTemplate.countDocuments(),
+      CertificateTemplate.countDocuments({ status: 'active' }),
+      CertificateTemplate.aggregate([
+        { $group: { _id: null, totalBytes: { $sum: '$fileSize' } } },
+      ]),
+    ]);
+
+    const totalBytes = storageResult[0]?.totalBytes || 0;
+
+    ApiResponse.success(res, 200, 'Template stats fetched.', {
+      total: totalCount,
+      active: activeCount,
+      inactive: totalCount - activeCount,
+      storageBytesUsed: totalBytes,
+      storageFormatted: totalBytes > 1024 * 1024
+        ? `${(totalBytes / (1024 * 1024)).toFixed(2)} MB`
+        : `${(totalBytes / 1024).toFixed(1)} KB`,
+    });
   } catch (error) {
     next(error);
   }
@@ -52,6 +110,10 @@ const createTemplate = async (req, res, next) => {
       width,
       height,
       isDefault,
+      documentCategory,
+      customTextTemplate,
+      pageFormat,
+      orientation,
     } = req.body;
 
     if (!name || !name.trim()) {
@@ -59,23 +121,49 @@ const createTemplate = async (req, res, next) => {
     }
 
     let backgroundImageUrl = '';
-    let backgroundImageDriveId = '';
+    let cloudinaryPublicId = '';
+    let fileSize = 0;
+    let fileHash = '';
+    let templateType = 'image';
 
     // Upload background image to Drive if provided
     if (backgroundImage) {
-      const imageBuffer = Buffer.from(
-        backgroundImage.replace(/^data:image\/\w+;base64,/, ''),
-        'base64'
-      );
-      const fileName = `CertTemplate_${name.replace(/\s+/g, '_')}_${Date.now()}.png`;
-      const { fileId, webViewLink } = await driveService.uploadFile(
+      // Validate base64 magic bytes
+      const { valid, detectedMime, buffer: imageBuffer } = validateBase64MagicBytes(backgroundImage);
+      if (!valid || !imageBuffer) {
+        return next(ApiError.badRequest('Invalid or corrupted image file. Please upload a valid PNG, JPG, or PDF.'));
+      }
+
+      // Check file size (buffer size)
+      if (imageBuffer.length > 10 * 1024 * 1024) {
+        return next(ApiError.badRequest('File size exceeds 10MB limit.'));
+      }
+
+      // Compute file hash for duplicate detection
+      fileHash = computeFileHash(imageBuffer);
+
+      // Check for duplicate uploads
+      const existingWithHash = await CertificateTemplate.findOne({ fileHash });
+      if (existingWithHash) {
+        return next(
+          ApiError.conflict(`A template with this exact image already exists: "${existingWithHash.name}".`)
+        );
+      }
+
+      fileSize = imageBuffer.length;
+      templateType = detectedMime === 'application/pdf' ? 'pdf' : 'image';
+
+      const mimeType = detectedMime || 'image/png';
+      const ext = mimeType === 'application/pdf' ? 'pdf' : 'png';
+      const fileName = `CertTemplate_${name.replace(/\s+/g, '_')}_${Date.now()}.${ext}`;
+
+      const { publicId, secureUrl } = await cloudinaryService.uploadFile(
         imageBuffer,
-        fileName,
-        'image/png',
-        DRIVE_FOLDERS.CERTIFICATES
+        'internhub/templates',
+        'auto'
       );
-      backgroundImageUrl = webViewLink;
-      backgroundImageDriveId = fileId;
+      backgroundImageUrl = secureUrl;
+      cloudinaryPublicId = publicId;
     }
 
     // If marking as default, un-default all others
@@ -87,7 +175,11 @@ const createTemplate = async (req, res, next) => {
       name: name.trim(),
       description: description?.trim() || '',
       backgroundImageUrl,
-      backgroundImageDriveId,
+      cloudinaryPublicId,
+      status: 'active',
+      templateType,
+      fileSize,
+      fileHash,
       width: width || 842,
       height: height || 595,
       layout: layout || {},
@@ -95,6 +187,10 @@ const createTemplate = async (req, res, next) => {
       overlays: overlays || [],
       metadata: metadata || {},
       isDefault: isDefault || false,
+      documentCategory: documentCategory || 'certificate',
+      customTextTemplate: customTextTemplate || '',
+      pageFormat: pageFormat || 'A4',
+      orientation: orientation || 'landscape',
       createdBy: req.user.id,
     });
 
@@ -117,12 +213,16 @@ const updateTemplate = async (req, res, next) => {
       return next(ApiError.notFound('Template not found.'));
     }
 
-    const { name, description, layout, typography, isDefault, backgroundImage, overlays, metadata, width, height } = req.body;
+    const { name, description, layout, typography, isDefault, backgroundImage, overlays, metadata, width, height, documentCategory, customTextTemplate, pageFormat, orientation } = req.body;
 
     if (name) template.name = name.trim();
     if (description !== undefined) template.description = description.trim();
     if (width) template.width = width;
     if (height) template.height = height;
+    if (documentCategory) template.documentCategory = documentCategory;
+    if (customTextTemplate !== undefined) template.customTextTemplate = customTextTemplate;
+    if (pageFormat) template.pageFormat = pageFormat;
+    if (orientation) template.orientation = orientation;
 
     // Update overlays array (complete replacement)
     if (overlays !== undefined) {
@@ -172,25 +272,36 @@ const updateTemplate = async (req, res, next) => {
       if (typography.color) template.typography.color = typography.color;
     }
 
-    // Handle new background image upload
+    // Handle new background image upload (replace in-place)
     if (backgroundImage) {
-      // Delete old background from Drive
-      if (template.backgroundImageDriveId) {
-        await driveService.deleteFile(template.backgroundImageDriveId).catch(() => {});
+      const { valid, detectedMime, buffer: imageBuffer } = validateBase64MagicBytes(backgroundImage);
+      if (!valid || !imageBuffer) {
+        return next(ApiError.badRequest('Invalid or corrupted image file.'));
       }
-      const imageBuffer = Buffer.from(
-        backgroundImage.replace(/^data:image\/\w+;base64,/, ''),
-        'base64'
-      );
-      const fileName = `CertTemplate_${template.name.replace(/\s+/g, '_')}_${Date.now()}.png`;
-      const { fileId, webViewLink } = await driveService.uploadFile(
+      if (imageBuffer.length > 10 * 1024 * 1024) {
+        return next(ApiError.badRequest('File size exceeds 10MB limit.'));
+      }
+
+      // Delete old background from Cloudinary
+      if (template.cloudinaryPublicId) {
+        await cloudinaryService.deleteFile(template.cloudinaryPublicId, template.templateType === 'pdf' ? 'auto' : 'image').catch(() => { });
+      }
+
+      const fileHash = computeFileHash(imageBuffer);
+      const mimeType = detectedMime || 'image/png';
+      const ext = mimeType === 'application/pdf' ? 'pdf' : 'png';
+      const fileName = `CertTemplate_${template.name.replace(/\s+/g, '_')}_${Date.now()}.${ext}`;
+
+      const { publicId, secureUrl } = await cloudinaryService.uploadFile(
         imageBuffer,
-        fileName,
-        'image/png',
-        DRIVE_FOLDERS.CERTIFICATES
+        'internhub/templates',
+        'auto'
       );
-      template.backgroundImageUrl = webViewLink;
-      template.backgroundImageDriveId = fileId;
+      template.backgroundImageUrl = secureUrl;
+      template.cloudinaryPublicId = publicId;
+      template.fileSize = imageBuffer.length;
+      template.fileHash = fileHash;
+      template.templateType = mimeType === 'application/pdf' ? 'pdf' : 'image';
     }
 
     // Handle default toggle
@@ -222,10 +333,20 @@ const deleteTemplate = async (req, res, next) => {
       return next(ApiError.notFound('Template not found.'));
     }
 
-    // Clean up Drive file
-    if (template.backgroundImageDriveId) {
-      await driveService.deleteFile(template.backgroundImageDriveId).catch((err) => {
-        logger.warn(`Failed to delete template background from Drive: ${err.message}`);
+    // Check if template is used by any issued certificates
+    const usageCount = await Certificate.countDocuments({ template: template._id, status: 'issued' });
+    if (usageCount > 0) {
+      return next(
+        ApiError.conflict(
+          `This template is used by ${usageCount} issued certificate(s). Deactivate it instead, or revoke the certificates first.`
+        )
+      );
+    }
+
+    // Clean up Cloudinary file
+    if (template.cloudinaryPublicId) {
+      await cloudinaryService.deleteFile(template.cloudinaryPublicId, template.templateType === 'pdf' ? 'auto' : 'image').catch((err) => {
+        logger.warn(`Failed to delete template background from Cloudinary: ${err.message}`);
       });
     }
 
@@ -238,9 +359,233 @@ const deleteTemplate = async (req, res, next) => {
   }
 };
 
+/**
+ * @desc    Toggle template active/inactive status
+ * @route   PUT /api/certificates/templates/:id/toggle-status
+ * @access  Admin
+ */
+const toggleTemplateStatus = async (req, res, next) => {
+  try {
+    const template = await CertificateTemplate.findById(req.params.id);
+    if (!template) {
+      return next(ApiError.notFound('Template not found.'));
+    }
+
+    const { status } = req.body;
+    template.status = status;
+    await template.save();
+
+    logger.info(`Template "${template.name}" status changed to ${status} by ${req.user.email}`);
+    ApiResponse.success(res, 200, `Template ${status === 'active' ? 'activated' : 'deactivated'} successfully.`, template);
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * @desc    Proxy download template background from Drive
+ * @route   GET /api/certificates/templates/:id/download
+ * @access  Admin
+ */
+const downloadTemplate = async (req, res, next) => {
+  try {
+    const template = await CertificateTemplate.findById(req.params.id);
+    if (!template) {
+      return next(ApiError.notFound('Template not found.'));
+    }
+    if (!template.cloudinaryPublicId || !template.backgroundImageUrl) {
+      return next(ApiError.notFound('Template has no background image to download.'));
+    }
+
+    const buffer = await cloudinaryService.downloadFile(template.backgroundImageUrl);
+    const ext = template.templateType === 'pdf' ? 'pdf' : 'png';
+    const contentType = template.templateType === 'pdf' ? 'application/pdf' : 'image/png';
+
+    res.set({
+      'Content-Type': contentType,
+      'Content-Disposition': `attachment; filename="${template.name.replace(/\s+/g, '_')}.${ext}"`,
+      'Content-Length': buffer.length,
+    });
+    res.send(buffer);
+  } catch (error) {
+    next(error);
+  }
+};
+
 // ─────────────────────────────────────────────────────────────
 // Certificate Generation & Lifecycle Handlers
 // ─────────────────────────────────────────────────────────────
+
+/**
+ * Internal helper — generates a single certificate for one application.
+ * Used by both single and bulk generation endpoints.
+ * @private
+ */
+const _generateSingleCertificate = async ({ application, grade, skillsAcquired, performance, templateId, issuerId, overwrite = false, customFields = {} }) => {
+  const student = application.user;
+  const internship = application.internship;
+
+  // Resolve template (custom or default fallback)
+  let template = null;
+  let backgroundImageBuffer = null;
+
+  if (templateId) {
+    template = await CertificateTemplate.findById(templateId);
+    if (!template) {
+      return { success: false, studentName: student.name, error: 'Selected template not found' };
+    }
+  } else {
+    template = await CertificateTemplate.findOne({ isDefault: true, status: 'active' });
+  }
+
+  if (!template) {
+    template = await CertificateTemplate.create({
+      name: 'Classical Gold Border',
+      isDefault: true,
+      createdBy: issuerId,
+    });
+  }
+
+  // Check duplicate certificate
+  const existingCert = await Certificate.findOne({
+    student: student._id,
+    internship: internship._id,
+    status: 'issued',
+  });
+
+  if (existingCert && (!template.documentCategory || template.documentCategory === 'certificate')) {
+    if (overwrite) {
+      existingCert.status = 'revoked';
+      await existingCert.save();
+    } else {
+      // Only block if it's a 'certificate' to allow multiple letters (offer, joining) for the same internship.
+      return {
+        success: false,
+        studentName: student.name,
+        error: `Certificate already issued for ${internship.title}. Enable "Revoke & Re-issue" to overwrite.`,
+      };
+    }
+  }
+
+  // Resolve assigned guide details
+  let guideName = '';
+  let guideId = null;
+  if (student.assignedGuide) {
+    const guide = await User.findById(student.assignedGuide);
+    if (guide) {
+      guideName = guide.name;
+      guideId = guide._id;
+    }
+  }
+
+  // Download custom background if template has one
+  if (template.backgroundImageUrl) {
+    try {
+      backgroundImageBuffer = await cloudinaryService.downloadFile(template.backgroundImageUrl);
+    } catch (dlErr) {
+      logger.warn(`Failed to download template background, falling back to classic: ${dlErr.message}`);
+      backgroundImageBuffer = null;
+    }
+  }
+
+  // Generate unique credentials
+  const certificateId = generateSecureCertificateId();
+  const verificationUrl = `${process.env.CLIENT_URL || 'http://localhost:5173'}/verify-certificate/${certificateId}`;
+
+  // Generate secure base64 QR Code
+  const qrCodeBase64 = await generateQRCode(verificationUrl);
+
+  // Compile high-resolution Landscape A4 PDF Buffer
+  const completionDate = new Date();
+  const pdfBuffer = await buildCertificatePDF({
+    certificateId,
+    studentName: student.name,
+    internshipTitle: internship.title,
+    duration: internship.duration || '3 Months',
+    completionDate,
+    grade: grade || 'A',
+    guideName,
+    qrCodeBase64,
+    backgroundImageBuffer,
+    layout: template.layout,
+    typography: template.typography,
+    overlays: template.overlays || [],
+    canvasWidth: template.width || 842,
+    canvasHeight: template.height || 595,
+    pageFormat: template.pageFormat,
+    orientation: template.orientation,
+    startDate: internship.startDate,
+    endDate: internship.endDate,
+    collegeName: application.college || student.college || 'College Name',
+    companyName: 'InternHub',
+    skills: (skillsAcquired && skillsAcquired.length > 0 ? skillsAcquired : (application.skills || student.skills || [])).join(', '),
+    performance: performance || 'Good',
+    ...customFields,
+  });
+
+  // Upload PDF buffer directly to Cloudinary
+  const { publicId, secureUrl } = await cloudinaryService.uploadFile(
+    pdfBuffer,
+    'internhub/certificates',
+    'image'
+  );
+
+  // Generate verification hash for tamper detection
+  const verificationHash = generateVerificationHash({
+    certificateId,
+    studentName: student.name,
+    internshipTitle: internship.title,
+    completionDate,
+  });
+
+  // Write Certificate record to Database
+  const certificate = await Certificate.create({
+    certificateId,
+    student: student._id,
+    internship: internship._id,
+    guide: guideId,
+    template: template._id,
+    studentName: student.name,
+    internshipTitle: internship.title,
+    duration: internship.duration || '3 Months',
+    completionDate,
+    grade: grade || 'A',
+    skillsAcquired: skillsAcquired || [],
+    performance: performance || 'Good',
+    verificationUrl,
+    qrCodeDataUrl: qrCodeBase64,
+    pdfUrl: secureUrl,
+    pdfPublicId: publicId,
+    verificationHash,
+    issuedBy: issuerId,
+    status: 'issued',
+    documentType: template?.documentCategory || 'certificate',
+  });
+
+  const docTypeName = template?.documentCategory?.replace('_', ' ') || 'certificate';
+
+  // Send in-app notification
+  await Notification.create({
+    user: student._id,
+    title: `${docTypeName.charAt(0).toUpperCase() + docTypeName.slice(1)} Issued! 🎓`,
+    message: `Your ${docTypeName} for "${internship.title}" is now ready for download!`,
+    type: 'certificate',
+    link: '/student/certificates',
+  });
+
+  // Send styled congratulations email (non-blocking)
+  emailService
+    .sendReminderEmail(
+      student,
+      `${docTypeName.charAt(0).toUpperCase() + docTypeName.slice(1)} Issued! 🎓`,
+      `Congratulations! Your ${docTypeName} for "${internship.title}" has been successfully generated and is now available on your portfolio dashboard.`
+    )
+    .catch((err) => logger.error(`Email failed for ${student.email}:`, err));
+
+  logger.info(`Certificate generated & issued: ${certificateId} for student ${student.email}`);
+
+  return { success: true, certificate };
+};
 
 /**
  * @desc    Generate a certificate for a student (Admin only)
@@ -249,13 +594,13 @@ const deleteTemplate = async (req, res, next) => {
  */
 const generateCertificate = async (req, res, next) => {
   try {
-    const { applicationId, grade, skillsAcquired, templateId } = req.body;
+    const { applicationId, grade, skillsAcquired, performance, templateId, overwrite, ...customFields } = req.body;
 
     if (!applicationId) {
       return next(ApiError.badRequest('applicationId is required.'));
     }
 
-    // 1. Fetch student application
+    // Fetch student application
     const application = await Application.findById(applicationId)
       .populate('user')
       .populate('internship');
@@ -264,89 +609,172 @@ const generateCertificate = async (req, res, next) => {
       return next(ApiError.notFound('Application not found.'));
     }
 
-    // Verify enrollment status
-    if (!['Joined', 'Payment Completed'].includes(application.status)) {
-      return next(
-        ApiError.badRequest(
-          `Cannot generate certificate. Student enrollment status is "${application.status}" (must be Completed or Joined).`
-        )
-      );
+    const result = await _generateSingleCertificate({
+      application,
+      grade,
+      skillsAcquired,
+      performance,
+      templateId,
+      issuerId: req.user.id,
+      overwrite: overwrite === true,
+      customFields,
+    });
+
+    if (!result.success) {
+      return next(ApiError.conflict(result.error));
+    }
+
+    ApiResponse.success(res, 201, 'Certificate generated and issued successfully.', result.certificate);
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * @desc    Bulk generate certificates for multiple students
+ * @route   POST /api/certificates/bulk-generate
+ * @access  Admin
+ */
+const bulkGenerate = async (req, res, next) => {
+  try {
+    const { applicationIds, grade, skillsAcquired, performance, templateId, overwrite, ...customFields } = req.body;
+
+    if (!applicationIds || !Array.isArray(applicationIds) || applicationIds.length === 0) {
+      return next(ApiError.badRequest('At least one applicationId is required.'));
+    }
+
+    if (applicationIds.length > BULK_GENERATION_LIMIT) {
+      return next(ApiError.badRequest(`Maximum ${BULK_GENERATION_LIMIT} certificates per batch.`));
+    }
+
+    const results = {
+      total: applicationIds.length,
+      succeeded: 0,
+      failed: 0,
+      details: [],
+    };
+
+    // Process sequentially to avoid Drive API quota issues
+    for (const appId of applicationIds) {
+      try {
+        const application = await Application.findById(appId)
+          .populate('user')
+          .populate('internship');
+
+        if (!application) {
+          results.failed++;
+          results.details.push({ applicationId: appId, success: false, error: 'Application not found' });
+          continue;
+        }
+
+        const result = await _generateSingleCertificate({
+          application,
+          grade,
+          skillsAcquired,
+          performance,
+          templateId,
+          issuerId: req.user.id,
+          overwrite: overwrite === true,
+          customFields,
+        });
+
+        if (result.success) {
+          results.succeeded++;
+          results.details.push({
+            applicationId: appId,
+            studentName: result.certificate.studentName,
+            certificateId: result.certificate.certificateId,
+            success: true,
+          });
+        } else {
+          results.failed++;
+          results.details.push({
+            applicationId: appId,
+            studentName: result.studentName,
+            success: false,
+            error: result.error,
+          });
+        }
+      } catch (genErr) {
+        results.failed++;
+        results.details.push({
+          applicationId: appId,
+          success: false,
+          error: genErr.message || 'Generation failed',
+        });
+        logger.error(`Bulk generation failed for app ${appId}:`, genErr);
+      }
+    }
+
+    logger.info(`Bulk certificate generation: ${results.succeeded}/${results.total} succeeded by ${req.user.email}`);
+
+    ApiResponse.success(
+      res,
+      201,
+      `Bulk generation complete: ${results.succeeded} issued, ${results.failed} failed.`,
+      results
+    );
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * @desc    Preview certificate without saving (returns PDF as base64)
+ * @route   POST /api/certificates/preview
+ * @access  Admin
+ */
+const previewCertificate = async (req, res, next) => {
+  try {
+    const { applicationId, grade, templateId, ...customFields } = req.body;
+
+    if (!applicationId) {
+      return next(ApiError.badRequest('applicationId is required.'));
+    }
+
+    const application = await Application.findById(applicationId)
+      .populate('user')
+      .populate('internship');
+
+    if (!application) {
+      return next(ApiError.notFound('Application not found.'));
     }
 
     const student = application.user;
     const internship = application.internship;
 
-    // 2. Check duplicate certificate
-    const existingCert = await Certificate.findOne({
-      student: student._id,
-      internship: internship._id,
-      status: 'issued',
-    });
-
-    if (existingCert) {
-      return next(
-        ApiError.conflict(
-          `A certificate has already been issued to this student for ${internship.title}.`
-        )
-      );
-    }
-
-    // 3. Resolve assigned guide details
-    let guideName = '';
-    let guideId = null;
-    if (student.assignedGuide) {
-      const guide = await User.findById(student.assignedGuide);
-      if (guide) {
-        guideName = guide.name;
-        guideId = guide._id;
-      }
-    }
-
-    // 4. Resolve template (custom or default fallback)
+    // Resolve template
     let template = null;
     let backgroundImageBuffer = null;
 
     if (templateId) {
       template = await CertificateTemplate.findById(templateId);
-      if (!template) {
-        return next(ApiError.notFound('Selected certificate template not found.'));
-      }
-    } else {
-      template = await CertificateTemplate.findOne({ isDefault: true });
     }
-
     if (!template) {
-      // Create a default fallback template placeholder if none exists
-      template = await CertificateTemplate.create({
-        name: 'Classical Gold Border',
-        isDefault: true,
-        createdBy: req.user.id,
-      });
+      template = await CertificateTemplate.findOne({ isDefault: true, status: 'active' });
     }
 
-    // Download custom background if template has one
-    if (template.backgroundImageDriveId) {
+    if (template?.backgroundImageUrl) {
       try {
-        backgroundImageBuffer = await driveService.downloadFile(template.backgroundImageDriveId);
-      } catch (dlErr) {
-        logger.warn(`Failed to download template background, falling back to classic: ${dlErr.message}`);
+        backgroundImageBuffer = await cloudinaryService.downloadFile(template.backgroundImageUrl);
+      } catch {
         backgroundImageBuffer = null;
       }
     }
 
-    // 5. Generate unique credentials
-    const timestamp = Date.now().toString().slice(-4);
-    const randomHex = Math.random().toString(36).substring(2, 6).toUpperCase();
-    const certificateId = `CERT-${timestamp}-${randomHex}`;
+    // Resolve guide
+    let guideName = '';
+    if (student.assignedGuide) {
+      const guide = await User.findById(student.assignedGuide);
+      if (guide) guideName = guide.name;
+    }
 
-    const verificationUrl = `${process.env.CLIENT_URL || 'http://localhost:5173'}/verify-certificate/${certificateId}`;
+    const previewCertId = 'CERT-PREVIEW-00000000';
+    const previewVerifUrl = `${process.env.CLIENT_URL || 'http://localhost:5173'}/verify-certificate/${previewCertId}`;
+    const qrCodeBase64 = await generateQRCode(previewVerifUrl);
 
-    // 6. Generate secure base64 QR Code
-    const qrCodeBase64 = await generateQRCode(verificationUrl);
-
-    // 7. Compile high-resolution Landscape A4 PDF Buffer
     const pdfBuffer = await buildCertificatePDF({
-      certificateId,
+      certificateId: previewCertId,
       studentName: student.name,
       internshipTitle: internship.title,
       duration: internship.duration || '3 Months',
@@ -355,66 +783,23 @@ const generateCertificate = async (req, res, next) => {
       guideName,
       qrCodeBase64,
       backgroundImageBuffer,
-      layout: template.layout,
-      typography: template.typography,
-      overlays: template.overlays || [],
-      canvasWidth: template.width || 842,
-      canvasHeight: template.height || 595,
+      layout: template?.layout || {},
+      typography: template?.typography || {},
+      overlays: template?.overlays || [],
+      canvasWidth: template?.width || 842,
+      canvasHeight: template?.height || 595,
+      pageFormat: template?.pageFormat,
+      orientation: template?.orientation,
+      ...customFields,
     });
 
-    // 8. Upload PDF buffer directly to Google Drive
-    const fileName = `Certificate_${student.name.replace(/\s+/g, '_')}_${certificateId}.pdf`;
-    const mimeType = 'application/pdf';
+    const base64Pdf = pdfBuffer.toString('base64');
 
-    const { fileId, webViewLink } = await driveService.uploadFile(
-      pdfBuffer,
-      fileName,
-      mimeType,
-      DRIVE_FOLDERS.CERTIFICATES
-    );
-
-    // 9. Write Certificate Audit logs into Database
-    const certificate = await Certificate.create({
-      certificateId,
-      student: student._id,
-      internship: internship._id,
-      guide: guideId,
-      template: template._id,
+    ApiResponse.success(res, 200, 'Preview generated successfully.', {
+      pdfBase64: base64Pdf,
       studentName: student.name,
       internshipTitle: internship.title,
-      duration: internship.duration || '3 Months',
-      completionDate: new Date(),
-      grade: grade || 'A',
-      skillsAcquired: skillsAcquired || [],
-      verificationUrl,
-      qrCodeDataUrl: qrCodeBase64,
-      pdfUrl: webViewLink,
-      pdfDriveId: fileId,
-      issuedBy: req.user.id,
-      status: 'issued',
     });
-
-    // 10. Send in-app notification
-    await Notification.create({
-      user: student._id,
-      title: 'Certificate Issued! 🎓',
-      message: `Your certificate of completion for "${internship.title}" is now ready for download!`,
-      type: 'certificate',
-      link: '/student/calendar',
-    });
-
-    // Send styled congratulations email (non-blocking)
-    emailService
-      .sendReminderEmail(
-        student,
-        'Certificate of Completion Issued! 🎓',
-        `Congratulations on successfully completing your internship at InternHub! Your certificate of completion for "${internship.title}" (Grade: ${grade || 'A'}) has been successfully generated and is now available on your portfolio dashboard.`
-      )
-      .catch((err) => logger.error(`Congratulations email failed for ${student.email}:`, err));
-
-    logger.info(`Certificate generated & issued: ${certificateId} for student ${student.email}`);
-
-    ApiResponse.success(res, 201, 'Certificate generated and issued successfully.', certificate);
   } catch (error) {
     next(error);
   }
@@ -432,9 +817,50 @@ const getMyCertificates = async (req, res, next) => {
       status: 'issued',
     })
       .populate('internship', 'title category mode')
-      .populate('guide', 'name email');
+      .populate('guide', 'name email')
+      .sort({ issuedAt: -1 });
 
     ApiResponse.success(res, 200, 'Certificates fetched successfully.', certificates);
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * @desc    Get all certificates (Admin listing with search/filter)
+ * @route   GET /api/certificates/admin/all
+ * @access  Admin
+ */
+const getAllCertificates = async (req, res, next) => {
+  try {
+    const { search, status, page = 1, limit = 20 } = req.query;
+
+    const filter = {};
+    if (status && ['draft', 'issued', 'revoked'].includes(status)) {
+      filter.status = status;
+    }
+    if (search) {
+      filter.$or = [
+        { studentName: { $regex: search, $options: 'i' } },
+        { internshipTitle: { $regex: search, $options: 'i' } },
+        { certificateId: { $regex: search, $options: 'i' } },
+      ];
+    }
+
+    const skip = (Math.max(1, parseInt(page)) - 1) * Math.min(100, parseInt(limit));
+    const total = await Certificate.countDocuments(filter);
+
+    const certificates = await Certificate.find(filter)
+      .sort({ issuedAt: -1 })
+      .skip(skip)
+      .limit(Math.min(100, parseInt(limit)))
+      .populate('student', 'name email')
+      .populate('internship', 'title')
+      .populate('issuedBy', 'name email');
+
+    ApiResponse.success(res, 200, 'Certificates fetched successfully.', certificates, ApiResponse.paginate(
+      parseInt(page), Math.min(100, parseInt(limit)), total
+    ));
   } catch (error) {
     next(error);
   }
@@ -467,6 +893,8 @@ const verifyCertificatePublic = async (req, res, next) => {
       skillsAcquired: certificate.skillsAcquired,
       status: certificate.status,
       issuedAt: certificate.issuedAt,
+      pdfUrl: certificate.pdfUrl,
+      verificationHash: certificate.verificationHash,
     });
   } catch (error) {
     next(error);
@@ -486,6 +914,10 @@ const revokeCertificate = async (req, res, next) => {
       return next(ApiError.notFound('Certificate not found.'));
     }
 
+    if (certificate.status === 'revoked') {
+      return next(ApiError.conflict('Certificate is already revoked.'));
+    }
+
     certificate.status = 'revoked';
     await certificate.save();
 
@@ -497,13 +929,54 @@ const revokeCertificate = async (req, res, next) => {
   }
 };
 
+/**
+ * @desc    Proxy download certificate PDF from Drive
+ * @route   GET /api/certificates/:id/download
+ * @access  Private
+ */
+const downloadCertificate = async (req, res, next) => {
+  try {
+    const certificate = await Certificate.findById(req.params.id);
+    if (!certificate) {
+      return next(ApiError.notFound('Certificate not found.'));
+    }
+
+    // Students can only download their own certificates
+    if (req.user.role === 'student' && certificate.student.toString() !== req.user.id) {
+      return next(ApiError.forbidden('You can only download your own certificates.'));
+    }
+
+    if (!certificate.pdfPublicId || !certificate.pdfUrl) {
+      return next(ApiError.notFound('Certificate PDF not available.'));
+    }
+
+    const buffer = await cloudinaryService.downloadFile(certificate.pdfUrl);
+
+    res.set({
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': `attachment; filename="Certificate_${certificate.certificateId}.pdf"`,
+      'Content-Length': buffer.length,
+    });
+    res.send(buffer);
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   getTemplates,
+  getTemplateStats,
   createTemplate,
   updateTemplate,
   deleteTemplate,
+  toggleTemplateStatus,
+  downloadTemplate,
   generateCertificate,
+  bulkGenerate,
+  previewCertificate,
   getMyCertificates,
+  getAllCertificates,
   verifyCertificatePublic,
   revokeCertificate,
+  downloadCertificate,
 };

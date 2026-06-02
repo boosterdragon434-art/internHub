@@ -52,7 +52,7 @@ const paymentSchema = new mongoose.Schema(
       type: String,
       default: '',
     },
-    receiptDriveId: {
+    receiptPublicId: {
       type: String,
       default: '',
     },

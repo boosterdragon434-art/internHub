@@ -54,4 +54,35 @@ const attendanceLimiter = rateLimit({
   legacyHeaders: false,
 });
 
-module.exports = { generalLimiter, authLimiter, paymentLimiter, attendanceLimiter };
+/** Certificate generation rate limiter — 20 requests per 15 minutes (expensive operation) */
+const certificateGenerationLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 20,
+  message: {
+    success: false,
+    message: 'Too many certificate generation requests. Please try again after 15 minutes.',
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+/** Certificate template upload rate limiter — 30 requests per 15 minutes */
+const certificateUploadLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 30,
+  message: {
+    success: false,
+    message: 'Too many template upload requests. Please try again after 15 minutes.',
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+module.exports = {
+  generalLimiter,
+  authLimiter,
+  paymentLimiter,
+  attendanceLimiter,
+  certificateGenerationLimiter,
+  certificateUploadLimiter,
+};

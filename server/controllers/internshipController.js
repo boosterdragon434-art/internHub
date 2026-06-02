@@ -2,8 +2,8 @@ const Internship = require('../models/Internship');
 const Application = require('../models/Application');
 const ApiError = require('../utils/ApiError');
 const ApiResponse = require('../utils/ApiResponse');
-const driveService = require('../services/driveService');
-const { PAGINATION, DRIVE_FOLDERS } = require('../config/constants');
+const cloudinaryService = require('../services/cloudinaryService');
+const { PAGINATION } = require('../config/constants');
 
 /**
  * @desc    Get all internships (public, with search/filter/sort/pagination)
@@ -95,14 +95,13 @@ const createInternship = async (req, res, next) => {
 
     // Handle image upload to Google Drive
     if (req.file) {
-      const { fileId, webViewLink } = await driveService.uploadFile(
+      const { publicId, secureUrl } = await cloudinaryService.uploadFile(
         req.file.buffer,
-        `internship_${Date.now()}_${req.file.originalname}`,
-        req.file.mimetype,
-        DRIVE_FOLDERS.IMAGES
+        'internhub/internships',
+        'image'
       );
-      req.body.imageUrl = webViewLink;
-      req.body.imageDriveId = fileId;
+      req.body.imageUrl = secureUrl;
+      req.body.imagePublicId = publicId;
     }
 
     const internship = await Internship.create(req.body);
@@ -128,19 +127,18 @@ const updateInternship = async (req, res, next) => {
 
     // Handle new image upload
     if (req.file) {
-      // Delete old image from Drive
-      if (internship.imageDriveId) {
-        await driveService.deleteFile(internship.imageDriveId);
+      // Delete old image from Cloudinary
+      if (internship.imagePublicId) {
+        await cloudinaryService.deleteFile(internship.imagePublicId, 'image');
       }
 
-      const { fileId, webViewLink } = await driveService.uploadFile(
+      const { publicId, secureUrl } = await cloudinaryService.uploadFile(
         req.file.buffer,
-        `internship_${Date.now()}_${req.file.originalname}`,
-        req.file.mimetype,
-        DRIVE_FOLDERS.IMAGES
+        'internhub/internships',
+        'image'
       );
-      req.body.imageUrl = webViewLink;
-      req.body.imageDriveId = fileId;
+      req.body.imageUrl = secureUrl;
+      req.body.imagePublicId = publicId;
     }
 
     internship = await Internship.findByIdAndUpdate(req.params.id, req.body, {
@@ -167,9 +165,9 @@ const deleteInternship = async (req, res, next) => {
       return next(ApiError.notFound('Internship not found.'));
     }
 
-    // Delete image from Drive
-    if (internship.imageDriveId) {
-      await driveService.deleteFile(internship.imageDriveId);
+    // Delete image from Cloudinary
+    if (internship.imagePublicId) {
+      await cloudinaryService.deleteFile(internship.imagePublicId, 'image');
     }
 
     await Internship.findByIdAndDelete(req.params.id);

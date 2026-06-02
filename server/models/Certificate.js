@@ -12,6 +12,11 @@ const certificateSchema = new mongoose.Schema(
       unique: true,
       trim: true,
     },
+    documentType: {
+      type: String,
+      enum: ['certificate', 'offer_letter', 'joining_letter', 'completion_letter', 'appreciation_letter', 'custom'],
+      default: 'certificate',
+    },
     student: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
@@ -55,6 +60,10 @@ const certificateSchema = new mongoose.Schema(
       type: String,
       default: 'A',
     },
+    performance: {
+      type: String,
+      default: 'Good',
+    },
     skillsAcquired: [
       {
         type: String,
@@ -73,9 +82,15 @@ const certificateSchema = new mongoose.Schema(
       type: String,
       required: [true, 'PDF download URL is required'],
     },
-    pdfDriveId: {
+    pdfPublicId: {
       type: String,
-      required: [true, 'PDF Drive file ID is required'],
+      required: [true, 'PDF Cloudinary public ID is required'],
+    },
+    /** SHA-256 hash of certificate metadata for tamper detection */
+    verificationHash: {
+      type: String,
+      default: '',
+      trim: true,
     },
     status: {
       type: String,
@@ -101,5 +116,6 @@ const certificateSchema = new mongoose.Schema(
 certificateSchema.index({ certificateId: 1 }, { unique: true });
 certificateSchema.index({ student: 1 });
 certificateSchema.index({ status: 1 });
+certificateSchema.index({ student: 1, internship: 1, status: 1 });
 
 module.exports = mongoose.model('Certificate', certificateSchema);
