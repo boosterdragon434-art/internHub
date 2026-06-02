@@ -11,14 +11,20 @@ const { APPLICATION_STATUS, PAYMENT_STATUS, PAGINATION } = require('../config/co
 const logger = require('../utils/logger');
 const { v4: uuidv4 } = require('uuid');
 
+const mongoose = require('mongoose');
+
 /**
- * @desc    Create a Razorpay order
- * @route   POST /api/payments/create-order
+ * @desc    Submit UTR for manual UPI payment verification
+ * @route   POST /api/payments/submit-utr
  * @access  Student
  */
-const createOrder = async (req, res, next) => {
+const submitUtr = async (req, res, next) => {
   try {
-    const { applicationId } = req.body;
+    const { applicationId, utrNumber } = req.body;
+
+    if (!applicationId || !utrNumber) {
+      return next(ApiError.badRequest('Application ID and UTR Number are required.'));
+    }
 
     const application = await Application.findOne({
       _id: applicationId,
@@ -30,67 +36,60 @@ const createOrder = async (req, res, next) => {
     }
 
     if (application.status !== APPLICATION_STATUS.PAYMENT_PENDING) {
-      return next(ApiError.badRequest('Payment is not required for this application.'));
+      return next(ApiError.badRequest('Payment is not pending for this application.'));
     }
 
-    if (!application.assignedPaymentAmount || application.assignedPaymentAmount <= 0) {
-      return next(ApiError.badRequest('No payment amount has been assigned yet.'));
+    // Check if this UTR was already submitted by ANY user (prevent reuse)
+    const existingUtr = await Payment.findOne({ utrNumber });
+    if (existingUtr) {
+      return next(ApiError.conflict('This UTR number has already been submitted.'));
     }
 
-    // Check for existing unpaid order
+    // Check for an existing pending payment record for this user/app (allow overwrite or reject)
     const existingPayment = await Payment.findOne({
       application: applicationId,
-      status: { $in: [PAYMENT_STATUS.CREATED, PAYMENT_STATUS.ATTEMPTED] },
+      status: PAYMENT_STATUS.PENDING_VERIFICATION,
     });
 
     if (existingPayment) {
-      // Return existing order for retry
-      return ApiResponse.success(res, 200, 'Existing order found.', {
-        orderId: existingPayment.razorpayOrderId,
-        amount: existingPayment.amount,
-        currency: existingPayment.currency,
-        keyId: process.env.RAZORPAY_KEY_ID,
-      });
+      return next(ApiError.conflict('You have already submitted a UTR which is pending verification.'));
     }
 
-    const receipt = `rcpt_${uuidv4().slice(0, 8)}`;
+    const session = await mongoose.startSession();
+    session.startTransaction();
 
-    let order;
+    let payment;
     try {
-      order = await paymentService.createOrder(
-        application.assignedPaymentAmount,
-        'INR',
-        receipt,
-        {
-          applicationId: application._id.toString(),
-          userId: req.user.id,
-          internship: application.internship.title,
-        }
-      );
-    } catch (razorpayError) {
-      logger.error('Razorpay order creation failed:', razorpayError);
-      return next(
-        ApiError.internal('Unable to initiate payment at this time. Please try again later.')
-      );
+      const payments = await Payment.create([{
+        application: application._id,
+        user: req.user.id,
+        internship: application.internship._id,
+        amount: application.assignedPaymentAmount || 0, // Fallback if 0
+        utrNumber: utrNumber,
+        status: PAYMENT_STATUS.PENDING_VERIFICATION,
+      }], { session });
+      
+      payment = payments[0];
+
+      // Update application to show verification is pending
+      application.status = APPLICATION_STATUS.PAYMENT_VERIFICATION_PENDING;
+      await application.save({ session });
+
+      await session.commitTransaction();
+    } catch (txError) {
+      await session.abortTransaction();
+      throw txError;
+    } finally {
+      session.endSession();
     }
 
-    // Save payment record
-    await Payment.create({
-      application: application._id,
-      user: req.user.id,
-      internship: application.internship._id,
-      amount: application.assignedPaymentAmount,
-      razorpayOrderId: order.id,
-      status: PAYMENT_STATUS.CREATED,
-    });
+    // Notify admins (could be done later, simple log for now)
+    logger.info(`User ${req.user.id} submitted UTR ${utrNumber} for app ${applicationId}`);
 
-    ApiResponse.success(res, 201, 'Payment order created.', {
-      orderId: order.id,
-      amount: application.assignedPaymentAmount,
-      currency: 'INR',
-      keyId: process.env.RAZORPAY_KEY_ID,
-      applicationId: application._id,
-      internshipTitle: application.internship.title,
+    ApiResponse.success(res, 201, 'Payment UTR submitted successfully. Pending admin verification.', {
+      paymentId: payment._id,
+      utrNumber: payment.utrNumber,
+      status: payment.status,
     });
   } catch (error) {
     next(error);
@@ -98,91 +97,94 @@ const createOrder = async (req, res, next) => {
 };
 
 /**
- * @desc    Verify payment after Razorpay checkout
- * @route   POST /api/payments/verify
- * @access  Student
+ * @desc    Admin verifies (approves/rejects) manual UTR payment
+ * @route   PUT /api/payments/:id/verify
+ * @access  Admin
  */
-const verifyPayment = async (req, res, next) => {
+const adminVerifyPayment = async (req, res, next) => {
   try {
-    const { razorpayOrderId, razorpayPaymentId, razorpaySignature } = req.body;
+    const { action } = req.body; // 'approve' or 'reject'
+    const paymentId = req.params.id;
 
-    if (!razorpayOrderId || !razorpayPaymentId || !razorpaySignature) {
-      return next(ApiError.badRequest('Missing payment verification data.'));
+    if (!['approve', 'reject'].includes(action)) {
+      return next(ApiError.badRequest('Invalid verification action. Use approve or reject.'));
     }
 
-    // Locate the payment record first for ownership + replay checks
-    const payment = await Payment.findOne({ razorpayOrderId }).populate('internship', 'title');
+    const payment = await Payment.findById(paymentId)
+      .populate('internship', 'title')
+      .populate('application');
 
     if (!payment) {
       return next(ApiError.notFound('Payment record not found.'));
     }
 
-    // IDOR protection: ensure this payment belongs to the requesting user
-    if (payment.user.toString() !== req.user.id) {
-      return next(ApiError.forbidden('You are not authorized to verify this payment.'));
+    if (payment.status !== PAYMENT_STATUS.PENDING_VERIFICATION) {
+      return next(ApiError.badRequest(`Payment is already ${payment.status}.`));
     }
 
-    // Replay protection: reject if already processed
-    if (payment.status === PAYMENT_STATUS.PAID) {
-      return ApiResponse.success(res, 200, 'Payment has already been verified.', {
-        paymentId: payment._id,
-        amount: payment.amount,
-        status: payment.status,
-        paidAt: payment.paidAt,
-      });
+    const session = await mongoose.startSession();
+    session.startTransaction();
+
+    try {
+      if (action === 'approve') {
+        payment.status = PAYMENT_STATUS.PAID;
+        payment.paidAt = new Date();
+        await payment.save({ session });
+
+        // Update application
+        const application = await Application.findById(payment.application._id);
+        application.status = APPLICATION_STATUS.PAYMENT_COMPLETED;
+        await application.save({ session });
+
+        // Notify Student
+        await Notification.create([{
+          user: payment.user,
+          title: 'Payment Verified ✅',
+          message: `Your payment of ₹${payment.amount} for ${payment.internship.title} was verified.`,
+          type: 'payment',
+          link: '/student/payments',
+        }], { session });
+
+      } else if (action === 'reject') {
+        payment.status = PAYMENT_STATUS.FAILED;
+        await payment.save({ session });
+
+        // Revert application status back to pending
+        const application = await Application.findById(payment.application._id);
+        application.status = APPLICATION_STATUS.PAYMENT_PENDING;
+        await application.save({ session });
+
+        // Notify Student
+        await Notification.create([{
+          user: payment.user,
+          title: 'Payment Verification Failed ❌',
+          message: `Your UTR ${payment.utrNumber} was rejected. Please try again or contact support.`,
+          type: 'payment',
+          link: '/student/payments',
+        }], { session });
+      }
+
+      await session.commitTransaction();
+    } catch (txError) {
+      await session.abortTransaction();
+      throw txError;
+    } finally {
+      session.endSession();
     }
 
-    if (payment.status === PAYMENT_STATUS.FAILED || payment.status === PAYMENT_STATUS.REFUNDED) {
-      return next(ApiError.badRequest('This payment cannot be verified. Please create a new order.'));
+    // Send email outside transaction (non-blocking)
+    if (action === 'approve') {
+      const user = await User.findById(payment.user);
+      if (user) {
+        setImmediate(() => {
+          emailService.sendPaymentSuccess(user, payment.internship.title, payment.amount).catch(() => {});
+        });
+      }
     }
 
-    // Verify cryptographic signature
-    const isValid = paymentService.verifyPayment(
-      razorpayOrderId,
-      razorpayPaymentId,
-      razorpaySignature
-    );
-
-    if (!isValid) {
-      payment.status = PAYMENT_STATUS.FAILED;
-      await payment.save();
-      return next(ApiError.badRequest('Payment verification failed. Invalid signature.'));
-    }
-
-    // Mark payment as successful
-    payment.razorpayPaymentId = razorpayPaymentId;
-    payment.razorpaySignature = razorpaySignature;
-    payment.status = PAYMENT_STATUS.PAID;
-    payment.paidAt = new Date();
-    await payment.save();
-
-    // Update application status
-    await Application.findByIdAndUpdate(payment.application, {
-      status: APPLICATION_STATUS.PAYMENT_COMPLETED,
-    });
-
-    // Create notification
-    await Notification.create({
-      user: req.user.id,
-      title: 'Payment Successful ✅',
-      message: `Payment of ₹${payment.amount} for ${payment.internship.title} received.`,
-      type: 'payment',
-      link: '/student/payments',
-    });
-
-    // Send success email (non-blocking)
-    const user = await User.findById(req.user.id);
-    if (user) {
-      emailService
-        .sendPaymentSuccess(user, payment.internship.title, payment.amount)
-        .catch(() => {});
-    }
-
-    ApiResponse.success(res, 200, 'Payment verified successfully.', {
+    ApiResponse.success(res, 200, `Payment ${action}d successfully.`, {
       paymentId: payment._id,
-      amount: payment.amount,
       status: payment.status,
-      paidAt: payment.paidAt,
     });
   } catch (error) {
     next(error);
@@ -326,7 +328,7 @@ const getPaymentStats = async (req, res, next) => {
           { $group: { _id: null, total: { $sum: '$amount' } } },
         ]),
         Payment.countDocuments({ status: PAYMENT_STATUS.PAID }),
-        Payment.countDocuments({ status: PAYMENT_STATUS.CREATED }),
+        Payment.countDocuments({ status: PAYMENT_STATUS.PENDING_VERIFICATION }),
         Payment.countDocuments({ status: PAYMENT_STATUS.FAILED }),
         Payment.aggregate([
           { $match: { status: PAYMENT_STATUS.PAID } },
@@ -357,8 +359,8 @@ const getPaymentStats = async (req, res, next) => {
 };
 
 module.exports = {
-  createOrder,
-  verifyPayment,
+  submitUtr,
+  adminVerifyPayment,
   getMyPayments,
   getAllPayments,
   sendPaymentRequest,

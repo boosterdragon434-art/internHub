@@ -6,6 +6,7 @@ const {
   getAllApplications,
   getApplication,
   updateApplicationStatus,
+  completeApplication,
   assignPayment,
   bulkAction,
   exportCsv,
@@ -27,6 +28,8 @@ router.post('/bulk', protect, authorize('admin'), validate(applicationValidator.
 router.get('/', protect, authorize('admin'), getAllApplications);
 router.get('/:id', protect, authorize('admin'), getApplication);
 router.put('/:id/status', protect, authorize('admin'), validate(applicationValidator.updateStatus), updateApplicationStatus);
+router.put('/:id/complete', protect, authorize('admin'), completeApplication);
 router.put('/:id/assign-payment', protect, authorize('admin'), validate(applicationValidator.assignPayment), assignPayment);
 
 module.exports = router;
+

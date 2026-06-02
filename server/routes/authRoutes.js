@@ -9,6 +9,7 @@ const {
   forgotPassword,
   resetPassword,
   getMe,
+  logout,
 } = require('../controllers/authController');
 const { protect } = require('../middleware/auth');
 const validate = require('../middleware/validate');
@@ -26,5 +27,6 @@ router.put('/reset-password/:token', authLimiter, validate(authValidator.resetPa
 
 // Protected routes
 router.get('/me', protect, getMe);
+router.post('/logout', protect, logout);
 
 module.exports = router;

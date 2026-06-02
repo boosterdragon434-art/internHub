@@ -8,13 +8,14 @@ const APPLICATION_STATUS = {
   APPROVED: 'Approved',
   REJECTED: 'Rejected',
   PAYMENT_PENDING: 'Payment Pending',
+  PAYMENT_VERIFICATION_PENDING: 'Payment Verification Pending',
   PAYMENT_COMPLETED: 'Payment Completed',
   JOINED: 'Joined',
+  COMPLETED: 'Completed',
 };
 
 const PAYMENT_STATUS = {
-  CREATED: 'created',
-  ATTEMPTED: 'attempted',
+  PENDING_VERIFICATION: 'pending_verification',
   PAID: 'paid',
   FAILED: 'failed',
   REFUNDED: 'refunded',
@@ -64,6 +65,8 @@ const EMAIL_TYPES = {
   APPLICATION_SUBMITTED: 'application_submitted',
   APPLICATION_APPROVED: 'application_approved',
   APPLICATION_REJECTED: 'application_rejected',
+  APPLICATION_COMPLETED: 'application_completed',
+  CERTIFICATE_DELIVERY: 'certificate_delivery',
   PAYMENT_REQUEST: 'payment_request',
   PAYMENT_SUCCESS: 'payment_success',
   JOINING_CONFIRMATION: 'joining_confirmation',
@@ -102,6 +105,9 @@ const FILE_LIMITS = {
 /** Prefix for collision-resistant certificate IDs */
 const CERTIFICATE_ID_PREFIX = 'CERT';
 
+/** Prefix for sequential internship completion certificate IDs */
+const INTERNSHIP_CERT_PREFIX = 'FWT-INT';
+
 /** Maximum number of applications for bulk certificate generation */
 const BULK_GENERATION_LIMIT = 50;
 
@@ -119,5 +125,6 @@ module.exports = {
   TEMPLATE_STATUS,
   FILE_LIMITS,
   CERTIFICATE_ID_PREFIX,
+  INTERNSHIP_CERT_PREFIX,
   BULK_GENERATION_LIMIT,
 };

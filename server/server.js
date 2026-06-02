@@ -17,6 +17,9 @@ const startServer = async () => {
     const { startReminderScheduler } = require('./services/reminderService');
     startReminderScheduler();
 
+    const { initCronJobs } = require('./cron/attendanceCron');
+    initCronJobs();
+
     const server = app.listen(PORT, () => {
       logger.info(`InternHub server running on port ${PORT} [${process.env.NODE_ENV}]`);
     });

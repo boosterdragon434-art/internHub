@@ -106,9 +106,10 @@ const changePassword = async (req, res, next) => {
     }
 
     user.password = newPassword;
+    user.tokenVersion += 1;
     await user.save();
 
-    ApiResponse.success(res, 200, 'Password changed successfully.');
+    ApiResponse.success(res, 200, 'Password changed successfully. You have been logged out of all other devices.');
   } catch (error) {
     next(error);
   }

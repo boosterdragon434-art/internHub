@@ -24,6 +24,10 @@ const protect = async (req, _res, next) => {
       return next(ApiError.unauthorized('User no longer exists.'));
     }
 
+    if (user.tokenVersion !== decoded.tokenVersion) {
+      return next(ApiError.unauthorized('Session expired or invalidated. Please log in again.'));
+    }
+
     req.user = user;
     next();
   } catch (error) {

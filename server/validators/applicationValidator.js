@@ -18,13 +18,30 @@ const applicationValidator = {
       .required(),
     skills: Joi.array().items(Joi.string().trim()).optional(),
     joiningDate: Joi.date().optional(),
+    // Step 2 — Motivation
+    motivation: Joi.string().trim().min(100).max(2000).optional().allow('').messages({
+      'string.min': 'Motivation must be at least 100 characters',
+    }),
+    relevantExperience: Joi.string().trim().max(2000).optional().allow(''),
+    portfolioUrl: Joi.string().trim().uri({ allowRelative: false }).optional().allow('').messages({
+      'string.uri': 'Please provide a valid URL',
+    }),
+    // Step 3 — Availability
+    availableFrom: Joi.date().optional().allow(null, ''),
+    hoursPerWeek: Joi.number().integer().min(10).max(40).optional().messages({
+      'number.min': 'Minimum 10 hours per week',
+      'number.max': 'Maximum 40 hours per week',
+    }),
+    preferredMode: Joi.string().valid('Remote', 'Hybrid', 'On-site').optional(),
+    // Step 4 — Confirmation
+    confirmAccuracy: Joi.boolean().optional(),
   }),
 
   updateStatus: Joi.object({
     status: Joi.string()
       .valid(
         'Applied', 'Under Review', 'Approved', 'Rejected',
-        'Payment Pending', 'Payment Completed', 'Joined'
+        'Payment Pending', 'Payment Completed', 'Joined', 'Completed'
       )
       .required(),
     adminNotes: Joi.string().trim().max(1000).optional().allow(''),

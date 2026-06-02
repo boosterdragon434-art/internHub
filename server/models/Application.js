@@ -64,6 +64,48 @@ const applicationSchema = new mongoose.Schema(
     joiningDate: {
       type: Date,
     },
+    // ── Step 2: Motivation fields ──
+    motivation: {
+      type: String,
+      default: '',
+      maxlength: [2000, 'Motivation cannot exceed 2000 characters'],
+    },
+    relevantExperience: {
+      type: String,
+      default: '',
+      maxlength: [2000, 'Experience description cannot exceed 2000 characters'],
+    },
+    portfolioUrl: {
+      type: String,
+      default: '',
+      trim: true,
+    },
+    // ── Step 3: Availability fields ──
+    availableFrom: {
+      type: Date,
+      default: null,
+    },
+    hoursPerWeek: {
+      type: Number,
+      default: 20,
+      min: [10, 'Minimum 10 hours per week'],
+      max: [40, 'Maximum 40 hours per week'],
+    },
+    preferredMode: {
+      type: String,
+      enum: ['Remote', 'Hybrid', 'On-site'],
+      default: 'Remote',
+    },
+    // ── Step 4: Confirmation ──
+    confirmAccuracy: {
+      type: Boolean,
+      default: false,
+    },
+    // ── Certificate (populated on completion) ──
+    certificateUrl: {
+      type: String,
+      default: '',
+    },
     status: {
       type: String,
       enum: Object.values(APPLICATION_STATUS),
@@ -89,7 +131,7 @@ const applicationSchema = new mongoose.Schema(
 );
 
 // --------- Indexes ---------
-applicationSchema.index({ user: 1, internship: 1 });
+applicationSchema.index({ user: 1, internship: 1 }, { unique: true });
 applicationSchema.index({ status: 1 });
 applicationSchema.index({ internship: 1 });
 applicationSchema.index({ createdAt: -1 });

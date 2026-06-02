@@ -363,6 +363,24 @@ const getMe = async (req, res, next) => {
   }
 };
 
+/**
+ * @desc    Logout user (invalidates token on all devices)
+ * @route   POST /api/auth/logout
+ * @access  Private
+ */
+const logout = async (req, res, next) => {
+  try {
+    const user = await User.findById(req.user.id);
+    if (user) {
+      user.tokenVersion += 1;
+      await user.save();
+    }
+    ApiResponse.success(res, 200, 'Logged out successfully from all devices.');
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   register,
   login,
@@ -372,4 +390,5 @@ module.exports = {
   forgotPassword,
   resetPassword,
   getMe,
+  logout,
 };

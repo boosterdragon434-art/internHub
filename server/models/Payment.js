@@ -2,7 +2,7 @@ const mongoose = require('mongoose');
 const { PAYMENT_STATUS } = require('../config/constants');
 
 /**
- * Payment Schema — tracks Razorpay payment transactions.
+ * Payment Schema — tracks manual UPI/G-Pay UTR verifications.
  */
 const paymentSchema = new mongoose.Schema(
   {
@@ -31,22 +31,20 @@ const paymentSchema = new mongoose.Schema(
       default: 'INR',
       uppercase: true,
     },
-    razorpayOrderId: {
+    utrNumber: {
       type: String,
-      required: [true, 'Razorpay order ID is required'],
+      required: [true, 'UTR/Transaction ID is required'],
+      unique: true,
+      trim: true,
     },
-    razorpayPaymentId: {
+    paymentMethod: {
       type: String,
-      default: '',
-    },
-    razorpaySignature: {
-      type: String,
-      default: '',
+      default: 'UPI',
     },
     status: {
       type: String,
       enum: Object.values(PAYMENT_STATUS),
-      default: PAYMENT_STATUS.CREATED,
+      default: PAYMENT_STATUS.PENDING_VERIFICATION,
     },
     receiptUrl: {
       type: String,
@@ -67,7 +65,6 @@ const paymentSchema = new mongoose.Schema(
 );
 
 // --------- Indexes ---------
-paymentSchema.index({ razorpayOrderId: 1 });
 paymentSchema.index({ user: 1 });
 paymentSchema.index({ status: 1 });
 paymentSchema.index({ createdAt: -1 });

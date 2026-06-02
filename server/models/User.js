@@ -116,6 +116,10 @@ const userSchema = new mongoose.Schema(
       default: null,
       select: false,
     },
+    tokenVersion: {
+      type: Number,
+      default: 0,
+    },
   },
   {
     timestamps: true,
@@ -194,7 +198,7 @@ userSchema.methods.comparePassword = async function (enteredPassword) {
  * @returns {string} JWT token
  */
 userSchema.methods.getSignedJwtToken = function () {
-  return jwt.sign({ id: this._id, role: this.role }, process.env.JWT_SECRET, {
+  return jwt.sign({ id: this._id, role: this.role, tokenVersion: this.tokenVersion }, process.env.JWT_SECRET, {
     expiresIn: process.env.JWT_EXPIRE || '7d',
   });
 };

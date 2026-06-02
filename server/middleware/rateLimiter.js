@@ -16,6 +16,7 @@ const generalLimiter = rateLimit({
   },
   standardHeaders: true,
   legacyHeaders: false,
+  keyGenerator: (req) => req.user ? req.user.id : req.ip,
 });
 
 /** Auth endpoints rate limiter — 300 requests per 15 minutes */
@@ -28,6 +29,7 @@ const authLimiter = rateLimit({
   },
   standardHeaders: true,
   legacyHeaders: false,
+  keyGenerator: (req) => req.user ? req.user.id : req.ip,
 });
 
 /** Payment endpoints rate limiter — 150 requests per 15 minutes */
@@ -40,6 +42,7 @@ const paymentLimiter = rateLimit({
   },
   standardHeaders: true,
   legacyHeaders: false,
+  keyGenerator: (req) => req.user ? req.user.id : req.ip,
 });
 
 /** Attendance endpoints rate limiter — 600 requests per 15 minutes */
@@ -52,6 +55,7 @@ const attendanceLimiter = rateLimit({
   },
   standardHeaders: true,
   legacyHeaders: false,
+  keyGenerator: (req) => req.user ? req.user.id : req.ip,
 });
 
 /** Certificate generation rate limiter — 20 requests per 15 minutes (expensive operation) */
@@ -64,6 +68,7 @@ const certificateGenerationLimiter = rateLimit({
   },
   standardHeaders: true,
   legacyHeaders: false,
+  keyGenerator: (req) => req.user ? req.user.id : req.ip,
 });
 
 /** Certificate template upload rate limiter — 30 requests per 15 minutes */
@@ -76,6 +81,7 @@ const certificateUploadLimiter = rateLimit({
   },
   standardHeaders: true,
   legacyHeaders: false,
+  keyGenerator: (req) => req.user ? req.user.id : req.ip,
 });
 
 module.exports = {

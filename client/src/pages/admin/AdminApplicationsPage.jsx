@@ -1,7 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { Helmet } from 'react-helmet-async';
-import { FiDownload } from 'react-icons/fi';
-import { getAllApplications, updateApplicationStatus, assignPaymentAmount, performBulkAction, exportApplicationsCsv } from '../../api/applicationApi';
+import { FiDownload, FiCheckCircle } from 'react-icons/fi';
+import {
+  getAllApplications,
+  updateApplicationStatus,
+  completeApplication,
+  assignPaymentAmount,
+  performBulkAction,
+  exportApplicationsCsv,
+} from '../../api/applicationApi';
 import { useToast } from '../../context/ToastContext';
 import DataTable from '../../components/ui/DataTable';
 import Badge from '../../components/common/Badge';
@@ -27,9 +34,10 @@ const AdminApplicationsPage = () => {
   const [statusForm, setStatusForm] = useState({ status: '', adminNotes: '' });
   const [paymentAmount, setPaymentAmount] = useState('');
   const [saving, setSaving] = useState(false);
+  const [completing, setCompleting] = useState(false);
 
   const statusOptions = [
-    'Applied', 'Under Review', 'Approved', 'Rejected', 'Payment Pending', 'Payment Completed', 'Joined',
+    'Applied', 'Under Review', 'Approved', 'Rejected', 'Payment Pending', 'Payment Completed', 'Joined', 'Completed'
   ].map((s) => ({ value: s, label: s }));
 
   const fetchData = async () => {
@@ -43,8 +51,11 @@ const AdminApplicationsPage = () => {
         setApps(res.data);
         if (res.pagination) setPagination((p) => ({ ...p, totalPages: res.pagination.totalPages }));
       }
-    } catch (err) { console.error(err); }
-    finally { setLoading(false); }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => { fetchData(); }, [debouncedSearch, statusFilter, pagination.page]);
@@ -54,11 +65,9 @@ const AdminApplicationsPage = () => {
     setSaving(true);
     try {
       if (statusForm.status === 'Approved' && Number(paymentAmount) > 0) {
-        // Dynamic pricing assignment: sets status to Payment Pending and assigns cost
         await assignPaymentAmount(detailModal._id, Number(paymentAmount));
         toast.success('Application approved and payment request sent!');
       } else {
-        // Standard status updates (e.g. Free Approved, Under Review, Joined, Rejected)
         await updateApplicationStatus(detailModal._id, statusForm.status, statusForm.adminNotes);
         toast.success('Status updated successfully!');
       }
@@ -66,7 +75,23 @@ const AdminApplicationsPage = () => {
       fetchData();
     } catch (err) {
       toast.error(err.response?.data?.message || 'Update failed.');
-    } finally { setSaving(false); }
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleCompleteApplication = async () => {
+    setCompleting(true);
+    try {
+      await completeApplication(detailModal._id);
+      toast.success('Application marked as complete. Certificate generated and email sent!');
+      setDetailModal(null);
+      fetchData();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to complete application.');
+    } finally {
+      setCompleting(false);
+    }
   };
 
   const handleBulk = async (action) => {
@@ -76,7 +101,9 @@ const AdminApplicationsPage = () => {
       toast.success(`Bulk ${action} completed.`);
       setSelectedIds([]);
       fetchData();
-    } catch (err) { toast.error(err.response?.data?.message || 'Bulk action failed.'); }
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Bulk action failed.');
+    }
   };
 
   const handleExport = async () => {
@@ -87,97 +114,250 @@ const AdminApplicationsPage = () => {
       a.href = url; a.download = 'applications.csv'; a.click();
       URL.revokeObjectURL(url);
       toast.success('CSV exported!');
-    } catch (err) { toast.error('Export failed.'); }
+    } catch (err) {
+      toast.error('Export failed.');
+    }
   };
 
   const columns = [
-    { header: 'Name', render: (r) => <span className="font-bold text-slate-900 dark:text-slate-50">{r.name}</span> },
-    { header: 'Email', key: 'email' },
-    { header: 'Internship', render: (r) => r.internship?.title || 'N/A' },
+    { header: 'Applicant', render: (r) => (
+      <div>
+        <div className="font-bold text-slate-900 dark:text-slate-50">{r.name}</div>
+        <div className="text-[10px] text-slate-500">{r.email}</div>
+      </div>
+    )},
+    { header: 'Role (Internship)', render: (r) => (
+      <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+        {r.internship?.title || 'N/A'}
+      </span>
+    )},
+    { header: 'Applied Date', render: (r) => (
+      <span className="text-xs text-slate-600 dark:text-slate-400">
+        {formatDate(r.createdAt)}
+      </span>
+    )},
     { header: 'Status', render: (r) => <Badge status={r.status} /> },
-    { header: 'Applied', render: (r) => formatDate(r.createdAt) },
     { header: 'Actions', render: (r) => (
-      <Button size="sm" variant="outline" onClick={() => { setDetailModal(r); setStatusForm({ status: r.status, adminNotes: r.adminNotes || '' }); setPaymentAmount(r.assignedPaymentAmount || ''); }}>
-        View
+      <Button
+        size="sm"
+        variant="outline"
+        onClick={() => {
+          setDetailModal(r);
+          setStatusForm({ status: r.status, adminNotes: r.adminNotes || '' });
+          setPaymentAmount(r.assignedPaymentAmount || '');
+        }}
+      >
+        Review
       </Button>
     )},
   ];
 
   return (
     <>
-      <Helmet><title>Applications — InternHub Admin</title></Helmet>
-      <div className="flex items-center justify-between mb-6">
+      <Helmet><title>Applications — FWT iZON Admin</title></Helmet>
+      
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <div>
           <h1 className="text-2xl font-extrabold text-slate-900 dark:text-slate-50">Manage Applications</h1>
-          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Review, approve, and manage student applications.</p>
+          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Review, approve, and finalize student applications.</p>
         </div>
-        <Button variant="outline" icon={FiDownload} onClick={handleExport}>Export CSV</Button>
+        <Button variant="outline" icon={FiDownload} onClick={handleExport}>
+          Export to CSV
+        </Button>
       </div>
 
+      {/* Filters */}
       <SearchFilter
-        searchPlaceholder="Search by name, email, college..."
-        searchValue={search} onSearchChange={setSearch}
-        filters={[{ name: 'status', value: statusFilter, onChange: setStatusFilter, options: statusOptions, placeholder: 'All Statuses' }]}
+        searchPlaceholder="Search by name, email, or institution..."
+        searchValue={search}
+        onSearchChange={setSearch}
+        filters={[
+          { name: 'status', value: statusFilter, onChange: setStatusFilter, options: statusOptions, placeholder: 'All Statuses' }
+        ]}
         className="mb-4"
       />
 
+      {/* Bulk Actions */}
       {selectedIds.length > 0 && (
-        <div className="flex items-center gap-2 mb-4 p-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl">
-          <span className="text-xs font-semibold text-slate-600 dark:text-slate-400">{selectedIds.length} selected</span>
-          <Button size="sm" variant="primary" onClick={() => handleBulk('approve')}>Approve</Button>
-          <Button size="sm" variant="danger" onClick={() => handleBulk('reject')}>Reject</Button>
-          <Button size="sm" variant="outline" onClick={() => handleBulk('under_review')}>Under Review</Button>
+        <div className="flex items-center gap-2 mb-4 p-3 bg-brand-50 dark:bg-brand-900/10 border border-brand-200 dark:border-brand-800/30 rounded-xl">
+          <span className="text-xs font-semibold text-brand-700 dark:text-brand-400 mr-2">
+            {selectedIds.length} selected
+          </span>
+          <Button size="sm" variant="primary" onClick={() => handleBulk('approve')}>Approve Selected</Button>
+          <Button size="sm" variant="danger" onClick={() => handleBulk('reject')}>Reject Selected</Button>
         </div>
       )}
 
+      {/* Data Table */}
       <DataTable
-        columns={columns} data={apps} loading={loading} rowKey="_id"
+        columns={columns}
+        data={apps}
+        loading={loading}
+        rowKey="_id"
         selectedIds={selectedIds}
         onSelectAll={(checked) => setSelectedIds(checked ? apps.map((a) => a._id) : [])}
         onSelectRow={(id, checked) => setSelectedIds(checked ? [...selectedIds, id] : selectedIds.filter((i) => i !== id))}
       />
-      <Pagination currentPage={pagination.page} totalPages={pagination.totalPages} onPageChange={(p) => setPagination((prev) => ({ ...prev, page: p }))} className="mt-4" />
+      
+      <Pagination
+        currentPage={pagination.page}
+        totalPages={pagination.totalPages}
+        onPageChange={(p) => setPagination((prev) => ({ ...prev, page: p }))}
+        className="mt-6"
+      />
 
-      {/* Detail Modal */}
-      <Modal isOpen={!!detailModal} onClose={() => setDetailModal(null)} title="Application Details" size="lg">
+      {/* ── Detail & Review Modal ── */}
+      <Modal isOpen={!!detailModal} onClose={() => setDetailModal(null)} title="Application Review" size="lg">
         {detailModal && (
-          <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-3">
-              {[['Name', detailModal.name], ['Email', detailModal.email], ['Phone', detailModal.phone], ['College', detailModal.college], ['Department', detailModal.department], ['Year', detailModal.yearOfStudy]].map(([l, v]) => (
-                <div key={l} className="bg-slate-50 dark:bg-slate-950 rounded-lg p-3">
-                  <span className="text-[10px] text-slate-400 uppercase font-semibold tracking-wider">{l}</span>
-                  <p className="text-xs font-semibold text-slate-900 dark:text-slate-50">{v || 'N/A'}</p>
+          <div className="space-y-5">
+            
+            {/* Applicant Details Grid */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+              {[
+                ['Name', detailModal.name],
+                ['Email', detailModal.email],
+                ['Phone', detailModal.phone],
+                ['Institution', detailModal.college],
+                ['Department', detailModal.department],
+                ['Year', detailModal.yearOfStudy],
+                ['Mode', detailModal.preferredMode || 'Remote'],
+                ['Hours/Week', detailModal.hoursPerWeek ? `${detailModal.hoursPerWeek}h` : '20h'],
+                ['Available From', detailModal.availableFrom ? formatDate(detailModal.availableFrom) : 'Flexible'],
+              ].map(([label, value]) => (
+                <div key={label} className="bg-slate-50 dark:bg-slate-900 rounded-xl p-3 border border-slate-100 dark:border-slate-800/60">
+                  <span className="text-[9px] text-slate-400 uppercase font-bold tracking-wider">{label}</span>
+                  <p className="text-xs font-semibold text-slate-900 dark:text-slate-50 mt-1 truncate" title={value}>{value || 'N/A'}</p>
                 </div>
               ))}
             </div>
-            {detailModal.resumeUrl && (
-              <a href={detailModal.resumeUrl} target="_blank" rel="noopener noreferrer" className="text-xs font-semibold text-accent-600 hover:underline">View Resume →</a>
+
+            {/* Extended Details */}
+            {detailModal.motivation && (
+              <div className="bg-slate-50 dark:bg-slate-900 rounded-xl p-4 border border-slate-100 dark:border-slate-800/60">
+                <span className="text-[9px] text-slate-400 uppercase font-bold tracking-wider mb-2 block">Motivation</span>
+                <p className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed">{detailModal.motivation}</p>
+              </div>
+            )}
+            
+            {(detailModal.relevantExperience || detailModal.portfolioUrl) && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {detailModal.relevantExperience && (
+                  <div className="bg-slate-50 dark:bg-slate-900 rounded-xl p-4 border border-slate-100 dark:border-slate-800/60">
+                    <span className="text-[9px] text-slate-400 uppercase font-bold tracking-wider mb-2 block">Experience</span>
+                    <p className="text-xs text-slate-700 dark:text-slate-300">{detailModal.relevantExperience}</p>
+                  </div>
+                )}
+                {detailModal.portfolioUrl && (
+                  <div className="bg-slate-50 dark:bg-slate-900 rounded-xl p-4 border border-slate-100 dark:border-slate-800/60 flex flex-col justify-center">
+                    <span className="text-[9px] text-slate-400 uppercase font-bold tracking-wider mb-1 block">Portfolio Link</span>
+                    <a href={detailModal.portfolioUrl} target="_blank" rel="noopener noreferrer" className="text-xs font-semibold text-brand-600 dark:text-brand-400 hover:underline truncate">
+                      {detailModal.portfolioUrl}
+                    </a>
+                  </div>
+                )}
+              </div>
             )}
 
-            <div className="border-t border-slate-200 dark:border-slate-800 pt-4 space-y-4">
-              <h3 className="text-sm font-bold text-slate-900 dark:text-slate-50">Review Application</h3>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <Input name="status" label="New Status" type="select" options={statusOptions} value={statusForm.status} onChange={(e) => {
-                  setStatusForm({ ...statusForm, status: e.target.value });
-                  if (e.target.value !== 'Approved') setPaymentAmount('');
-                }} />
-                <Input name="adminNotes" label="Admin Notes" value={statusForm.adminNotes} onChange={(e) => setStatusForm({ ...statusForm, adminNotes: e.target.value })} />
+            {detailModal.resumeUrl && (
+              <div>
+                <a href={detailModal.resumeUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-xs font-semibold text-brand-600 dark:text-brand-400 hover:underline bg-brand-50 dark:bg-brand-900/20 px-3 py-1.5 rounded-lg">
+                  View Resume Document →
+                </a>
               </div>
+            )}
 
-              {statusForm.status === 'Approved' && (
-                <div className="bg-amber-50 dark:bg-amber-950/10 border border-amber-200 dark:border-amber-800/30 rounded-xl p-4 space-y-2">
-                  <h4 className="text-xs font-bold text-amber-800 dark:text-amber-400">Assign Internship Joining Fee</h4>
-                  <p className="text-[10px] text-amber-700 dark:text-amber-500 leading-normal">
-                    Enter the fee amount for this student. If the internship is free for this student, enter 0 or leave it empty.
-                  </p>
-                  <Input name="paymentAmount" label="Assigned Fee (₹)" type="number" placeholder="Enter amount (e.g. 450)" value={paymentAmount} onChange={(e) => setPaymentAmount(e.target.value)} />
+            {/* ── Status Update & Action Area ── */}
+            <div className="border-t border-slate-200 dark:border-slate-800 pt-5 space-y-4">
+              
+              {/* Finalization Area (Mark Complete) */}
+              {detailModal.status === 'Joined' ? (
+                <div className="bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-800/50 rounded-2xl p-5">
+                  <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
+                    <div>
+                      <h3 className="text-sm font-bold text-indigo-900 dark:text-indigo-300 flex items-center gap-2">
+                        <FiCheckCircle className="w-4 h-4" /> Finalize Internship
+                      </h3>
+                      <p className="text-xs text-indigo-700 dark:text-indigo-400 mt-1 max-w-sm leading-relaxed">
+                        The student is currently active. Marking as complete will generate their completion certificate and deliver it via email immediately.
+                      </p>
+                    </div>
+                    <Button
+                      variant="primary"
+                      className="shrink-0 bg-indigo-600 hover:bg-indigo-700 text-white border-none"
+                      onClick={handleCompleteApplication}
+                      loading={completing}
+                    >
+                      Mark Complete
+                    </Button>
+                  </div>
+                </div>
+              ) : detailModal.status === 'Completed' ? (
+                <div className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 flex items-center justify-between">
+                  <div>
+                    <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+                      <Badge status="Completed" />
+                    </h3>
+                    <p className="text-xs text-slate-500 mt-1">Certificate has been generated and delivered.</p>
+                  </div>
+                  {detailModal.certificateUrl && (
+                    <a href={detailModal.certificateUrl} target="_blank" rel="noopener noreferrer" className="text-xs font-semibold text-brand-600 hover:underline">
+                      View Certificate
+                    </a>
+                  )}
+                </div>
+              ) : null}
+
+              {/* Standard Status Controls */}
+              {detailModal.status !== 'Completed' && (
+                <div className="space-y-4">
+                  <h3 className="text-sm font-bold text-slate-900 dark:text-slate-50">Update Status</h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <Input
+                      name="status"
+                      label="New Status"
+                      type="select"
+                      options={statusOptions.filter(o => o.value !== 'Completed')}
+                      value={statusForm.status}
+                      onChange={(e) => {
+                        setStatusForm({ ...statusForm, status: e.target.value });
+                        if (e.target.value !== 'Approved') setPaymentAmount('');
+                      }}
+                    />
+                    <Input
+                      name="adminNotes"
+                      label="Admin Notes (Internal)"
+                      value={statusForm.adminNotes}
+                      onChange={(e) => setStatusForm({ ...statusForm, adminNotes: e.target.value })}
+                    />
+                  </div>
+
+                  {statusForm.status === 'Approved' && (
+                    <div className="bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-800/30 rounded-xl p-4 space-y-2">
+                      <h4 className="text-xs font-bold text-amber-800 dark:text-amber-400">Assign Joining Fee</h4>
+                      <p className="text-[10px] text-amber-700 dark:text-amber-500 leading-relaxed">
+                        Enter the required payment amount (in ₹). Enter 0 or leave empty if free.
+                      </p>
+                      <Input
+                        name="paymentAmount"
+                        label="Fee Amount"
+                        type="number"
+                        placeholder="e.g. 500"
+                        value={paymentAmount}
+                        onChange={(e) => setPaymentAmount(e.target.value)}
+                      />
+                    </div>
+                  )}
+
+                  <div className="flex justify-end">
+                    <Button variant="primary" onClick={handleStatusUpdate} loading={saving}>
+                      {statusForm.status === 'Approved' && Number(paymentAmount) > 0 ? 'Approve & Request Payment' : 'Update Status'}
+                    </Button>
+                  </div>
                 </div>
               )}
-
-              <Button variant="primary" size="sm" onClick={handleStatusUpdate} loading={saving}>
-                {statusForm.status === 'Approved' && Number(paymentAmount) > 0 ? 'Approve & Assign Payment' : 'Update Status'}
-              </Button>
             </div>
+
           </div>
         )}
       </Modal>

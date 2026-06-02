@@ -1,12 +1,12 @@
 import api from './axios';
 
-export const createPaymentOrder = async (applicationId) => {
-  const response = await api.post('/payments/create-order', { applicationId });
+export const submitUtr = async (applicationId, utrNumber) => {
+  const response = await api.post('/payments/submit-utr', { applicationId, utrNumber });
   return response.data;
 };
 
-export const verifyPayment = async (verificationData) => {
-  const response = await api.post('/payments/verify', verificationData);
+export const adminVerifyPayment = async (paymentId, action) => {
+  const response = await api.put(`/payments/${paymentId}/verify`, { action });
   return response.data;
 };
 

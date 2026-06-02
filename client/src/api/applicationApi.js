@@ -29,6 +29,11 @@ export const updateApplicationStatus = async (id, status, adminNotes = '') => {
   return response.data;
 };
 
+export const completeApplication = async (id) => {
+  const response = await api.put(`/applications/${id}/complete`);
+  return response.data;
+};
+
 export const assignPaymentAmount = async (id, amount) => {
   const response = await api.put(`/applications/${id}/assign-payment`, { amount });
   return response.data;
