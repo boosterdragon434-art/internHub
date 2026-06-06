@@ -34,8 +34,8 @@ export const completeApplication = async (id) => {
   return response.data;
 };
 
-export const assignPaymentAmount = async (id, amount) => {
-  const response = await api.put(`/applications/${id}/assign-payment`, { amount });
+export const assignPaymentAmount = async (id, amount, currency, deadline, notes) => {
+  const response = await api.put(`/applications/${id}/assign-payment`, { amount, currency, deadline, notes });
   return response.data;
 };
 

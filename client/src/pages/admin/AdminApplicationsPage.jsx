@@ -33,6 +33,9 @@ const AdminApplicationsPage = () => {
   const [detailModal, setDetailModal] = useState(null);
   const [statusForm, setStatusForm] = useState({ status: '', adminNotes: '' });
   const [paymentAmount, setPaymentAmount] = useState('');
+  const [paymentCurrency, setPaymentCurrency] = useState('INR');
+  const [paymentDeadline, setPaymentDeadline] = useState('');
+  const [paymentNotes, setPaymentNotes] = useState('');
   const [saving, setSaving] = useState(false);
   const [completing, setCompleting] = useState(false);
 
@@ -65,7 +68,8 @@ const AdminApplicationsPage = () => {
     setSaving(true);
     try {
       if (statusForm.status === 'Approved' && Number(paymentAmount) > 0) {
-        await assignPaymentAmount(detailModal._id, Number(paymentAmount));
+        if (!paymentDeadline) { toast.error('Please specify a payment deadline.'); setSaving(false); return; }
+        await assignPaymentAmount(detailModal._id, Number(paymentAmount), paymentCurrency, paymentDeadline, paymentNotes);
         toast.success('Application approved and payment request sent!');
       } else {
         await updateApplicationStatus(detailModal._id, statusForm.status, statusForm.adminNotes);
@@ -144,7 +148,12 @@ const AdminApplicationsPage = () => {
         onClick={() => {
           setDetailModal(r);
           setStatusForm({ status: r.status, adminNotes: r.adminNotes || '' });
-          setPaymentAmount(r.assignedPaymentAmount || '');
+          setPaymentAmount('');
+          setPaymentCurrency('INR');
+          let defaultDeadline = new Date();
+          defaultDeadline.setDate(defaultDeadline.getDate() + 3);
+          setPaymentDeadline(defaultDeadline.toISOString().split('T')[0]);
+          setPaymentNotes('');
         }}
       >
         Review
@@ -333,19 +342,47 @@ const AdminApplicationsPage = () => {
                   </div>
 
                   {statusForm.status === 'Approved' && (
-                    <div className="bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-800/30 rounded-xl p-4 space-y-2">
-                      <h4 className="text-xs font-bold text-amber-800 dark:text-amber-400">Assign Joining Fee</h4>
-                      <p className="text-[10px] text-amber-700 dark:text-amber-500 leading-relaxed">
-                        Enter the required payment amount (in ₹). Enter 0 or leave empty if free.
-                      </p>
-                      <Input
-                        name="paymentAmount"
-                        label="Fee Amount"
-                        type="number"
-                        placeholder="e.g. 500"
-                        value={paymentAmount}
-                        onChange={(e) => setPaymentAmount(e.target.value)}
-                      />
+                    <div className="bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-800/30 rounded-xl p-4 space-y-4">
+                      <div>
+                        <h4 className="text-xs font-bold text-amber-800 dark:text-amber-400">Assign Joining Fee</h4>
+                        <p className="text-[10px] text-amber-700 dark:text-amber-500 leading-relaxed">
+                          Configure the payment request for this student. Enter 0 or leave empty if free.
+                        </p>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <Input
+                          name="paymentAmount"
+                          label="Fee Amount"
+                          type="number"
+                          placeholder="e.g. 500"
+                          value={paymentAmount}
+                          onChange={(e) => setPaymentAmount(e.target.value)}
+                        />
+                        <Input
+                          name="paymentCurrency"
+                          label="Currency"
+                          type="select"
+                          options={[{ value: 'INR', label: 'INR (₹)' }, { value: 'USD', label: 'USD ($)' }]}
+                          value={paymentCurrency}
+                          onChange={(e) => setPaymentCurrency(e.target.value)}
+                        />
+                      </div>
+                      <div className="grid grid-cols-1 gap-3">
+                        <Input
+                          name="paymentDeadline"
+                          label="Payment Deadline"
+                          type="date"
+                          value={paymentDeadline}
+                          onChange={(e) => setPaymentDeadline(e.target.value)}
+                        />
+                        <Input
+                          name="paymentNotes"
+                          label="Message / Notes to Student"
+                          placeholder="e.g. Please complete the payment to secure your spot."
+                          value={paymentNotes}
+                          onChange={(e) => setPaymentNotes(e.target.value)}
+                        />
+                      </div>
                     </div>
                   )}
 

@@ -6,6 +6,11 @@ const { PAYMENT_STATUS } = require('../config/constants');
  */
 const paymentSchema = new mongoose.Schema(
   {
+    paymentRequest: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'PaymentRequest',
+      required: [true, 'PaymentRequest reference is required'],
+    },
     application: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Application',

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
 import { FiCreditCard, FiCheckCircle } from 'react-icons/fi';
-import { getMyPayments, submitUtr } from '../../api/paymentApi';
+import { getMyPayments, submitUtr, getMyPaymentRequests } from '../../api/paymentApi';
 import { getMyApplications } from '../../api/applicationApi';
 import { useToast } from '../../context/ToastContext';
 import { useAuth } from '../../context/AuthContext';
@@ -26,10 +26,10 @@ const PaymentPage = () => {
   useEffect(() => {
     const fetch = async () => {
       try {
-        const [payRes, appRes] = await Promise.all([getMyPayments(), getMyApplications()]);
+        const [payRes, reqRes] = await Promise.all([getMyPayments(), getMyPaymentRequests()]);
         if (payRes.success) setPayments(payRes.data);
-        if (appRes.success) {
-          setPendingApps(appRes.data.filter((a) => a.status === 'Payment Pending'));
+        if (reqRes.success) {
+          setPendingApps(reqRes.data.filter((r) => r.status === 'pending'));
         }
       } catch (err) {
         console.error(err);
@@ -55,9 +55,9 @@ const PaymentPage = () => {
         setPayingApp(null);
         setUtrNumber('');
         // Refresh data
-        const [payRes, appRes] = await Promise.all([getMyPayments(), getMyApplications()]);
+        const [payRes, reqRes] = await Promise.all([getMyPayments(), getMyPaymentRequests()]);
         if (payRes.success) setPayments(payRes.data);
-        if (appRes.success) setPendingApps(appRes.data.filter((a) => a.status === 'Payment Pending'));
+        if (reqRes.success) setPendingApps(reqRes.data.filter((r) => r.status === 'pending'));
       }
     } catch (err) {
       toast.error(err.response?.data?.message || 'Failed to submit UTR.');
@@ -88,7 +88,13 @@ const PaymentPage = () => {
                   <div key={app._id} className="bg-amber-50 dark:bg-amber-950/10 border border-amber-200 dark:border-amber-800/30 rounded-2xl p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                     <div>
                       <h3 className="text-sm font-bold text-slate-900 dark:text-slate-50">{app.internship?.title}</h3>
-                      <p className="text-xs text-slate-500 mt-0.5">Amount: <strong>{formatCurrency(app.assignedPaymentAmount)}</strong></p>
+                      <p className="text-xs text-slate-500 mt-0.5">Amount: <strong>{formatCurrency(app.amount)}</strong></p>
+                      {app.deadline && (
+                        <p className="text-xs text-red-500 mt-1">Due by: {formatDate(app.deadline)}</p>
+                      )}
+                      {app.notes && (
+                        <p className="text-[10px] text-amber-700 mt-1 italic">{app.notes}</p>
+                      )}
                     </div>
                     <Button
                       variant="primary"
@@ -149,12 +155,12 @@ const PaymentPage = () => {
               <p className="text-sm text-slate-500 mb-4">Scan QR Code using Google Pay</p>
               {/* Placeholder QR Code for UPI */}
               <img 
-                src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=upi://pay?pa=business@upi&pn=FWT-iZON&am=${payingApp.assignedPaymentAmount}&cu=INR`}
+                src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=upi://pay?pa=business@upi&pn=FWT-iZON&am=${payingApp.amount}&cu=INR`}
                 alt="UPI QR Code" 
                 className="w-48 h-48 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-2 bg-white"
               />
               <p className="text-lg font-extrabold text-slate-900 dark:text-slate-50 mt-4">
-                Amount: {formatCurrency(payingApp.assignedPaymentAmount)}
+                Amount: {formatCurrency(payingApp.amount)}
               </p>
             </div>
 

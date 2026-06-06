@@ -6,6 +6,9 @@ const User = require('../models/User');
 const Certificate = require('../models/Certificate');
 const CertificateTemplate = require('../models/CertificateTemplate');
 const Counter = require('../models/Counter');
+const Cooldown = require('../models/Cooldown');
+const PaymentRequest = require('../models/PaymentRequest');
+const AuditLog = require('../models/AuditLog');
 const ApiError = require('../utils/ApiError');
 const ApiResponse = require('../utils/ApiResponse');
 const cloudinaryService = require('../services/cloudinaryService');
@@ -53,38 +56,20 @@ const createApplication = async (req, res, next) => {
       return next(ApiError.badRequest('No openings available for this internship.'));
     }
 
-    // Fetch cooldown settings
-    const Settings = require('../models/Settings');
-    let cooldownHours = 0; // Default 0 means infinite/permanent block
-    try {
-      const cooldownSetting = await Settings.findOne({ key: 'applicationCooldown' });
-      if (cooldownSetting) {
-        cooldownHours = parseInt(cooldownSetting.value, 10) || 0;
-      }
-    } catch (err) {
-      logger.error('Failed to fetch cooldown settings:', err);
-    }
-
-    // Prevent duplicate applications within cooldown duration
-    const existingApp = await Application.findOne({
-      user: userId,
+    // Check Cooldown model for specific student and internship
+    const activeCooldown = await Cooldown.findOne({
+      student: userId,
       internship: internshipId,
-    }).sort('-createdAt');
+      expiresAt: { $gt: new Date() },
+    });
 
-    if (existingApp) {
-      if (cooldownHours === 0) {
-        return next(ApiError.conflict('You have already applied for this internship.'));
-      }
-      
-      const timeElapsed = (Date.now() - new Date(existingApp.createdAt).getTime()) / (1000 * 60 * 60); // in hours
-      if (timeElapsed < cooldownHours) {
-        const remainingHours = Math.ceil(cooldownHours - timeElapsed);
-        return next(
-          ApiError.conflict(
-            `You have already applied for this internship. Please wait ${remainingHours} hour(s) before applying again.`
-          )
-        );
-      }
+    if (activeCooldown) {
+      const remainingHours = Math.ceil((activeCooldown.expiresAt.getTime() - Date.now()) / (1000 * 60 * 60));
+      return next(
+        ApiError.conflict(
+          `You are in a cooldown period for this internship. Please wait ${remainingHours} hour(s) before applying again. Reason: ${activeCooldown.reason}`
+        )
+      );
     }
 
     // Upload resume to Cloudinary
@@ -486,23 +471,70 @@ const completeApplication = async (req, res, next) => {
 };
 
 /**
- * @desc    Assign payment amount to application
+ * @desc    Assign payment amount to application and create PaymentRequest
  * @route   PUT /api/applications/:id/assign-payment
  * @access  Admin
  */
 const assignPayment = async (req, res, next) => {
   try {
-    const { amount } = req.body;
+    const { amount, currency = 'INR', deadline, notes = '' } = req.body;
+    
+    if (!amount || !deadline) {
+      return next(ApiError.badRequest('Amount and deadline are required for payment request.'));
+    }
+
     const application = await Application.findById(req.params.id).populate('internship', 'title');
 
     if (!application) {
       return next(ApiError.notFound('Application not found.'));
     }
 
-    application.assignedPaymentAmount = amount;
-    application.status = APPLICATION_STATUS.PAYMENT_PENDING;
-    application.paymentRequestSentAt = new Date();
-    await application.save();
+    // Check if PaymentRequest already exists and is pending
+    const existingRequest = await PaymentRequest.findOne({
+      application: application._id,
+      status: 'pending',
+    });
+
+    if (existingRequest) {
+      return next(ApiError.conflict('A pending payment request already exists for this application.'));
+    }
+
+    const session = await mongoose.startSession();
+    session.startTransaction();
+
+    let paymentRequest;
+    try {
+      const reqs = await PaymentRequest.create([{
+        application: application._id,
+        student: application.user,
+        internship: application.internship._id,
+        amount,
+        currency,
+        deadline: new Date(deadline),
+        notes,
+      }], { session });
+
+      paymentRequest = reqs[0];
+
+      application.status = APPLICATION_STATUS.PAYMENT_PENDING;
+      await application.save({ session });
+
+      await AuditLog.create([{
+        admin: req.user.id,
+        action: 'CREATED_PAYMENT_REQUEST',
+        targetModel: 'PaymentRequest',
+        targetId: paymentRequest._id,
+        changes: { amount, currency, deadline },
+        ipAddress: req.ip,
+      }], { session });
+
+      await session.commitTransaction();
+    } catch (txError) {
+      await session.abortTransaction();
+      throw txError;
+    } finally {
+      session.endSession();
+    }
 
     const user = await User.findById(application.user);
 
@@ -510,7 +542,7 @@ const assignPayment = async (req, res, next) => {
     await Notification.create({
       user: application.user,
       title: 'Payment Required',
-      message: `Please pay ₹${amount} for ${application.internship.title} internship.`,
+      message: `Please pay ₹${amount} for ${application.internship.title} internship by ${new Date(deadline).toLocaleDateString()}.`,
       type: 'payment',
       link: '/student/payments',
     });
@@ -518,7 +550,10 @@ const assignPayment = async (req, res, next) => {
       emailService.sendPaymentRequest(user, application.internship.title, amount).catch(() => {});
     });
 
-    ApiResponse.success(res, 200, 'Payment amount assigned and request sent.', application);
+    ApiResponse.success(res, 200, 'Payment amount assigned and request sent.', {
+      application,
+      paymentRequest,
+    });
   } catch (error) {
     next(error);
   }

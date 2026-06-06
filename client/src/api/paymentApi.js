@@ -5,6 +5,11 @@ export const submitUtr = async (applicationId, utrNumber) => {
   return response.data;
 };
 
+export const getMyPaymentRequests = async () => {
+  const response = await api.get('/payments/requests');
+  return response.data;
+};
+
 export const adminVerifyPayment = async (paymentId, action) => {
   const response = await api.put(`/payments/${paymentId}/verify`, { action });
   return response.data;

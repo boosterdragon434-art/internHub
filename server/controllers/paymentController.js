@@ -1,5 +1,8 @@
 const Payment = require('../models/Payment');
 const Application = require('../models/Application');
+const PaymentRequest = require('../models/PaymentRequest');
+const EnrollmentInstance = require('../models/EnrollmentInstance');
+const AuditLog = require('../models/AuditLog');
 const Notification = require('../models/Notification');
 const User = require('../models/User');
 const ApiError = require('../utils/ApiError');
@@ -39,15 +42,32 @@ const submitUtr = async (req, res, next) => {
       return next(ApiError.badRequest('Payment is not pending for this application.'));
     }
 
+    // Look up pending payment request
+    const paymentRequest = await PaymentRequest.findOne({
+      application: applicationId,
+      student: req.user.id,
+      status: 'pending',
+    });
+
+    if (!paymentRequest) {
+      return next(ApiError.badRequest('No pending payment request found for this application.'));
+    }
+
+    if (new Date() > new Date(paymentRequest.deadline)) {
+      paymentRequest.status = 'expired';
+      await paymentRequest.save();
+      return next(ApiError.badRequest('Payment request has expired. Please contact support.'));
+    }
+
     // Check if this UTR was already submitted by ANY user (prevent reuse)
     const existingUtr = await Payment.findOne({ utrNumber });
     if (existingUtr) {
       return next(ApiError.conflict('This UTR number has already been submitted.'));
     }
 
-    // Check for an existing pending payment record for this user/app (allow overwrite or reject)
+    // Check for an existing pending payment record for this request
     const existingPayment = await Payment.findOne({
-      application: applicationId,
+      paymentRequest: paymentRequest._id,
       status: PAYMENT_STATUS.PENDING_VERIFICATION,
     });
 
@@ -61,10 +81,12 @@ const submitUtr = async (req, res, next) => {
     let payment;
     try {
       const payments = await Payment.create([{
+        paymentRequest: paymentRequest._id,
         application: application._id,
         user: req.user.id,
         internship: application.internship._id,
-        amount: application.assignedPaymentAmount || 0, // Fallback if 0
+        amount: paymentRequest.amount,
+        currency: paymentRequest.currency,
         utrNumber: utrNumber,
         status: PAYMENT_STATUS.PENDING_VERIFICATION,
       }], { session });
@@ -131,18 +153,67 @@ const adminVerifyPayment = async (req, res, next) => {
         payment.paidAt = new Date();
         await payment.save({ session });
 
+        // Update PaymentRequest
+        if (payment.paymentRequest) {
+          const paymentRequest = await PaymentRequest.findById(payment.paymentRequest);
+          if (paymentRequest) {
+            paymentRequest.status = 'paid';
+            await paymentRequest.save({ session });
+          }
+        }
+
         // Update application
         const application = await Application.findById(payment.application._id);
-        application.status = APPLICATION_STATUS.PAYMENT_COMPLETED;
+        application.status = APPLICATION_STATUS.JOINED;
         await application.save({ session });
+
+        // Create EnrollmentInstance
+        const internshipObj = await mongoose.model('Internship').findById(payment.internship._id);
+        
+        let startDate = new Date();
+        let endDate = new Date();
+        endDate.setMonth(endDate.getMonth() + 3); // Default to 3 months if not specified
+
+        if (internshipObj && internshipObj.startDate && internshipObj.endDate) {
+          startDate = new Date(internshipObj.startDate);
+          endDate = new Date(internshipObj.endDate);
+        } else if (internshipObj && internshipObj.duration) {
+          // Attempt to parse duration string if dates are not provided
+          const match = internshipObj.duration.match(/(\d+)\s*(month|week)s?/i);
+          if (match) {
+            const amount = parseInt(match[1], 10);
+            const unit = match[2].toLowerCase();
+            if (unit === 'month') endDate.setMonth(endDate.getMonth() + amount);
+            if (unit === 'week') endDate.setDate(endDate.getDate() + (amount * 7));
+          }
+        }
+
+        const enrollments = await EnrollmentInstance.create([{
+          student: payment.user,
+          internship: payment.internship._id,
+          application: application._id,
+          payment: payment._id,
+          startDate,
+          endDate,
+          status: 'active',
+        }], { session });
+
+        await AuditLog.create([{
+          admin: req.user.id,
+          action: 'APPROVED_PAYMENT_CREATED_ENROLLMENT',
+          targetModel: 'EnrollmentInstance',
+          targetId: enrollments[0]._id,
+          changes: { paymentId: payment._id },
+          ipAddress: req.ip,
+        }], { session });
 
         // Notify Student
         await Notification.create([{
           user: payment.user,
-          title: 'Payment Verified ✅',
-          message: `Your payment of ₹${payment.amount} for ${payment.internship.title} was verified.`,
+          title: 'Payment Verified & Enrolled ✅',
+          message: `Your payment of ₹${payment.amount} for ${payment.internship.title} was verified and your enrollment is active.`,
           type: 'payment',
-          link: '/student/payments',
+          link: '/student/dashboard',
         }], { session });
 
       } else if (action === 'reject') {
@@ -153,6 +224,15 @@ const adminVerifyPayment = async (req, res, next) => {
         const application = await Application.findById(payment.application._id);
         application.status = APPLICATION_STATUS.PAYMENT_PENDING;
         await application.save({ session });
+
+        await AuditLog.create([{
+          admin: req.user.id,
+          action: 'REJECTED_PAYMENT',
+          targetModel: 'Payment',
+          targetId: payment._id,
+          changes: { utrNumber: payment.utrNumber },
+          ipAddress: req.ip,
+        }], { session });
 
         // Notify Student
         await Notification.create([{
@@ -363,6 +443,7 @@ module.exports = {
   adminVerifyPayment,
   getMyPayments,
   getAllPayments,
+  getMyPaymentRequests,
   sendPaymentRequest,
   exportPaymentsCsv,
   getPaymentStats,

@@ -146,20 +146,25 @@ const handleMissedCheckouts = async (userId) => {
 const checkIn = async (req, res, next) => {
   try {
     const userId = req.user.id;
+    const { enrollmentInstanceId, remarks } = req.body;
     const today = getTodayIST();
+
+    if (!enrollmentInstanceId) {
+      return next(ApiError.badRequest('Enrollment Instance ID is required to mark attendance.'));
+    }
 
     // Handle any missed checkouts from previous days
     await handleMissedCheckouts(userId);
 
-    // Prevent duplicate check-in for today
+    // Prevent duplicate check-in for today for this specific enrollment
     const existing = await AttendanceSession.findOne({
-      user: userId,
+      enrollmentInstance: enrollmentInstanceId,
       date: today,
     });
     if (existing) {
       return next(
         ApiError.conflict(
-          'You have already checked in today. Only one session per day is allowed.'
+          'You have already checked in today for this internship.'
         )
       );
     }
@@ -200,6 +205,7 @@ const checkIn = async (req, res, next) => {
     }
 
     const session = await AttendanceSession.create({
+      enrollmentInstance: enrollmentInstanceId,
       user: userId,
       guide: user?.assignedGuide || null,
       team: teamId,
@@ -218,7 +224,7 @@ const checkIn = async (req, res, next) => {
         .trim()
         .substring(0, 100),
       deviceInfo: (req.headers['user-agent'] || '').substring(0, 300),
-      remarks: req.body.remarks || '',
+      remarks: remarks || '',
     });
 
     logger.info(
@@ -245,10 +251,15 @@ const checkIn = async (req, res, next) => {
 const breakStart = async (req, res, next) => {
   try {
     const userId = req.user.id;
+    const { enrollmentInstanceId } = req.body;
     const today = getTodayIST();
 
+    if (!enrollmentInstanceId) {
+      return next(ApiError.badRequest('Enrollment Instance ID is required.'));
+    }
+
     const session = await AttendanceSession.findOne({
-      user: userId,
+      enrollmentInstance: enrollmentInstanceId,
       date: today,
     });
 
@@ -302,10 +313,15 @@ const breakStart = async (req, res, next) => {
 const breakEnd = async (req, res, next) => {
   try {
     const userId = req.user.id;
+    const { enrollmentInstanceId } = req.body;
     const today = getTodayIST();
 
+    if (!enrollmentInstanceId) {
+      return next(ApiError.badRequest('Enrollment Instance ID is required.'));
+    }
+
     const session = await AttendanceSession.findOne({
-      user: userId,
+      enrollmentInstance: enrollmentInstanceId,
       date: today,
     });
 
@@ -358,10 +374,15 @@ const breakEnd = async (req, res, next) => {
 const checkOut = async (req, res, next) => {
   try {
     const userId = req.user.id;
+    const { enrollmentInstanceId, remarks } = req.body;
     const today = getTodayIST();
 
+    if (!enrollmentInstanceId) {
+      return next(ApiError.badRequest('Enrollment Instance ID is required.'));
+    }
+
     const session = await AttendanceSession.findOne({
-      user: userId,
+      enrollmentInstance: enrollmentInstanceId,
       date: today,
     });
 
@@ -425,7 +446,12 @@ const checkOut = async (req, res, next) => {
 const getMyStatus = async (req, res, next) => {
   try {
     const userId = req.user.id;
+    const { enrollmentInstanceId } = req.query;
     const today = getTodayIST();
+
+    if (!enrollmentInstanceId) {
+      return next(ApiError.badRequest('Enrollment Instance ID is required.'));
+    }
 
     // Auto-checkout any active sessions past the auto-checkout hour
     await autoCheckoutActiveSessions();
@@ -434,7 +460,7 @@ const getMyStatus = async (req, res, next) => {
     await handleMissedCheckouts(userId);
 
     const session = await AttendanceSession.findOne({
-      user: userId,
+      enrollmentInstance: enrollmentInstanceId,
       date: today,
     }).lean();
 

@@ -8,6 +8,7 @@ const {
   sendPaymentRequest,
   exportPaymentsCsv,
   getPaymentStats,
+  getMyPaymentRequests,
 } = require('../controllers/paymentController');
 const { protect, authorize } = require('../middleware/auth');
 const { paymentLimiter } = require('../middleware/rateLimiter');
@@ -15,8 +16,9 @@ const validate = require('../middleware/validate');
 const paymentValidator = require('../validators/paymentValidator');
 
 // Student payment routes (rate-limited)
-router.post('/submit-utr', protect, authorize('student'), paymentLimiter, validate(paymentValidator.submitUtr), submitUtr);
-router.get('/my', protect, authorize('student'), getMyPayments);
+router.get('/my', protect, getMyPayments);
+router.get('/requests', protect, getMyPaymentRequests);
+router.post('/submit-utr', protect, paymentLimiter, validate(paymentValidator.submitUtr), submitUtr);
 
 // Admin payment routes
 router.put('/:id/verify', protect, authorize('admin'), adminVerifyPayment);

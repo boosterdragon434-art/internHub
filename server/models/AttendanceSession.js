@@ -17,6 +17,12 @@ const breakSessionSchema = new mongoose.Schema(
  */
 const attendanceSessionSchema = new mongoose.Schema(
   {
+    enrollmentInstance: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'EnrollmentInstance',
+      required: true,
+      index: true,
+    },
     user: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
@@ -66,8 +72,9 @@ const attendanceSessionSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-// Enforce one session per user per day
-attendanceSessionSchema.index({ user: 1, date: 1 }, { unique: true });
+// Enforce one session per enrollment per day
+attendanceSessionSchema.index({ enrollmentInstance: 1, date: 1 }, { unique: true });
+attendanceSessionSchema.index({ user: 1, date: 1 });
 attendanceSessionSchema.index({ date: 1, attendanceStatus: 1 });
 attendanceSessionSchema.index({ team: 1, date: 1 });
 attendanceSessionSchema.index({ guide: 1, date: 1 });
