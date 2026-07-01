@@ -2,7 +2,6 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../../context/AuthContext';
-import { useSocket } from '../../context/SocketContext';
 import { useClickOutside } from '../../hooks/useClickOutside';
 import { getNotifications, markNotificationAsRead, markAllNotificationsAsRead } from '../../api/notificationApi';
 import {
@@ -29,7 +28,6 @@ import { formatDate } from '../../utils/formatters';
  */
 const Navbar = () => {
   const { user, isAuthenticated, logout, isAdmin } = useAuth();
-  const { socket } = useSocket();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -92,20 +90,6 @@ const Navbar = () => {
     return () => clearInterval(interval);
   }, [isAuthenticated, location.pathname]);
 
-  // Synchronise live notifications via WebSockets
-  useEffect(() => {
-    if (!socket) return;
-
-    const handleSocketNotif = (notif) => {
-      setNotifications((prev) => [notif, ...prev]);
-      setUnreadCount((c) => c + 1);
-    };
-
-    socket.on('notification', handleSocketNotif);
-    return () => {
-      socket.off('notification', handleSocketNotif);
-    };
-  }, [socket]);
 
   const handleMarkAllRead = async () => {
     try {

@@ -16,7 +16,6 @@ import {
   FiCheckSquare,
   FiCalendar,
   FiAward,
-  FiMessageSquare,
   FiClock,
 } from 'react-icons/fi';
 
@@ -40,7 +39,6 @@ const Sidebar = ({ role = 'admin', mobileOpen = false, onMobileClose }) => {
     { icon: FiUsers, label: 'Teams', to: '/admin/teams' },
     { icon: FiCalendar, label: 'Calendar Planner', to: '/admin/calendar' },
     { icon: FiAward, label: 'Issue Credentials', to: '/admin/certificates' },
-    { icon: FiMessageSquare, label: 'Discussions', to: '/admin/chat' },
     { icon: FiSettings, label: 'Settings', to: '/admin/settings' },
   ];
 
@@ -50,7 +48,6 @@ const Sidebar = ({ role = 'admin', mobileOpen = false, onMobileClose }) => {
     { icon: FiCheckSquare, label: 'Workspace Tasks', to: '/guide/tasks' },
     { icon: FiClock, label: 'Attendance', to: '/guide/attendance' },
     { icon: FiCalendar, label: 'Cohort Planner', to: '/guide/calendar' },
-    { icon: FiMessageSquare, label: 'Discussions', to: '/guide/chat' },
     { icon: FiUser, label: 'Profile', to: '/guide/profile' },
   ];
 
@@ -61,7 +58,6 @@ const Sidebar = ({ role = 'admin', mobileOpen = false, onMobileClose }) => {
     { icon: FiCheckSquare, label: 'My Tasks', to: '/student/tasks' },
     { icon: FiClock, label: 'Attendance', to: '/student/attendance' },
     { icon: FiCalendar, label: 'My Calendar', to: '/student/calendar' },
-    { icon: FiMessageSquare, label: 'Discussions', to: '/student/chat' },
     { icon: FiCreditCard, label: 'Payments', to: '/student/payments' },
     { icon: FiUser, label: 'Profile', to: '/student/profile' },
   ];

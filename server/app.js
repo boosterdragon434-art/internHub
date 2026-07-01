@@ -23,7 +23,7 @@ const guideRoutes = require('./routes/guideRoutes');
 const taskRoutes = require('./routes/taskRoutes');
 const reminderRoutes = require('./routes/reminderRoutes');
 const certificateRoutes = require('./routes/certificateRoutes');
-const chatRoutes = require('./routes/chatRoutes');
+
 const attendanceRoutes = require('./routes/attendanceRoutes');
 const teamRoutes = require('./routes/teamRoutes');
 
@@ -122,7 +122,7 @@ app.use('/api/guides', guideRoutes);
 app.use('/api/tasks', taskRoutes);
 app.use('/api/reminders', reminderRoutes);
 app.use('/api/certificates', certificateRoutes);
-app.use('/api/chat', chatRoutes);
+
 app.use('/api/attendance', attendanceRoutes);
 app.use('/api/teams', teamRoutes);
 
@@ -138,7 +138,7 @@ app.use('/guides', guideRoutes);
 app.use('/tasks', taskRoutes);
 app.use('/reminders', reminderRoutes);
 app.use('/certificates', certificateRoutes);
-app.use('/chat', chatRoutes);
+
 app.use('/attendance', attendanceRoutes);
 app.use('/teams', teamRoutes);
 

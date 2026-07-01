@@ -62,8 +62,6 @@ const GuideCalendarPage = lazy(() => import('../pages/guide/GuideCalendarPage'))
 const GuideAttendancePage = lazy(() => import('../pages/guide/GuideAttendancePage'));
 const CertificateVerifyPage = lazy(() => import('../pages/public/CertificateVerifyPage'));
 
-// Lazy loaded Chat page
-const ChatPage = lazy(() => import('../pages/chat/ChatPage'));
 
 const AppRoutes = () => {
   return (
@@ -150,7 +148,7 @@ const AppRoutes = () => {
           <Route path="payments" element={<PaymentPage />} />
           <Route path="profile" element={<ProfilePage />} />
           <Route path="attendance" element={<StudentAttendancePage />} />
-          <Route path="chat" element={<ChatPage />} />
+
         </Route>
 
         {/* Guide Dashboard Routes */}
@@ -172,7 +170,7 @@ const AppRoutes = () => {
           <Route path="calendar" element={<GuideCalendarPage />} />
           <Route path="profile" element={<GuideProfilePage />} />
           <Route path="attendance" element={<GuideAttendancePage />} />
-          <Route path="chat" element={<ChatPage />} />
+
         </Route>
 
         {/* Admin Dashboard Routes */}
@@ -198,7 +196,7 @@ const AppRoutes = () => {
           <Route path="settings" element={<AdminSettingsPage />} />
           <Route path="attendance" element={<AdminAttendancePage />} />
           <Route path="teams" element={<AdminTeamsPage />} />
-          <Route path="chat" element={<ChatPage />} />
+
         </Route>
       </Routes>
     </Suspense>
