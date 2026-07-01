@@ -84,7 +84,7 @@ const certificateSchema = new mongoose.Schema(
     },
     pdfPublicId: {
       type: String,
-      required: [true, 'PDF Cloudinary public ID is required'],
+      required: [true, 'PDF R2 object key is required'],
     },
     /** SHA-256 hash of certificate metadata for tamper detection */
     verificationHash: {

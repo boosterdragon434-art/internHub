@@ -1,7 +1,7 @@
 const User = require('../models/User');
 const ApiError = require('../utils/ApiError');
 const ApiResponse = require('../utils/ApiResponse');
-const cloudinaryService = require('../services/cloudinaryService');
+const r2Service = require('../services/r2Service');
 const { PAGINATION } = require('../config/constants');
 const logger = require('../utils/logger');
 
@@ -60,10 +60,10 @@ const uploadResume = async (req, res, next) => {
 
     // Delete old resume from Cloudinary
     if (user.resumePublicId) {
-      await cloudinaryService.deleteFile(user.resumePublicId, 'auto');
+      await r2Service.deleteFile(user.resumePublicId, 'auto');
     }
 
-    const { publicId, secureUrl } = await cloudinaryService.uploadFile(
+    const { publicId, secureUrl } = await r2Service.uploadFile(
       req.file.buffer,
       'internhub/resumes',
       'auto'

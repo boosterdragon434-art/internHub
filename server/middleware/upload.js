@@ -3,8 +3,8 @@ const ApiError = require('../utils/ApiError');
 const { FILE_LIMITS } = require('../config/constants');
 
 /**
- * Multer configuration with memory storage for Google Drive uploads.
- * Files are buffered in memory and then streamed to Google Drive.
+ * Multer configuration with memory storage for R2 cloud storage uploads.
+ * Files are buffered in memory and then streamed to R2.
  */
 const storage = multer.memoryStorage();
 

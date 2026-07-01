@@ -3,7 +3,7 @@ const CertificateTemplate = require('../models/CertificateTemplate');
 const Application = require('../models/Application');
 const User = require('../models/User');
 const Notification = require('../models/Notification');
-const cloudinaryService = require('../services/cloudinaryService');
+const r2Service = require('../services/r2Service');
 const {
   generateQRCode,
   buildCertificatePDF,
@@ -11,7 +11,7 @@ const {
   generateVerificationHash,
   computeFileHash,
 } = require('../services/certificateService');
-const { DRIVE_FOLDERS, BULK_GENERATION_LIMIT } = require('../config/constants');
+const { BULK_GENERATION_LIMIT } = require('../config/constants');
 const { validateBase64MagicBytes } = require('../middleware/upload');
 const ApiError = require('../utils/ApiError');
 const ApiResponse = require('../utils/ApiResponse');
@@ -157,7 +157,7 @@ const createTemplate = async (req, res, next) => {
       const ext = mimeType === 'application/pdf' ? 'pdf' : 'png';
       const fileName = `CertTemplate_${name.replace(/\s+/g, '_')}_${Date.now()}.${ext}`;
 
-      const { publicId, secureUrl } = await cloudinaryService.uploadFile(
+      const { publicId, secureUrl } = await r2Service.uploadFile(
         imageBuffer,
         'internhub/templates',
         'auto'
@@ -284,7 +284,7 @@ const updateTemplate = async (req, res, next) => {
 
       // Delete old background from Cloudinary
       if (template.cloudinaryPublicId) {
-        await cloudinaryService.deleteFile(template.cloudinaryPublicId, template.templateType === 'pdf' ? 'auto' : 'image').catch(() => { });
+        await r2Service.deleteFile(template.cloudinaryPublicId, template.templateType === 'pdf' ? 'auto' : 'image').catch(() => { });
       }
 
       const fileHash = computeFileHash(imageBuffer);
@@ -292,7 +292,7 @@ const updateTemplate = async (req, res, next) => {
       const ext = mimeType === 'application/pdf' ? 'pdf' : 'png';
       const fileName = `CertTemplate_${template.name.replace(/\s+/g, '_')}_${Date.now()}.${ext}`;
 
-      const { publicId, secureUrl } = await cloudinaryService.uploadFile(
+      const { publicId, secureUrl } = await r2Service.uploadFile(
         imageBuffer,
         'internhub/templates',
         'auto'
@@ -345,7 +345,7 @@ const deleteTemplate = async (req, res, next) => {
 
     // Clean up Cloudinary file
     if (template.cloudinaryPublicId) {
-      await cloudinaryService.deleteFile(template.cloudinaryPublicId, template.templateType === 'pdf' ? 'auto' : 'image').catch((err) => {
+      await r2Service.deleteFile(template.cloudinaryPublicId, template.templateType === 'pdf' ? 'auto' : 'image').catch((err) => {
         logger.warn(`Failed to delete template background from Cloudinary: ${err.message}`);
       });
     }
@@ -397,7 +397,7 @@ const downloadTemplate = async (req, res, next) => {
       return next(ApiError.notFound('Template has no background image to download.'));
     }
 
-    const buffer = await cloudinaryService.downloadFile(template.backgroundImageUrl);
+    const buffer = await r2Service.downloadFile(template.backgroundImageUrl);
     const ext = template.templateType === 'pdf' ? 'pdf' : 'png';
     const contentType = template.templateType === 'pdf' ? 'application/pdf' : 'image/png';
 
@@ -481,7 +481,7 @@ const _generateSingleCertificate = async ({ application, grade, skillsAcquired, 
   // Download custom background if template has one
   if (template.backgroundImageUrl) {
     try {
-      backgroundImageBuffer = await cloudinaryService.downloadFile(template.backgroundImageUrl);
+      backgroundImageBuffer = await r2Service.downloadFile(template.backgroundImageUrl);
     } catch (dlErr) {
       logger.warn(`Failed to download template background, falling back to classic: ${dlErr.message}`);
       backgroundImageBuffer = null;
@@ -524,7 +524,7 @@ const _generateSingleCertificate = async ({ application, grade, skillsAcquired, 
   });
 
   // Upload PDF buffer directly to Cloudinary
-  const { publicId, secureUrl } = await cloudinaryService.uploadFile(
+  const { publicId, secureUrl } = await r2Service.uploadFile(
     pdfBuffer,
     'internhub/certificates',
     'image'
@@ -756,7 +756,7 @@ const previewCertificate = async (req, res, next) => {
 
     if (template?.backgroundImageUrl) {
       try {
-        backgroundImageBuffer = await cloudinaryService.downloadFile(template.backgroundImageUrl);
+        backgroundImageBuffer = await r2Service.downloadFile(template.backgroundImageUrl);
       } catch {
         backgroundImageBuffer = null;
       }
@@ -950,7 +950,7 @@ const downloadCertificate = async (req, res, next) => {
       return next(ApiError.notFound('Certificate PDF not available.'));
     }
 
-    const buffer = await cloudinaryService.downloadFile(certificate.pdfUrl);
+    const buffer = await r2Service.downloadFile(certificate.pdfUrl);
 
     res.set({
       'Content-Type': 'application/pdf',

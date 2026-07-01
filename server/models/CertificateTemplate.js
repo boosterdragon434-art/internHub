@@ -149,7 +149,7 @@ const certificateTemplateSchema = new mongoose.Schema(
       type: String,
       default: '',
     },
-    /** Cloudinary public ID for secure deletion and downloading */
+    /** R2 object key for secure deletion and downloading */
     cloudinaryPublicId: {
       type: String,
       default: '',

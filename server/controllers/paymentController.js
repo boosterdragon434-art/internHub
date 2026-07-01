@@ -443,7 +443,6 @@ module.exports = {
   adminVerifyPayment,
   getMyPayments,
   getAllPayments,
-  getMyPaymentRequests,
   sendPaymentRequest,
   exportPaymentsCsv,
   getPaymentStats,

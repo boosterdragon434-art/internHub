@@ -2,7 +2,7 @@ const Internship = require('../models/Internship');
 const Application = require('../models/Application');
 const ApiError = require('../utils/ApiError');
 const ApiResponse = require('../utils/ApiResponse');
-const cloudinaryService = require('../services/cloudinaryService');
+const r2Service = require('../services/r2Service');
 const { PAGINATION } = require('../config/constants');
 
 /**
@@ -95,7 +95,7 @@ const createInternship = async (req, res, next) => {
 
     // Handle image upload to Google Drive
     if (req.file) {
-      const { publicId, secureUrl } = await cloudinaryService.uploadFile(
+      const { publicId, secureUrl } = await r2Service.uploadFile(
         req.file.buffer,
         'internhub/internships',
         'image'
@@ -129,10 +129,10 @@ const updateInternship = async (req, res, next) => {
     if (req.file) {
       // Delete old image from Cloudinary
       if (internship.imagePublicId) {
-        await cloudinaryService.deleteFile(internship.imagePublicId, 'image');
+        await r2Service.deleteFile(internship.imagePublicId, 'image');
       }
 
-      const { publicId, secureUrl } = await cloudinaryService.uploadFile(
+      const { publicId, secureUrl } = await r2Service.uploadFile(
         req.file.buffer,
         'internhub/internships',
         'image'
@@ -167,7 +167,7 @@ const deleteInternship = async (req, res, next) => {
 
     // Delete image from Cloudinary
     if (internship.imagePublicId) {
-      await cloudinaryService.deleteFile(internship.imagePublicId, 'image');
+      await r2Service.deleteFile(internship.imagePublicId, 'image');
     }
 
     await Internship.findByIdAndDelete(req.params.id);

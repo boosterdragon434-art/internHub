@@ -11,7 +11,7 @@ const PaymentRequest = require('../models/PaymentRequest');
 const AuditLog = require('../models/AuditLog');
 const ApiError = require('../utils/ApiError');
 const ApiResponse = require('../utils/ApiResponse');
-const cloudinaryService = require('../services/cloudinaryService');
+const r2Service = require('../services/r2Service');
 const emailService = require('../services/emailService');
 const csvService = require('../services/csvService');
 const {
@@ -76,7 +76,7 @@ const createApplication = async (req, res, next) => {
     let resumeUrl = '';
     let resumePublicId = '';
     if (req.file) {
-      const result = await cloudinaryService.uploadFile(
+      const result = await r2Service.uploadFile(
         req.file.buffer,
         'internhub/resumes',
         'auto'
@@ -340,7 +340,7 @@ const completeApplication = async (req, res, next) => {
 
     if (template.backgroundImageUrl) {
       try {
-        backgroundImageBuffer = await cloudinaryService.downloadFile(template.backgroundImageUrl);
+        backgroundImageBuffer = await r2Service.downloadFile(template.backgroundImageUrl);
       } catch (dlErr) {
         logger.warn(`Failed to download template background, using classic: ${dlErr.message}`);
       }
@@ -384,7 +384,7 @@ const completeApplication = async (req, res, next) => {
     });
 
     // Upload PDF to Cloudinary (Outside Transaction to avoid long locks)
-    const { publicId, secureUrl } = await cloudinaryService.uploadFile(
+    const { publicId, secureUrl } = await r2Service.uploadFile(
       pdfBuffer,
       'internhub/certificates',
       'image'
@@ -594,7 +594,7 @@ const bulkAction = async (req, res, next) => {
           await Promise.all(
             publicIds.map(async (fileId) => {
               try {
-                await cloudinaryService.deleteFile(fileId, 'auto');
+                await r2Service.deleteFile(fileId, 'auto');
               } catch (err) {
                 logger.error(`Failed to delete Cloudinary file ${fileId} during bulk delete:`, err);
               }
