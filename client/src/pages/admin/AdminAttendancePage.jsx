@@ -9,10 +9,10 @@ import {
   FiFilter,
   FiSearch,
   FiRefreshCw,
-  FiCheckCircle,
   FiXCircle,
   FiTrendingUp,
   FiBarChart2,
+  FiCalendar,
 } from 'react-icons/fi';
 import toast from 'react-hot-toast';
 import StatsCard from '../../components/ui/StatsCard';
@@ -23,10 +23,10 @@ import EmptyState from '../../components/common/EmptyState';
 import Badge from '../../components/common/Badge';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import {
-  getAdminAttendance,
   getAdminAnalytics,
   exportAdminAttendance,
   getLiveStatus,
+  getAdminMonthlyHours,
 } from '../../api/attendanceApi';
 
 const formatDuration = (minutes) => {
@@ -81,6 +81,13 @@ const AdminAttendancePage = () => {
 
   // Export
   const [exporting, setExporting] = useState(false);
+
+  // Monthly Hours Tab
+  const [monthlyMonth, setMonthlyMonth] = useState(new Date().toISOString().substring(0, 7)); // YYYY-MM
+  const [monthlyData, setMonthlyData] = useState([]);
+  const [monthlyLoading, setMonthlyLoading] = useState(false);
+  const [monthlyPage, setMonthlyPage] = useState(1);
+  const [monthlyPagination, setMonthlyPagination] = useState(null);
 
   // Fetch analytics
   const fetchAnalytics = useCallback(async () => {
@@ -143,6 +150,26 @@ const AdminAttendancePage = () => {
     }
   }, [activeTab, fetchLive]);
 
+  // Fetch Monthly Hours
+  const fetchMonthly = useCallback(async (pageNum = 1) => {
+    try {
+      setMonthlyLoading(true);
+      const res = await getAdminMonthlyHours({ month: monthlyMonth, page: pageNum, limit: 15 });
+      setMonthlyData(res.data?.data || []);
+      setMonthlyPagination(res.data?.pagination || null);
+    } catch (error) {
+      console.error('Failed to fetch monthly hours:', error);
+    } finally {
+      setMonthlyLoading(false);
+    }
+  }, [monthlyMonth]);
+
+  useEffect(() => {
+    if (activeTab === 'monthly') {
+      fetchMonthly(1);
+    }
+  }, [activeTab, monthlyMonth, fetchMonthly]);
+
   // Export handler
   const handleExport = async () => {
     try {
@@ -192,6 +219,7 @@ const AdminAttendancePage = () => {
   const tabs = [
     { id: 'records', label: 'Records', icon: FiClock },
     { id: 'live', label: 'Live Status', icon: FiUsers },
+    { id: 'monthly', label: 'Monthly Hours', icon: FiCalendar },
     { id: 'analytics', label: 'Analytics', icon: FiBarChart2 },
   ];
 
@@ -532,6 +560,96 @@ const AdminAttendancePage = () => {
               icon={FiUsers}
             />
           )}
+        </motion.div>
+      )}
+
+      {/* ─── Monthly Hours Tab ────────────────────────────────────────── */}
+      {activeTab === 'monthly' && (
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="space-y-4"
+        >
+          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm p-4 flex items-center justify-between">
+            <h3 className="text-sm font-bold text-slate-900 dark:text-slate-50">
+              Monthly Hours Summary
+            </h3>
+            <div className="flex items-center gap-2">
+              <label className="text-sm font-medium text-slate-600 dark:text-slate-300">Select Month:</label>
+              <input 
+                type="month" 
+                value={monthlyMonth}
+                onChange={(e) => { setMonthlyMonth(e.target.value); setMonthlyPage(1); }}
+                className="px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm outline-none focus:ring-2 focus:ring-accent-500"
+              />
+            </div>
+          </div>
+
+          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
+            {monthlyLoading ? (
+              <div className="py-20 flex items-center justify-center">
+                <Spinner size="md" />
+              </div>
+            ) : monthlyData.length === 0 ? (
+              <div className="py-12 px-6">
+                <EmptyState
+                  title="No records found"
+                  description="No monthly hours recorded for the selected month."
+                  icon={FiCalendar}
+                  className="border-none bg-transparent"
+                />
+              </div>
+            ) : (
+              <>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left">
+                    <thead>
+                      <tr className="bg-slate-50 dark:bg-slate-900/50 border-b border-slate-200 dark:border-slate-800">
+                        <th className="px-5 py-3 text-xs font-semibold text-slate-500 uppercase">Student</th>
+                        <th className="px-5 py-3 text-xs font-semibold text-slate-500 uppercase">Total Hrs</th>
+                        <th className="px-5 py-3 text-xs font-semibold text-slate-500 uppercase">Present Days</th>
+                        <th className="px-5 py-3 text-xs font-semibold text-slate-500 uppercase">Late Days</th>
+                        <th className="px-5 py-3 text-xs font-semibold text-slate-500 uppercase text-center" colSpan={4}>Day Classification</th>
+                      </tr>
+                      <tr className="bg-slate-50 dark:bg-slate-900/50 border-b border-slate-200 dark:border-slate-800">
+                        <th colSpan={4}></th>
+                        <th className="px-3 py-2 text-[10px] font-semibold text-emerald-600 text-center border-l border-slate-200 dark:border-slate-800">Full</th>
+                        <th className="px-3 py-2 text-[10px] font-semibold text-amber-600 text-center">Half</th>
+                        <th className="px-3 py-2 text-[10px] font-semibold text-purple-600 text-center">OT</th>
+                        <th className="px-3 py-2 text-[10px] font-semibold text-rose-600 text-center">Insufficient</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {monthlyData.map((d) => (
+                        <tr key={d.user?._id} className="border-b border-slate-100 dark:border-slate-800/60 hover:bg-slate-50/50 dark:hover:bg-slate-900/30">
+                          <td className="px-5 py-3.5">
+                            <p className="text-sm font-medium text-slate-900 dark:text-slate-200">{d.user?.name || 'Unknown'}</p>
+                            <p className="text-xs text-slate-400">{d.user?.email || ''}</p>
+                          </td>
+                          <td className="px-5 py-3.5 text-sm font-bold text-slate-900 dark:text-slate-200">{d.totalWorkHours}</td>
+                          <td className="px-5 py-3.5 text-sm text-slate-600 dark:text-slate-400">{d.presentDays}</td>
+                          <td className="px-5 py-3.5 text-sm text-slate-600 dark:text-slate-400">{d.lateDays}</td>
+                          <td className="px-3 py-3.5 text-sm text-center border-l border-slate-100 dark:border-slate-800/60 font-semibold text-emerald-600">{d.classification?.fullDays || 0}</td>
+                          <td className="px-3 py-3.5 text-sm text-center font-semibold text-amber-600">{d.classification?.halfDays || 0}</td>
+                          <td className="px-3 py-3.5 text-sm text-center font-semibold text-purple-600">{d.classification?.overtimeDays || 0}</td>
+                          <td className="px-3 py-3.5 text-sm text-center font-semibold text-rose-600">{d.classification?.insufficientDays || 0}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                {monthlyPagination && monthlyPagination.pages > 1 && (
+                  <div className="px-5 py-4 border-t border-slate-200 dark:border-slate-800">
+                    <Pagination
+                      currentPage={monthlyPage}
+                      totalPages={monthlyPagination.pages}
+                      onPageChange={(p) => { setMonthlyPage(p); fetchMonthly(p); }}
+                    />
+                  </div>
+                )}
+              </>
+            )}
+          </div>
         </motion.div>
       )}
 

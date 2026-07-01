@@ -57,7 +57,81 @@ const updateCooldownSetting = async (req, res, next) => {
   }
 };
 
+/**
+ * @desc    Get payment UPI configuration (UPI ID + payee name)
+ * @route   GET /api/settings/payment-upi
+ * @access  Public / Authenticated
+ */
+const getPaymentUpiConfig = async (req, res, next) => {
+  try {
+    let setting = await Settings.findOne({ key: 'paymentUpiConfig' });
+    if (!setting) {
+      // Return sensible defaults — admin must configure before students can pay
+      setting = await Settings.create({
+        key: 'paymentUpiConfig',
+        value: { upiId: '', payeeName: 'FWT-iZON' },
+      });
+    }
+
+    ApiResponse.success(res, 200, 'Payment UPI config fetched.', {
+      upiId: setting.value.upiId || '',
+      payeeName: setting.value.payeeName || '',
+    });
+  } catch (error) {
+    logger.error('Failed to get payment UPI config:', error);
+    next(error);
+  }
+};
+
+/**
+ * @desc    Update payment UPI configuration
+ * @route   PUT /api/settings/payment-upi
+ * @access  Admin
+ */
+const updatePaymentUpiConfig = async (req, res, next) => {
+  try {
+    const { upiId, payeeName } = req.body;
+
+    if (!upiId || typeof upiId !== 'string') {
+      return next(ApiError.badRequest('A valid UPI ID is required.'));
+    }
+
+    // Validate UPI ID format: handle@bank (e.g. business@okicici, name@upi)
+    const upiPattern = /^[a-zA-Z0-9._-]+@[a-zA-Z]{2,}$/;
+    if (!upiPattern.test(upiId.trim())) {
+      return next(ApiError.badRequest('Invalid UPI ID format. Expected format: handle@bank (e.g. business@okicici).'));
+    }
+
+    if (!payeeName || typeof payeeName !== 'string' || payeeName.trim().length === 0) {
+      return next(ApiError.badRequest('Payee name is required.'));
+    }
+
+    let setting = await Settings.findOne({ key: 'paymentUpiConfig' });
+    if (!setting) {
+      setting = new Settings({ key: 'paymentUpiConfig' });
+    }
+
+    setting.value = {
+      upiId: upiId.trim(),
+      payeeName: payeeName.trim(),
+    };
+    await setting.save();
+
+    logger.info(`Admin ${req.user.email} updated payment UPI config: ${upiId.trim()}`);
+
+    ApiResponse.success(res, 200, 'Payment UPI config updated successfully.', {
+      upiId: setting.value.upiId,
+      payeeName: setting.value.payeeName,
+    });
+  } catch (error) {
+    logger.error('Failed to update payment UPI config:', error);
+    next(error);
+  }
+};
+
 module.exports = {
   getCooldownSetting,
   updateCooldownSetting,
+  getPaymentUpiConfig,
+  updatePaymentUpiConfig,
 };

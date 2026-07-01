@@ -10,11 +10,31 @@ const ApiResponse = require('../utils/ApiResponse');
 const paymentService = require('../services/paymentService');
 const emailService = require('../services/emailService');
 const csvService = require('../services/csvService');
+const r2Service = require('../services/r2Service');
 const { APPLICATION_STATUS, PAYMENT_STATUS, PAGINATION } = require('../config/constants');
 const logger = require('../utils/logger');
 const { v4: uuidv4 } = require('uuid');
+const { validateMagicBytes } = require('../middleware/upload');
 
 const mongoose = require('mongoose');
+
+/**
+ * Extract client IP and device info from request headers.
+ * @param {import('express').Request} req
+ * @returns {{ ipAddress: string, deviceInfo: string }}
+ */
+const extractClientMeta = (req) => ({
+  ipAddress: (
+    req.headers['x-forwarded-for'] ||
+    req.socket?.remoteAddress ||
+    ''
+  )
+    .toString()
+    .split(',')[0]
+    .trim()
+    .substring(0, 100),
+  deviceInfo: (req.headers['user-agent'] || '').substring(0, 300),
+});
 
 /**
  * @desc    Submit UTR for manual UPI payment verification
@@ -27,6 +47,16 @@ const submitUtr = async (req, res, next) => {
 
     if (!applicationId || !utrNumber) {
       return next(ApiError.badRequest('Application ID and UTR Number are required.'));
+    }
+
+    // Require receipt screenshot
+    if (!req.file) {
+      return next(ApiError.badRequest('Payment receipt screenshot is required. Please upload a screenshot of your payment confirmation.'));
+    }
+
+    // Validate file magic bytes
+    if (!validateMagicBytes(req.file.buffer, req.file.mimetype)) {
+      return next(ApiError.badRequest('Invalid file type. The uploaded file does not match its declared type.'));
     }
 
     const application = await Application.findOne({
@@ -75,6 +105,25 @@ const submitUtr = async (req, res, next) => {
       return next(ApiError.conflict('You have already submitted a UTR which is pending verification.'));
     }
 
+    // Upload receipt to R2
+    let receiptUrl = '';
+    let receiptPublicId = '';
+    try {
+      const uploadResult = await r2Service.uploadFile(
+        req.file.buffer,
+        'internhub/payment-receipts',
+        'image'
+      );
+      receiptUrl = uploadResult.secureUrl;
+      receiptPublicId = uploadResult.publicId;
+    } catch (uploadErr) {
+      logger.error('Receipt upload failed:', uploadErr);
+      return next(ApiError.internal('Failed to upload payment receipt. Please try again.'));
+    }
+
+    // Extract client metadata
+    const clientMeta = extractClientMeta(req);
+
     const session = await mongoose.startSession();
     session.startTransaction();
 
@@ -89,6 +138,10 @@ const submitUtr = async (req, res, next) => {
         currency: paymentRequest.currency,
         utrNumber: utrNumber,
         status: PAYMENT_STATUS.PENDING_VERIFICATION,
+        receiptUrl,
+        receiptPublicId,
+        ipAddress: clientMeta.ipAddress,
+        deviceInfo: clientMeta.deviceInfo,
       }], { session });
       
       payment = payments[0];
@@ -105,8 +158,7 @@ const submitUtr = async (req, res, next) => {
       session.endSession();
     }
 
-    // Notify admins (could be done later, simple log for now)
-    logger.info(`User ${req.user.id} submitted UTR ${utrNumber} for app ${applicationId}`);
+    logger.info(`User ${req.user.id} submitted UTR ${utrNumber} for app ${applicationId} with receipt`);
 
     ApiResponse.success(res, 201, 'Payment UTR submitted successfully. Pending admin verification.', {
       paymentId: payment._id,
@@ -125,47 +177,55 @@ const submitUtr = async (req, res, next) => {
  */
 const adminVerifyPayment = async (req, res, next) => {
   try {
-    const { action } = req.body; // 'approve' or 'reject'
+    const { action, reason } = req.body;
     const paymentId = req.params.id;
 
     if (!['approve', 'reject'].includes(action)) {
       return next(ApiError.badRequest('Invalid verification action. Use approve or reject.'));
     }
 
-    const payment = await Payment.findById(paymentId)
-      .populate('internship', 'title')
-      .populate('application');
-
-    if (!payment) {
-      return next(ApiError.notFound('Payment record not found.'));
-    }
-
-    if (payment.status !== PAYMENT_STATUS.PENDING_VERIFICATION) {
-      return next(ApiError.badRequest(`Payment is already ${payment.status}.`));
-    }
-
     const session = await mongoose.startSession();
     session.startTransaction();
 
     try {
+      // Atomic status check — prevents concurrent-approval race condition
+      const newStatus = action === 'approve' ? PAYMENT_STATUS.PAID : PAYMENT_STATUS.FAILED;
+      const updateFields = { status: newStatus };
       if (action === 'approve') {
-        payment.status = PAYMENT_STATUS.PAID;
-        payment.paidAt = new Date();
-        await payment.save({ session });
+        updateFields.paidAt = new Date();
+      }
+      if (action === 'reject' && reason) {
+        updateFields.rejectionReason = reason;
+      }
 
+      const payment = await Payment.findOneAndUpdate(
+        { _id: paymentId, status: PAYMENT_STATUS.PENDING_VERIFICATION },
+        { $set: updateFields },
+        { session, new: true }
+      ).populate('internship', 'title').populate('application');
+
+      if (!payment) {
+        await session.abortTransaction();
+        session.endSession();
+        return next(ApiError.conflict('Payment has already been processed by another admin, or was not found.'));
+      }
+
+      if (action === 'approve') {
         // Update PaymentRequest
         if (payment.paymentRequest) {
-          const paymentRequest = await PaymentRequest.findById(payment.paymentRequest);
-          if (paymentRequest) {
-            paymentRequest.status = 'paid';
-            await paymentRequest.save({ session });
-          }
+          await PaymentRequest.findByIdAndUpdate(
+            payment.paymentRequest,
+            { status: 'paid' },
+            { session }
+          );
         }
 
         // Update application
-        const application = await Application.findById(payment.application._id);
-        application.status = APPLICATION_STATUS.JOINED;
-        await application.save({ session });
+        await Application.findByIdAndUpdate(
+          payment.application._id,
+          { status: APPLICATION_STATUS.JOINED },
+          { session }
+        );
 
         // Create EnrollmentInstance
         const internshipObj = await mongoose.model('Internship').findById(payment.internship._id);
@@ -191,7 +251,7 @@ const adminVerifyPayment = async (req, res, next) => {
         const enrollments = await EnrollmentInstance.create([{
           student: payment.user,
           internship: payment.internship._id,
-          application: application._id,
+          application: payment.application._id,
           payment: payment._id,
           startDate,
           endDate,
@@ -217,55 +277,79 @@ const adminVerifyPayment = async (req, res, next) => {
         }], { session });
 
       } else if (action === 'reject') {
-        payment.status = PAYMENT_STATUS.FAILED;
-        await payment.save({ session });
-
         // Revert application status back to pending
-        const application = await Application.findById(payment.application._id);
-        application.status = APPLICATION_STATUS.PAYMENT_PENDING;
-        await application.save({ session });
+        await Application.findByIdAndUpdate(
+          payment.application._id,
+          { status: APPLICATION_STATUS.PAYMENT_PENDING },
+          { session }
+        );
+
+        const auditChanges = { utrNumber: payment.utrNumber };
+        if (reason) auditChanges.rejectionReason = reason;
 
         await AuditLog.create([{
           admin: req.user.id,
           action: 'REJECTED_PAYMENT',
           targetModel: 'Payment',
           targetId: payment._id,
-          changes: { utrNumber: payment.utrNumber },
+          changes: auditChanges,
           ipAddress: req.ip,
         }], { session });
 
-        // Notify Student
+        // Notify Student with reason
+        const rejectionMessage = reason
+          ? `Your UTR ${payment.utrNumber} was rejected. Reason: ${reason}`
+          : `Your UTR ${payment.utrNumber} was rejected. Please try again or contact support.`;
+
         await Notification.create([{
           user: payment.user,
           title: 'Payment Verification Failed ❌',
-          message: `Your UTR ${payment.utrNumber} was rejected. Please try again or contact support.`,
+          message: rejectionMessage,
           type: 'payment',
           link: '/student/payments',
         }], { session });
       }
 
       await session.commitTransaction();
+
+      // Send email outside transaction (non-blocking)
+      if (action === 'approve') {
+        const user = await User.findById(payment.user);
+        if (user) {
+          setImmediate(() => {
+            emailService.sendPaymentSuccess(user, payment.internship.title, payment.amount).catch(() => {});
+          });
+        }
+      }
+
+      ApiResponse.success(res, 200, `Payment ${action}d successfully.`, {
+        paymentId: payment._id,
+        status: payment.status,
+      });
     } catch (txError) {
       await session.abortTransaction();
       throw txError;
     } finally {
       session.endSession();
     }
+  } catch (error) {
+    next(error);
+  }
+};
 
-    // Send email outside transaction (non-blocking)
-    if (action === 'approve') {
-      const user = await User.findById(payment.user);
-      if (user) {
-        setImmediate(() => {
-          emailService.sendPaymentSuccess(user, payment.internship.title, payment.amount).catch(() => {});
-        });
-      }
-    }
+/**
+ * @desc    Get student's pending payment requests
+ * @route   GET /api/payments/requests
+ * @access  Student
+ */
+const getMyPaymentRequests = async (req, res, next) => {
+  try {
+    const requests = await PaymentRequest.find({ student: req.user.id })
+      .populate('internship', 'title')
+      .sort('-createdAt')
+      .lean();
 
-    ApiResponse.success(res, 200, `Payment ${action}d successfully.`, {
-      paymentId: payment._id,
-      status: payment.status,
-    });
+    ApiResponse.success(res, 200, 'Payment requests fetched successfully.', requests);
   } catch (error) {
     next(error);
   }
@@ -441,6 +525,7 @@ const getPaymentStats = async (req, res, next) => {
 module.exports = {
   submitUtr,
   adminVerifyPayment,
+  getMyPaymentRequests,
   getMyPayments,
   getAllPayments,
   sendPaymentRequest,

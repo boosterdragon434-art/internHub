@@ -62,6 +62,20 @@ const updateSettings = Joi.object({
   overtimeThresholdHours: Joi.number().integer().min(1).max(16).optional(),
 });
 
+const monthlyHours = Joi.object({
+  month: Joi.string()
+    .pattern(/^\d{4}-\d{2}$/)
+    .optional()
+    .messages({
+      'string.pattern.base': 'Month must be in YYYY-MM format',
+    }),
+  userId: Joi.string().hex().length(24).optional(),
+  teamId: Joi.string().hex().length(24).optional(),
+  guideId: Joi.string().hex().length(24).optional(),
+  page: Joi.number().integer().min(1).default(1),
+  limit: Joi.number().integer().min(1).max(100).default(20),
+});
+
 module.exports = {
   checkIn,
   breakAction,
@@ -69,4 +83,5 @@ module.exports = {
   fetchAttendance,
   exportAttendance,
   updateSettings,
+  monthlyHours,
 };

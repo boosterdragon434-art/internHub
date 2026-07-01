@@ -1,7 +1,15 @@
 import api from './axios';
 
-export const submitUtr = async (applicationId, utrNumber) => {
-  const response = await api.post('/payments/submit-utr', { applicationId, utrNumber });
+export const submitUtr = async (applicationId, utrNumber, receiptFile) => {
+  const formData = new FormData();
+  formData.append('applicationId', applicationId);
+  formData.append('utrNumber', utrNumber);
+  if (receiptFile) {
+    formData.append('image', receiptFile);
+  }
+  const response = await api.post('/payments/submit-utr', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  });
   return response.data;
 };
 
@@ -10,8 +18,8 @@ export const getMyPaymentRequests = async () => {
   return response.data;
 };
 
-export const adminVerifyPayment = async (paymentId, action) => {
-  const response = await api.put(`/payments/${paymentId}/verify`, { action });
+export const adminVerifyPayment = async (paymentId, action, reason = '') => {
+  const response = await api.put(`/payments/${paymentId}/verify`, { action, reason });
   return response.data;
 };
 

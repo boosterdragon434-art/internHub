@@ -28,6 +28,10 @@ export const getMyHistory = (params = {}) =>
 /** Get personal attendance statistics */
 export const getMyStats = () => api.get('/attendance/my-stats');
 
+/** Get student's own monthly hours */
+export const getMyMonthlyHours = (params = {}) =>
+  api.get('/attendance/my-monthly-hours', { params });
+
 // ─── Guide Endpoints ────────────────────────────────────────────────
 
 /** Get attendance records for assigned students */
@@ -44,6 +48,10 @@ export const exportGuideAttendance = (params = {}) =>
     params,
     responseType: 'blob',
   });
+
+/** Get guide's students monthly hours */
+export const getGuideMonthlyHours = (params = {}) =>
+  api.get('/attendance/guide/monthly-hours', { params });
 
 // ─── Admin Endpoints ────────────────────────────────────────────────
 
@@ -71,3 +79,7 @@ export const updateAttendanceSettings = (data) =>
 
 /** Get live status of all interns */
 export const getLiveStatus = () => api.get('/attendance/admin/live-status');
+
+/** Get admin monthly hours for all interns */
+export const getAdminMonthlyHours = (params = {}) =>
+  api.get('/attendance/admin/monthly-hours', { params });

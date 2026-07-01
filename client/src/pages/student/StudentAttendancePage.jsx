@@ -28,6 +28,7 @@ import {
   getMyStatus,
   getMyHistory,
   getMyStats,
+  getMyMonthlyHours,
 } from '../../api/attendanceApi';
 
 /**
@@ -112,6 +113,7 @@ const StudentAttendancePage = () => {
   // Stats
   const [stats, setStats] = useState(null);
   const [statsLoading, setStatsLoading] = useState(true);
+  const [monthlySummary, setMonthlySummary] = useState(null);
 
   // History
   const [history, setHistory] = useState([]);
@@ -164,8 +166,12 @@ const StudentAttendancePage = () => {
   const fetchStats = useCallback(async () => {
     try {
       setStatsLoading(true);
-      const res = await getMyStats();
-      setStats(res.data?.data || null);
+      const [statsRes, monthlyRes] = await Promise.all([
+        getMyStats(),
+        getMyMonthlyHours()
+      ]);
+      setStats(statsRes.data?.data || null);
+      setMonthlySummary(monthlyRes.data?.data?.summary || null);
     } catch (error) {
       console.error('Failed to fetch stats:', error);
     } finally {
@@ -782,25 +788,47 @@ const StudentAttendancePage = () => {
       </div>
 
       {/* Monthly Stats Row */}
-      {stats?.thisMonth && (
+      {monthlySummary && (
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.4 }}
-          className="grid grid-cols-1 md:grid-cols-2 gap-4"
+          className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm p-5"
         >
-          <StatsCard
-            title="This Month Present"
-            value={stats.thisMonth.present}
-            icon={FiTrendingUp}
-            color="teal"
-          />
-          <StatsCard
-            title="This Month Late"
-            value={stats.thisMonth.late}
-            icon={FiAlertCircle}
-            color="amber"
-          />
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-sm font-bold text-slate-900 dark:text-slate-50">
+              This Month Summary
+            </h3>
+            <span className="text-xs font-semibold text-slate-500 bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded">
+              {new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+            </span>
+          </div>
+
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+            <StatsCard title="Total Hours" value={monthlySummary.totalWorkHours} icon={FiClock} color="indigo" />
+            <StatsCard title="Present Days" value={monthlySummary.presentDays} icon={FiCalendar} color="teal" />
+            <StatsCard title="Late Days" value={monthlySummary.lateDays} icon={FiAlertCircle} color="amber" />
+            <StatsCard title="Missed Checkout" value={monthlySummary.missedCheckoutDays} icon={FiXCircle} color="rose" />
+          </div>
+          
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 border-t border-slate-100 dark:border-slate-800 pt-4">
+            <div className="text-center p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-100 dark:border-slate-700/50">
+              <p className="text-xs text-slate-500 mb-1">Full Days</p>
+              <p className="text-lg font-bold text-emerald-600 dark:text-emerald-400">{monthlySummary.classification?.fullDays || 0}</p>
+            </div>
+            <div className="text-center p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-100 dark:border-slate-700/50">
+              <p className="text-xs text-slate-500 mb-1">Half Days</p>
+              <p className="text-lg font-bold text-amber-600 dark:text-amber-400">{monthlySummary.classification?.halfDays || 0}</p>
+            </div>
+            <div className="text-center p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-100 dark:border-slate-700/50">
+              <p className="text-xs text-slate-500 mb-1">Overtime</p>
+              <p className="text-lg font-bold text-purple-600 dark:text-purple-400">{monthlySummary.classification?.overtimeDays || 0}</p>
+            </div>
+            <div className="text-center p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-100 dark:border-slate-700/50">
+              <p className="text-xs text-slate-500 mb-1">Insufficient</p>
+              <p className="text-lg font-bold text-rose-600 dark:text-rose-400">{monthlySummary.classification?.insufficientDays || 0}</p>
+            </div>
+          </div>
         </motion.div>
       )}
 

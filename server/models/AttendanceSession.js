@@ -68,6 +68,19 @@ const attendanceSessionSchema = new mongoose.Schema(
     deviceInfo: { type: String, default: '', trim: true, maxlength: 300 },
     remarks: { type: String, default: '', trim: true, maxlength: 500 },
     missedCheckout: { type: Boolean, default: false },
+    // Phase 1 additions — break limit enforcement
+    exceededBreakLimit: { type: Boolean, default: false },
+    // Phase 1 — day classification at checkout (snapshot, not live-recomputed)
+    dayClassification: {
+      type: String,
+      enum: ['full-day', 'half-day', 'overtime', 'insufficient', null],
+      default: null,
+    },
+    // Snapshot of the thresholds used for classification so historical records don't shift
+    classificationThresholds: {
+      minimumWorkHours: { type: Number, default: null },
+      overtimeThresholdHours: { type: Number, default: null },
+    },
   },
   { timestamps: true }
 );

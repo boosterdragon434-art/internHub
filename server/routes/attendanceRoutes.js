@@ -17,6 +17,9 @@ const {
   getAttendanceSettings,
   updateAttendanceSettings,
   getLiveStatus,
+  getAdminMonthlyHours,
+  getGuideMonthlyHours,
+  getMyMonthlyHours,
 } = require('../controllers/attendanceController');
 const { protect, authorize } = require('../middleware/auth');
 const validate = require('../middleware/validate');
@@ -34,12 +37,14 @@ router.post(
   '/break-start',
   protect,
   authorize('student'),
+  validate(attendanceValidator.breakAction),
   breakStart
 );
 router.post(
   '/break-end',
   protect,
   authorize('student'),
+  validate(attendanceValidator.breakAction),
   breakEnd
 );
 router.post(
@@ -52,6 +57,7 @@ router.post(
 router.get('/my-status', protect, authorize('student'), getMyStatus);
 router.get('/my-history', protect, authorize('student'), getMyHistory);
 router.get('/my-stats', protect, authorize('student'), getMyStats);
+router.get('/my-monthly-hours', protect, authorize('student'), getMyMonthlyHours);
 
 // ─── Guide routes ───────────────────────────────────────────────────
 router.get(
@@ -71,6 +77,12 @@ router.get(
   protect,
   authorize('guide'),
   exportGuideAttendance
+);
+router.get(
+  '/guide/monthly-hours',
+  protect,
+  authorize('guide'),
+  getGuideMonthlyHours
 );
 
 // ─── Admin routes ───────────────────────────────────────────────────
@@ -110,6 +122,12 @@ router.get(
   protect,
   authorize('admin'),
   getLiveStatus
+);
+router.get(
+  '/admin/monthly-hours',
+  protect,
+  authorize('admin'),
+  getAdminMonthlyHours
 );
 
 module.exports = router;

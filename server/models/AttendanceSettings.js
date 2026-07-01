@@ -53,15 +53,27 @@ const attendanceSettingsSchema = new mongoose.Schema(
 );
 
 /**
- * Fetch the singleton settings document, creating it with defaults if missing.
- * @returns {Promise<import('mongoose').Document>}
+ * Fetch the singleton settings document atomically, creating it with defaults if missing.
+ * Uses findOneAndUpdate with $setOnInsert to prevent the race condition where two
+ * concurrent first-requests both create separate documents.
+ * @returns {Promise<Object>} Plain settings object
  */
 attendanceSettingsSchema.statics.getSettings = async function () {
-  let settings = await this.findOne().lean();
-  if (!settings) {
-    settings = await this.create({});
-    return settings.toObject();
-  }
+  const settings = await this.findOneAndUpdate(
+    {},
+    {
+      $setOnInsert: {
+        expectedCheckInTime: '09:00',
+        lateGraceMinutes: 15,
+        maxBreakMinutes: 60,
+        autoCheckoutHour: 22,
+        workingDaysPerWeek: 5,
+        minimumWorkHours: 6,
+        overtimeThresholdHours: 8,
+      },
+    },
+    { upsert: true, new: true, lean: true }
+  );
   return settings;
 };
 

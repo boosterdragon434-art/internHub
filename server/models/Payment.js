@@ -63,6 +63,25 @@ const paymentSchema = new mongoose.Schema(
       type: Date,
       default: null,
     },
+    // Phase 3 additions
+    rejectionReason: {
+      type: String,
+      default: '',
+      trim: true,
+      maxlength: 500,
+    },
+    ipAddress: {
+      type: String,
+      default: '',
+      trim: true,
+      maxlength: 100,
+    },
+    deviceInfo: {
+      type: String,
+      default: '',
+      trim: true,
+      maxlength: 300,
+    },
   },
   {
     timestamps: true,

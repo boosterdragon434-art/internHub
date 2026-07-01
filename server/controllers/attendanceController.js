@@ -7,16 +7,7 @@ const ApiResponse = require('../utils/ApiResponse');
 const { PAGINATION } = require('../config/constants');
 const { generateAttendanceExcel } = require('../services/attendanceService');
 const logger = require('../utils/logger');
-
-/**
- * Get today's date string in YYYY-MM-DD format (IST).
- * @returns {string}
- */
-const getTodayIST = () => {
-  const now = new Date();
-  const ist = new Date(now.getTime() + 5.5 * 60 * 60 * 1000);
-  return ist.toISOString().split('T')[0];
-};
+const { getTodayIST, getISTNow, getISTMinutesSinceMidnight, getISTHour } = require('../utils/istTime');
 
 /**
  * Parse an HH:MM time string into total minutes since midnight.
@@ -28,6 +19,39 @@ const parseTimeToMinutes = (timeStr) => {
   return hours * 60 + minutes;
 };
 
+/** Maximum plausible work duration in minutes (20 hours) for sanity checking */
+const MAX_WORK_MINUTES = 20 * 60;
+
+/**
+ * Compute day classification based on total work duration and settings thresholds.
+ * @param {number} totalWorkMinutes - Net work minutes
+ * @param {object} settings - Attendance settings with minimumWorkHours, overtimeThresholdHours
+ * @returns {string} 'full-day' | 'half-day' | 'overtime' | 'insufficient'
+ */
+const computeDayClassification = (totalWorkMinutes, settings) => {
+  const totalHours = totalWorkMinutes / 60;
+  const minHours = settings.minimumWorkHours || 6;
+  const otHours = settings.overtimeThresholdHours || 8;
+
+  if (totalHours >= otHours) return 'overtime';
+  if (totalHours >= minHours) return 'full-day';
+  if (totalHours >= minHours / 2) return 'half-day';
+  return 'insufficient';
+};
+
+/**
+ * Apply sanity bound to totalWorkDuration and log implausible values.
+ * @param {object} session - The session document
+ */
+const applySanityBound = (session) => {
+  if (session.totalWorkDuration > MAX_WORK_MINUTES) {
+    logger.warn(
+      `Implausible totalWorkDuration=${session.totalWorkDuration}min (>${MAX_WORK_MINUTES}min) for user=${session.user} date=${session.date}. Clamping to ${MAX_WORK_MINUTES}min.`
+    );
+    session.totalWorkDuration = MAX_WORK_MINUTES;
+  }
+};
+
 /**
  * Auto-checkout any active student session for today if the time is past the auto-checkout hour.
  */
@@ -35,9 +59,7 @@ const autoCheckoutActiveSessions = async () => {
   try {
     const today = getTodayIST();
     const settings = await AttendanceSettings.getSettings();
-    const now = new Date();
-    const istNow = new Date(now.getTime() + 5.5 * 60 * 60 * 1000);
-    const currentHour = istNow.getUTCHours();
+    const currentHour = getISTHour();
 
     if (currentHour >= settings.autoCheckoutHour) {
       const activeSessions = await AttendanceSession.find({
@@ -75,6 +97,21 @@ const autoCheckoutActiveSessions = async () => {
         session.attendanceStatus = 'missed-checkout';
         session.missedCheckout = true;
 
+        // Apply sanity bound
+        applySanityBound(session);
+
+        // Compute day classification with snapshot
+        session.dayClassification = computeDayClassification(session.totalWorkDuration, settings);
+        session.classificationThresholds = {
+          minimumWorkHours: settings.minimumWorkHours,
+          overtimeThresholdHours: settings.overtimeThresholdHours,
+        };
+
+        // Check break limit
+        if (totalBreakDuration > (settings.maxBreakMinutes || 60)) {
+          session.exceededBreakLimit = true;
+        }
+
         await session.save();
         logger.info(`Auto-checkout active session past EOD for user=${session.user} date=${today}`);
       }
@@ -97,6 +134,10 @@ const handleMissedCheckouts = async (userId) => {
     attendanceStatus: { $in: ['checked-in', 'on-break'] },
   });
 
+  if (openSessions.length === 0) return;
+
+  const settings = await AttendanceSettings.getSettings();
+
   for (const session of openSessions) {
     // Close any open breaks
     for (const brk of session.breaks) {
@@ -106,13 +147,10 @@ const handleMissedCheckouts = async (userId) => {
       }
     }
 
-    // Use auto-checkout settings to determine checkout time
-    const settings = await AttendanceSettings.getSettings();
     const sessionDate = new Date(session.checkInTime);
     const autoCheckout = new Date(sessionDate);
     autoCheckout.setHours(settings.autoCheckoutHour, 0, 0, 0);
 
-    // If check-in was after auto-checkout hour, set checkout to check-in
     const checkOutTime =
       autoCheckout > session.checkInTime ? autoCheckout : session.checkInTime;
 
@@ -129,6 +167,21 @@ const handleMissedCheckouts = async (userId) => {
     session.totalWorkDuration = Math.max(0, grossMinutes - totalBreakDuration);
     session.attendanceStatus = 'missed-checkout';
     session.missedCheckout = true;
+
+    // Apply sanity bound
+    applySanityBound(session);
+
+    // Compute day classification with snapshot
+    session.dayClassification = computeDayClassification(session.totalWorkDuration, settings);
+    session.classificationThresholds = {
+      minimumWorkHours: settings.minimumWorkHours,
+      overtimeThresholdHours: settings.overtimeThresholdHours,
+    };
+
+    // Check break limit
+    if (totalBreakDuration > (settings.maxBreakMinutes || 60)) {
+      session.exceededBreakLimit = true;
+    }
 
     await session.save();
   }
@@ -171,8 +224,7 @@ const checkIn = async (req, res, next) => {
 
     // Detect late arrival
     const settings = await AttendanceSettings.getSettings();
-    const now = new Date();
-    const istNow = new Date(now.getTime() + 5.5 * 60 * 60 * 1000);
+    const istNow = getISTNow();
 
     if (istNow.getUTCHours() >= settings.autoCheckoutHour) {
       return next(
@@ -182,7 +234,7 @@ const checkIn = async (req, res, next) => {
       );
     }
 
-    const currentMinutes = istNow.getUTCHours() * 60 + istNow.getUTCMinutes();
+    const currentMinutes = getISTMinutesSinceMidnight();
     const expectedMinutes = parseTimeToMinutes(settings.expectedCheckInTime);
     const lateThreshold = expectedMinutes + settings.lateGraceMinutes;
 
@@ -204,6 +256,7 @@ const checkIn = async (req, res, next) => {
       if (group) teamId = group._id;
     }
 
+    const now = new Date();
     const session = await AttendanceSession.create({
       enrollmentInstance: enrollmentInstanceId,
       user: userId,
@@ -293,6 +346,18 @@ const breakStart = async (req, res, next) => {
       );
     }
 
+    // Enforce maxBreakMinutes — block new breaks if already exceeded
+    const settings = await AttendanceSettings.getSettings();
+    if (session.totalBreakDuration >= (settings.maxBreakMinutes || 60)) {
+      session.exceededBreakLimit = true;
+      await session.save();
+      return next(
+        ApiError.badRequest(
+          `You have exceeded the maximum allowed break time of ${settings.maxBreakMinutes} minutes for today. No further breaks allowed.`
+        )
+      );
+    }
+
     session.breaks.push({ breakStart: new Date() });
     session.attendanceStatus = 'on-break';
     await session.save();
@@ -352,6 +417,18 @@ const breakEnd = async (req, res, next) => {
       (sum, b) => sum + (b.duration || 0),
       0
     );
+
+    // Enforce maxBreakMinutes — flag if exceeded
+    const settings = await AttendanceSettings.getSettings();
+    if (session.totalBreakDuration > (settings.maxBreakMinutes || 60)) {
+      session.exceededBreakLimit = true;
+      session.remarks = session.remarks
+        ? `${session.remarks} | Break limit exceeded (${session.totalBreakDuration}/${settings.maxBreakMinutes} min)`
+        : `Break limit exceeded (${session.totalBreakDuration}/${settings.maxBreakMinutes} min)`;
+      logger.warn(
+        `Break limit exceeded: user=${userId} date=${today} total=${session.totalBreakDuration}min limit=${settings.maxBreakMinutes}min`
+      );
+    }
 
     session.attendanceStatus = 'checked-in';
     await session.save();
@@ -422,14 +499,30 @@ const checkOut = async (req, res, next) => {
       session.grossDuration - session.totalBreakDuration
     );
 
+    // Apply sanity bound
+    applySanityBound(session);
+
     session.checkOutTime = now;
     session.attendanceStatus = 'checked-out';
     session.remarks = req.body.remarks || session.remarks;
 
+    // Compute day classification with snapshot
+    const settings = await AttendanceSettings.getSettings();
+    session.dayClassification = computeDayClassification(session.totalWorkDuration, settings);
+    session.classificationThresholds = {
+      minimumWorkHours: settings.minimumWorkHours,
+      overtimeThresholdHours: settings.overtimeThresholdHours,
+    };
+
+    // Check break limit at checkout too
+    if (session.totalBreakDuration > (settings.maxBreakMinutes || 60)) {
+      session.exceededBreakLimit = true;
+    }
+
     await session.save();
 
     logger.info(
-      `Checkout: user=${userId} date=${today} worked=${session.totalWorkDuration}min breaks=${session.totalBreakDuration}min`
+      `Checkout: user=${userId} date=${today} worked=${session.totalWorkDuration}min breaks=${session.totalBreakDuration}min classification=${session.dayClassification}`
     );
 
     ApiResponse.success(res, 200, 'Checked out successfully.', { session });
@@ -453,10 +546,7 @@ const getMyStatus = async (req, res, next) => {
       return next(ApiError.badRequest('Enrollment Instance ID is required.'));
     }
 
-    // Auto-checkout any active sessions past the auto-checkout hour
-    await autoCheckoutActiveSessions();
-
-    // Handle missed checkouts passively
+    // Handle missed checkouts passively (scoped to this user only — no global scan)
     await handleMissedCheckouts(userId);
 
     const session = await AttendanceSession.findOne({
@@ -633,7 +723,7 @@ const getMyStats = async (req, res, next) => {
  */
 const getGuideStudentAttendance = async (req, res, next) => {
   try {
-    await autoCheckoutActiveSessions();
+    // Removed global autoCheckoutActiveSessions() — cron handles this now
     const guideId = req.user.id;
     const {
       page = PAGINATION.DEFAULT_PAGE,
@@ -709,7 +799,7 @@ const getGuideStudentAttendance = async (req, res, next) => {
  */
 const getGuideAnalytics = async (req, res, next) => {
   try {
-    await autoCheckoutActiveSessions();
+    // Removed global autoCheckoutActiveSessions() — cron handles this now
     const guideId = req.user.id;
     const today = getTodayIST();
 
@@ -805,7 +895,11 @@ const exportGuideAttendance = async (req, res, next) => {
       .sort('-date')
       .lean();
 
-    const buffer = await generateAttendanceExcel(records);
+    // Detect month scope for optional monthly summary worksheet
+    const monthScope = (startDate && endDate && startDate.substring(0, 7) === endDate.substring(0, 7))
+      ? startDate.substring(0, 7) : null;
+
+    const buffer = await generateAttendanceExcel(records, monthScope);
 
     res.setHeader(
       'Content-Type',
@@ -832,7 +926,7 @@ const exportGuideAttendance = async (req, res, next) => {
  */
 const getAdminAllAttendance = async (req, res, next) => {
   try {
-    await autoCheckoutActiveSessions();
+    // Removed global autoCheckoutActiveSessions() — cron handles this now
     const {
       page = PAGINATION.DEFAULT_PAGE,
       limit = PAGINATION.DEFAULT_LIMIT,
@@ -911,7 +1005,7 @@ const getAdminAllAttendance = async (req, res, next) => {
  */
 const getAdminAnalytics = async (req, res, next) => {
   try {
-    await autoCheckoutActiveSessions();
+    // Removed global autoCheckoutActiveSessions() — cron handles this now
     const today = getTodayIST();
 
     // Count all students
@@ -1020,7 +1114,11 @@ const exportAdminAttendance = async (req, res, next) => {
       .sort('-date')
       .lean();
 
-    const buffer = await generateAttendanceExcel(records);
+    // Detect month scope for optional monthly summary worksheet
+    const monthScope = (startDate && endDate && startDate.substring(0, 7) === endDate.substring(0, 7))
+      ? startDate.substring(0, 7) : null;
+
+    const buffer = await generateAttendanceExcel(records, monthScope);
 
     res.setHeader(
       'Content-Type',
@@ -1097,7 +1195,7 @@ const updateAttendanceSettings = async (req, res, next) => {
  */
 const getLiveStatus = async (req, res, next) => {
   try {
-    await autoCheckoutActiveSessions();
+    // Removed global autoCheckoutActiveSessions() — cron handles this now
     const today = getTodayIST();
 
     // Get all active students
@@ -1151,6 +1249,208 @@ const getLiveStatus = async (req, res, next) => {
   }
 };
 
+// ═══════════════════════════════════════════════
+//  MONTHLY HOURS ENDPOINTS (Phase 2)
+// ═══════════════════════════════════════════════
+
+/**
+ * Build the MongoDB aggregation pipeline for monthly hours.
+ * @param {object} matchFilter - Base $match filter
+ * @param {string} month - YYYY-MM string
+ * @param {number} skip - Pagination skip
+ * @param {number} limit - Pagination limit
+ * @returns {Array} Aggregation pipeline stages
+ */
+const buildMonthlyHoursPipeline = (matchFilter, month, skip, limit) => {
+  // Compute date range for the month
+  const [year, mon] = month.split('-').map(Number);
+  const startDate = `${month}-01`;
+  const endYear = mon === 12 ? year + 1 : year;
+  const endMonth = mon === 12 ? 1 : mon + 1;
+  const endDate = `${endYear}-${String(endMonth).padStart(2, '0')}-01`;
+
+  return [
+    {
+      $match: {
+        ...matchFilter,
+        date: { $gte: startDate, $lt: endDate },
+      },
+    },
+    {
+      $group: {
+        _id: '$user',
+        totalWorkMinutes: { $sum: '$totalWorkDuration' },
+        totalBreakMinutes: { $sum: '$totalBreakDuration' },
+        presentDays: { $sum: 1 },
+        lateDays: { $sum: { $cond: ['$isLate', 1, 0] } },
+        missedCheckoutDays: { $sum: { $cond: ['$missedCheckout', 1, 0] } },
+        fullDays: { $sum: { $cond: [{ $eq: ['$dayClassification', 'full-day'] }, 1, 0] } },
+        halfDays: { $sum: { $cond: [{ $eq: ['$dayClassification', 'half-day'] }, 1, 0] } },
+        overtimeDays: { $sum: { $cond: [{ $eq: ['$dayClassification', 'overtime'] }, 1, 0] } },
+        insufficientDays: { $sum: { $cond: [{ $eq: ['$dayClassification', 'insufficient'] }, 1, 0] } },
+        exceededBreakDays: { $sum: { $cond: ['$exceededBreakLimit', 1, 0] } },
+      },
+    },
+    { $sort: { totalWorkMinutes: -1 } },
+    {
+      $facet: {
+        data: [
+          { $skip: skip },
+          { $limit: limit },
+          {
+            $lookup: {
+              from: 'users',
+              localField: '_id',
+              foreignField: '_id',
+              as: 'userInfo',
+              pipeline: [{ $project: { name: 1, email: 1, avatar: 1 } }],
+            },
+          },
+          { $unwind: '$userInfo' },
+          {
+            $project: {
+              _id: 1,
+              user: '$userInfo',
+              totalWorkMinutes: 1,
+              totalWorkHours: { $round: [{ $divide: ['$totalWorkMinutes', 60] }, 2] },
+              totalBreakMinutes: 1,
+              presentDays: 1,
+              lateDays: 1,
+              missedCheckoutDays: 1,
+              classification: {
+                fullDays: '$fullDays',
+                halfDays: '$halfDays',
+                overtimeDays: '$overtimeDays',
+                insufficientDays: '$insufficientDays',
+              },
+              exceededBreakDays: 1,
+            },
+          },
+        ],
+        totalCount: [{ $count: 'count' }],
+      },
+    },
+  ];
+};
+
+/**
+ * @desc    Get monthly hours for all interns (admin)
+ * @route   GET /api/attendance/admin/monthly-hours
+ * @access  Admin
+ */
+const getAdminMonthlyHours = async (req, res, next) => {
+  try {
+    const {
+      month,
+      userId,
+      teamId,
+      guideId,
+      page = PAGINATION.DEFAULT_PAGE,
+      limit = PAGINATION.DEFAULT_LIMIT,
+    } = req.query;
+
+    const currentMonth = month || getTodayIST().substring(0, 7);
+    const pageNum = Math.max(1, parseInt(page, 10));
+    const limitNum = Math.min(parseInt(limit, 10), PAGINATION.MAX_LIMIT);
+
+    const matchFilter = {};
+    if (userId) matchFilter.user = require('mongoose').Types.ObjectId.createFromHexString(userId);
+    if (teamId) matchFilter.team = require('mongoose').Types.ObjectId.createFromHexString(teamId);
+    if (guideId) matchFilter.guide = require('mongoose').Types.ObjectId.createFromHexString(guideId);
+
+    const pipeline = buildMonthlyHoursPipeline(matchFilter, currentMonth, (pageNum - 1) * limitNum, limitNum);
+    const [result] = await AttendanceSession.aggregate(pipeline);
+
+    const data = result.data || [];
+    const total = result.totalCount[0]?.count || 0;
+
+    ApiResponse.success(res, 200, 'Admin monthly hours fetched.', {
+      month: currentMonth,
+      interns: data,
+    }, ApiResponse.paginate(pageNum, limitNum, total));
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * @desc    Get monthly hours for guide's assigned students
+ * @route   GET /api/attendance/guide/monthly-hours
+ * @access  Guide
+ */
+const getGuideMonthlyHours = async (req, res, next) => {
+  try {
+    const guideId = req.user.id;
+    const {
+      month,
+      userId,
+      teamId,
+      page = PAGINATION.DEFAULT_PAGE,
+      limit = PAGINATION.DEFAULT_LIMIT,
+    } = req.query;
+
+    const currentMonth = month || getTodayIST().substring(0, 7);
+    const pageNum = Math.max(1, parseInt(page, 10));
+    const limitNum = Math.min(parseInt(limit, 10), PAGINATION.MAX_LIMIT);
+
+    // Get assigned student IDs
+    const guide = await User.findById(guideId).select('assignedStudents').lean();
+    const studentIds = guide?.assignedStudents || [];
+
+    if (studentIds.length === 0) {
+      return ApiResponse.success(res, 200, 'No assigned students.', {
+        month: currentMonth,
+        interns: [],
+      }, ApiResponse.paginate(pageNum, limitNum, 0));
+    }
+
+    const matchFilter = { user: { $in: studentIds } };
+    if (userId && studentIds.some((id) => id.toString() === userId)) {
+      matchFilter.user = require('mongoose').Types.ObjectId.createFromHexString(userId);
+    }
+    if (teamId) matchFilter.team = require('mongoose').Types.ObjectId.createFromHexString(teamId);
+
+    const pipeline = buildMonthlyHoursPipeline(matchFilter, currentMonth, (pageNum - 1) * limitNum, limitNum);
+    const [result] = await AttendanceSession.aggregate(pipeline);
+
+    const data = result.data || [];
+    const total = result.totalCount[0]?.count || 0;
+
+    ApiResponse.success(res, 200, 'Guide monthly hours fetched.', {
+      month: currentMonth,
+      interns: data,
+    }, ApiResponse.paginate(pageNum, limitNum, total));
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * @desc    Get student's own monthly hours
+ * @route   GET /api/attendance/my-monthly-hours
+ * @access  Student
+ */
+const getMyMonthlyHours = async (req, res, next) => {
+  try {
+    const userId = req.user.id;
+    const { month } = req.query;
+    const currentMonth = month || getTodayIST().substring(0, 7);
+
+    const matchFilter = { user: require('mongoose').Types.ObjectId.createFromHexString(userId) };
+    const pipeline = buildMonthlyHoursPipeline(matchFilter, currentMonth, 0, 1);
+    const [result] = await AttendanceSession.aggregate(pipeline);
+
+    const data = result.data[0] || null;
+
+    ApiResponse.success(res, 200, 'Monthly hours fetched.', {
+      month: currentMonth,
+      summary: data,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   checkIn,
   breakStart,
@@ -1168,4 +1468,8 @@ module.exports = {
   getAttendanceSettings,
   updateAttendanceSettings,
   getLiveStatus,
+  autoCheckoutActiveSessions,
+  getAdminMonthlyHours,
+  getGuideMonthlyHours,
+  getMyMonthlyHours,
 };
