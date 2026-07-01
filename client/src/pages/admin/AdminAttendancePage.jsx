@@ -13,6 +13,7 @@ import {
   FiTrendingUp,
   FiBarChart2,
   FiCalendar,
+  FiCheckCircle,
 } from 'react-icons/fi';
 import toast from 'react-hot-toast';
 import StatsCard from '../../components/ui/StatsCard';
@@ -27,6 +28,7 @@ import {
   exportAdminAttendance,
   getLiveStatus,
   getAdminMonthlyHours,
+  getAdminAttendance,
 } from '../../api/attendanceApi';
 
 const formatDuration = (minutes) => {
