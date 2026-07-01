@@ -2,6 +2,7 @@ const AttendanceSession = require('../models/AttendanceSession');
 const AttendanceSettings = require('../models/AttendanceSettings');
 const User = require('../models/User');
 const InternGroup = require('../models/InternGroup');
+const EnrollmentInstance = require('../models/EnrollmentInstance');
 const ApiError = require('../utils/ApiError');
 const ApiResponse = require('../utils/ApiResponse');
 const { PAGINATION } = require('../config/constants');
@@ -17,6 +18,16 @@ const { getTodayIST, getISTNow, getISTMinutesSinceMidnight, getISTHour } = requi
 const parseTimeToMinutes = (timeStr) => {
   const [hours, minutes] = timeStr.split(':').map(Number);
   return hours * 60 + minutes;
+};
+
+/**
+ * Fetch the active enrollment instance for a student.
+ * @param {string} userId 
+ * @returns {Promise<string|null>} The ObjectId string or null
+ */
+const getActiveEnrollment = async (userId) => {
+  const enrollment = await EnrollmentInstance.findOne({ student: userId, status: 'active' }).lean();
+  return enrollment ? enrollment._id.toString() : null;
 };
 
 /** Maximum plausible work duration in minutes (20 hours) for sanity checking */
@@ -199,11 +210,15 @@ const handleMissedCheckouts = async (userId) => {
 const checkIn = async (req, res, next) => {
   try {
     const userId = req.user.id;
-    const { enrollmentInstanceId, remarks } = req.body;
+    let { enrollmentInstanceId, remarks } = req.body;
     const today = getTodayIST();
 
     if (!enrollmentInstanceId) {
-      return next(ApiError.badRequest('Enrollment Instance ID is required to mark attendance.'));
+      enrollmentInstanceId = await getActiveEnrollment(userId);
+    }
+
+    if (!enrollmentInstanceId) {
+      return next(ApiError.badRequest('No active internship enrollment found.'));
     }
 
     // Handle any missed checkouts from previous days
@@ -304,11 +319,15 @@ const checkIn = async (req, res, next) => {
 const breakStart = async (req, res, next) => {
   try {
     const userId = req.user.id;
-    const { enrollmentInstanceId } = req.body;
+    let { enrollmentInstanceId } = req.body;
     const today = getTodayIST();
 
     if (!enrollmentInstanceId) {
-      return next(ApiError.badRequest('Enrollment Instance ID is required.'));
+      enrollmentInstanceId = await getActiveEnrollment(userId);
+    }
+
+    if (!enrollmentInstanceId) {
+      return next(ApiError.badRequest('No active internship enrollment found.'));
     }
 
     const session = await AttendanceSession.findOne({
@@ -378,11 +397,15 @@ const breakStart = async (req, res, next) => {
 const breakEnd = async (req, res, next) => {
   try {
     const userId = req.user.id;
-    const { enrollmentInstanceId } = req.body;
+    let { enrollmentInstanceId } = req.body;
     const today = getTodayIST();
 
     if (!enrollmentInstanceId) {
-      return next(ApiError.badRequest('Enrollment Instance ID is required.'));
+      enrollmentInstanceId = await getActiveEnrollment(userId);
+    }
+
+    if (!enrollmentInstanceId) {
+      return next(ApiError.badRequest('No active internship enrollment found.'));
     }
 
     const session = await AttendanceSession.findOne({
@@ -451,11 +474,15 @@ const breakEnd = async (req, res, next) => {
 const checkOut = async (req, res, next) => {
   try {
     const userId = req.user.id;
-    const { enrollmentInstanceId, remarks } = req.body;
+    let { enrollmentInstanceId, remarks } = req.body;
     const today = getTodayIST();
 
     if (!enrollmentInstanceId) {
-      return next(ApiError.badRequest('Enrollment Instance ID is required.'));
+      enrollmentInstanceId = await getActiveEnrollment(userId);
+    }
+
+    if (!enrollmentInstanceId) {
+      return next(ApiError.badRequest('No active internship enrollment found.'));
     }
 
     const session = await AttendanceSession.findOne({
@@ -539,11 +566,23 @@ const checkOut = async (req, res, next) => {
 const getMyStatus = async (req, res, next) => {
   try {
     const userId = req.user.id;
-    const { enrollmentInstanceId } = req.query;
+    let { enrollmentInstanceId } = req.query;
     const today = getTodayIST();
 
     if (!enrollmentInstanceId) {
-      return next(ApiError.badRequest('Enrollment Instance ID is required.'));
+      enrollmentInstanceId = await getActiveEnrollment(userId);
+    }
+
+    if (!enrollmentInstanceId) {
+      // It's possible the user has no active internship yet (e.g. pending payment)
+      // Return neutral state instead of throwing 400 error which breaks the UI
+      return ApiResponse.success(res, 200, 'Current attendance status fetched.', {
+        session: null,
+        liveWorkMinutes: 0,
+        today,
+        autoCheckoutHour: 22,
+        expectedCheckInTime: '09:00',
+      });
     }
 
     // Handle missed checkouts passively (scoped to this user only — no global scan)
