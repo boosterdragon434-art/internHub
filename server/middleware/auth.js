@@ -28,6 +28,10 @@ const protect = async (req, _res, next) => {
       return next(ApiError.unauthorized('Session expired or invalidated. Please log in again.'));
     }
 
+    if (!user.isActive) {
+      return next(ApiError.forbidden('This account has been deactivated.'));
+    }
+
     req.user = user;
     next();
   } catch (error) {

@@ -61,4 +61,40 @@ const markAllAsRead = async (req, res, next) => {
   }
 };
 
-module.exports = { getNotifications, markAsRead, markAllAsRead };
+const deleteNotification = async (req, res, next) => {
+  try {
+    const deleted = await Notification.findOneAndDelete({
+      _id: req.params.id,
+      user: req.user.id,
+    });
+    
+    if (!deleted) {
+      return next(ApiError.notFound('Notification not found.'));
+    }
+    
+    ApiResponse.success(res, 200, 'Notification deleted successfully.');
+  } catch (error) {
+    next(error);
+  }
+};
+
+const clearReadNotifications = async (req, res, next) => {
+  try {
+    await Notification.deleteMany({
+      user: req.user.id,
+      isRead: true,
+    });
+    
+    ApiResponse.success(res, 200, 'Read notifications cleared successfully.');
+  } catch (error) {
+    next(error);
+  }
+};
+
+module.exports = { 
+  getNotifications, 
+  markAsRead, 
+  markAllAsRead, 
+  deleteNotification, 
+  clearReadNotifications 
+};

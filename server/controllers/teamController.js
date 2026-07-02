@@ -3,6 +3,7 @@ const User = require('../models/User');
 const ApiError = require('../utils/ApiError');
 const ApiResponse = require('../utils/ApiResponse');
 const { PAGINATION } = require('../config/constants');
+const { reassignStudentGuide } = require('../services/guideAssignmentService');
 const logger = require('../utils/logger');
 
 /**
@@ -45,14 +46,9 @@ const createTeam = async (req, res, next) => {
 
     // If guide is assigned, also update the guide's assignedStudents
     if (guide && members && members.length > 0) {
-      await User.findByIdAndUpdate(guide, {
-        $addToSet: { assignedStudents: { $each: members } },
-      });
-      // Update each student's assignedGuide
-      await User.updateMany(
-        { _id: { $in: members } },
-        { $set: { assignedGuide: guide } }
-      );
+      for (const memberId of members) {
+        await reassignStudentGuide(memberId, guide);
+      }
     }
 
     const populated = await InternGroup.findById(team._id)
@@ -191,13 +187,9 @@ const updateTeam = async (req, res, next) => {
 
       // Sync guide assignments if guide is set
       if (team.guide) {
-        await User.findByIdAndUpdate(team.guide, {
-          $addToSet: { assignedStudents: { $each: members } },
-        });
-        await User.updateMany(
-          { _id: { $in: members } },
-          { $set: { assignedGuide: team.guide } }
-        );
+        for (const memberId of members) {
+          await reassignStudentGuide(memberId, team.guide);
+        }
       }
     }
 
@@ -273,13 +265,9 @@ const updateTeamMembers = async (req, res, next) => {
 
       // Sync with guide assignments
       if (team.guide) {
-        await User.findByIdAndUpdate(team.guide, {
-          $addToSet: { assignedStudents: { $each: newMembers } },
-        });
-        await User.updateMany(
-          { _id: { $in: newMembers } },
-          { $set: { assignedGuide: team.guide } }
-        );
+        for (const memberId of newMembers) {
+          await reassignStudentGuide(memberId, team.guide);
+        }
       }
     }
 
@@ -289,6 +277,13 @@ const updateTeamMembers = async (req, res, next) => {
       team.members = team.members.filter(
         (m) => !removeSet.has(m.toString())
       );
+      
+      // Unassign guide from removed members
+      if (team.guide) {
+        for (const memberId of remove) {
+          await reassignStudentGuide(memberId, null);
+        }
+      }
     }
 
     await team.save();
@@ -330,17 +325,17 @@ const assignTeamGuide = async (req, res, next) => {
 
       // Sync: assign all team members to this guide
       if (team.members.length > 0) {
-        await User.findByIdAndUpdate(guideId, {
-          $addToSet: {
-            assignedStudents: { $each: team.members.map((m) => m.toString()) },
-          },
-        });
-        await User.updateMany(
-          { _id: { $in: team.members } },
-          { $set: { assignedGuide: guideId } }
-        );
+        for (const memberId of team.members) {
+          await reassignStudentGuide(memberId, guideId);
+        }
       }
     } else {
+      // Unassign current guide from all members
+      if (team.guide && team.members.length > 0) {
+        for (const memberId of team.members) {
+          await reassignStudentGuide(memberId, null);
+        }
+      }
       team.guide = null;
     }
 

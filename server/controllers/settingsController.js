@@ -12,7 +12,7 @@ const getCooldownSetting = async (req, res, next) => {
   try {
     let setting = await Settings.findOne({ key: 'applicationCooldown' });
     if (!setting) {
-      // Default to 0 (which means permanent block/no cooldown)
+      // Default to 0 (disabled — no cooldown, students can reapply immediately)
       setting = await Settings.create({ key: 'applicationCooldown', value: 0 });
     }
     ApiResponse.success(res, 200, 'Application cooldown setting fetched successfully.', {

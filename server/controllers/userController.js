@@ -3,6 +3,7 @@ const ApiError = require('../utils/ApiError');
 const ApiResponse = require('../utils/ApiResponse');
 const r2Service = require('../services/r2Service');
 const { PAGINATION } = require('../config/constants');
+const { reassignStudentGuide } = require('../services/guideAssignmentService');
 const logger = require('../utils/logger');
 
 /**
@@ -57,11 +58,7 @@ const uploadResume = async (req, res, next) => {
     }
 
     const user = await User.findById(req.user.id);
-
-    // Delete old resume from Cloudinary
-    if (user.resumePublicId) {
-      await r2Service.deleteFile(user.resumePublicId, 'auto');
-    }
+    const oldPublicId = user.resumePublicId;
 
     const { publicId, secureUrl } = await r2Service.uploadFile(
       req.file.buffer,
@@ -72,6 +69,13 @@ const uploadResume = async (req, res, next) => {
     user.resumeUrl = secureUrl;
     user.resumePublicId = publicId;
     await user.save({ validateBeforeSave: false });
+
+    // Delete old resume after successful upload & save
+    if (oldPublicId) {
+      await r2Service.deleteFile(oldPublicId, 'auto').catch(err => {
+        logger.error(`Failed to delete old resume ${oldPublicId}:`, err);
+      });
+    }
 
     ApiResponse.success(res, 200, 'Resume uploaded successfully.', {
       resumeUrl: secureUrl,
@@ -262,27 +266,8 @@ const assignGuideToStudent = async (req, res, next) => {
       return next(ApiError.notFound('Student not found.'));
     }
 
-    // Check if student is already assigned to this guide
-    if (student.assignedGuide && student.assignedGuide.toString() === guideId) {
-      return next(ApiError.conflict('Student is already assigned to this guide.'));
-    }
-
-    // If student was assigned to a different guide, remove from that guide's list
-    if (student.assignedGuide) {
-      await User.findByIdAndUpdate(student.assignedGuide, {
-        $pull: { assignedStudents: studentId },
-      });
-    }
-
-    // Assign guide to student
-    student.assignedGuide = guideId;
-    await student.save({ validateBeforeSave: false });
-
-    // Add student to guide's assigned list (avoid duplicates)
-    if (!guide.assignedStudents.includes(studentId)) {
-      guide.assignedStudents.push(studentId);
-      await guide.save({ validateBeforeSave: false });
-    }
+    // Assign guide using shared service
+    await reassignStudentGuide(studentId, guideId);
 
     logger.info(`Admin ${req.user.email} assigned guide ${guide.email} to student ${student.email}`);
 
@@ -317,16 +302,8 @@ const unassignGuide = async (req, res, next) => {
       return next(ApiError.badRequest('Student has no guide assigned.'));
     }
 
-    const guideId = student.assignedGuide;
-
-    // Remove student from guide's list
-    await User.findByIdAndUpdate(guideId, {
-      $pull: { assignedStudents: studentId },
-    });
-
-    // Remove guide from student
-    student.assignedGuide = null;
-    await student.save({ validateBeforeSave: false });
+    // Unassign using shared service
+    await reassignStudentGuide(studentId, null);
 
     logger.info(`Admin ${req.user.email} unassigned guide from student ${student.email}`);
 

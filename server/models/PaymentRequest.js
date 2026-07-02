@@ -9,7 +9,6 @@ const paymentRequestSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Application',
       required: [true, 'Application is required'],
-      unique: true,
     },
     student: {
       type: mongoose.Schema.Types.ObjectId,
@@ -54,5 +53,6 @@ const paymentRequestSchema = new mongoose.Schema(
 // --------- Indexes ---------
 paymentRequestSchema.index({ student: 1, status: 1 });
 paymentRequestSchema.index({ deadline: 1 });
+paymentRequestSchema.index({ application: 1 });
 
 module.exports = mongoose.model('PaymentRequest', paymentRequestSchema);

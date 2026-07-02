@@ -70,6 +70,10 @@ const getInternship = async (req, res, next) => {
       return next(ApiError.notFound('Internship not found.'));
     }
 
+    if (internship.status !== 'active' && (!req.user || req.user.role !== 'admin')) {
+      return next(ApiError.notFound('Internship not found or is no longer active.'));
+    }
+
     // Get application count for this internship
     const applicationCount = await Application.countDocuments({
       internship: internship._id,
@@ -125,13 +129,10 @@ const updateInternship = async (req, res, next) => {
       return next(ApiError.notFound('Internship not found.'));
     }
 
+    const oldPublicId = internship.imagePublicId;
+
     // Handle new image upload
     if (req.file) {
-      // Delete old image from Cloudinary
-      if (internship.imagePublicId) {
-        await r2Service.deleteFile(internship.imagePublicId, 'image');
-      }
-
       const { publicId, secureUrl } = await r2Service.uploadFile(
         req.file.buffer,
         'internhub/internships',
@@ -145,6 +146,12 @@ const updateInternship = async (req, res, next) => {
       new: true,
       runValidators: true,
     });
+
+    if (req.file && oldPublicId) {
+      await r2Service.deleteFile(oldPublicId, 'image').catch(err => {
+        logger.error(`Failed to delete old internship image ${oldPublicId}:`, err);
+      });
+    }
 
     ApiResponse.success(res, 200, 'Internship updated successfully.', internship);
   } catch (error) {
@@ -163,6 +170,11 @@ const deleteInternship = async (req, res, next) => {
 
     if (!internship) {
       return next(ApiError.notFound('Internship not found.'));
+    }
+
+    const applicationCount = await Application.countDocuments({ internship: req.params.id });
+    if (applicationCount > 0) {
+      return next(ApiError.conflict('Cannot delete internship because applications exist for it.'));
     }
 
     // Delete image from Cloudinary

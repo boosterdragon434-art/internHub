@@ -2,6 +2,7 @@ const Payment = require('../models/Payment');
 const Application = require('../models/Application');
 const PaymentRequest = require('../models/PaymentRequest');
 const EnrollmentInstance = require('../models/EnrollmentInstance');
+const Internship = require('../models/Internship');
 const AuditLog = require('../models/AuditLog');
 const Notification = require('../models/Notification');
 const User = require('../models/User');
@@ -227,6 +228,13 @@ const adminVerifyPayment = async (req, res, next) => {
           { session }
         );
 
+        // Increment filled positions on the internship
+        await Internship.findByIdAndUpdate(
+          payment.internship._id,
+          { $inc: { filledPositions: 1 } },
+          { session }
+        );
+
         // Create EnrollmentInstance
         const internshipObj = await mongoose.model('Internship').findById(payment.internship._id);
         
@@ -338,7 +346,7 @@ const adminVerifyPayment = async (req, res, next) => {
 };
 
 /**
- * @desc    Get student's pending payment requests
+ * @desc    Get student's payment requests (all statuses)
  * @route   GET /api/payments/requests
  * @access  Student
  */
@@ -430,8 +438,13 @@ const sendPaymentRequest = async (req, res, next) => {
       return next(ApiError.notFound('Application not found.'));
     }
 
-    if (!application.assignedPaymentAmount) {
-      return next(ApiError.badRequest('No payment amount assigned to this application.'));
+    const paymentRequest = await PaymentRequest.findOne({
+      application: application._id,
+      status: 'pending',
+    });
+
+    if (!paymentRequest) {
+      return next(ApiError.badRequest('No pending payment request found for this application.'));
     }
 
     const user = await User.findById(application.user);
@@ -442,14 +455,10 @@ const sendPaymentRequest = async (req, res, next) => {
     await emailService.sendPaymentRequest(
       user,
       application.internship.title,
-      application.assignedPaymentAmount
+      paymentRequest.amount
     );
 
-    application.paymentRequestSentAt = new Date();
-    application.status = APPLICATION_STATUS.PAYMENT_PENDING;
-    await application.save();
-
-    ApiResponse.success(res, 200, 'Payment request email sent successfully.');
+    ApiResponse.success(res, 200, 'Payment request reminder email sent successfully.');
   } catch (error) {
     next(error);
   }

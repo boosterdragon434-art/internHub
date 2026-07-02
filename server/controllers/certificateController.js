@@ -3,6 +3,7 @@ const CertificateTemplate = require('../models/CertificateTemplate');
 const Application = require('../models/Application');
 const User = require('../models/User');
 const Notification = require('../models/Notification');
+const AuditLog = require('../models/AuditLog');
 const r2Service = require('../services/r2Service');
 const {
   generateQRCode,
@@ -154,8 +155,6 @@ const createTemplate = async (req, res, next) => {
       templateType = detectedMime === 'application/pdf' ? 'pdf' : 'image';
 
       const mimeType = detectedMime || 'image/png';
-      const ext = mimeType === 'application/pdf' ? 'pdf' : 'png';
-      const fileName = `CertTemplate_${name.replace(/\s+/g, '_')}_${Date.now()}.${ext}`;
 
       const { publicId, secureUrl } = await r2Service.uploadFile(
         imageBuffer,
@@ -288,9 +287,11 @@ const updateTemplate = async (req, res, next) => {
       }
 
       const fileHash = computeFileHash(imageBuffer);
+      const existingWithHash = await CertificateTemplate.findOne({ fileHash, _id: { $ne: template._id } });
+      if (existingWithHash) {
+        return next(ApiError.conflict(`A template with this exact image already exists: "${existingWithHash.name}".`));
+      }
       const mimeType = detectedMime || 'image/png';
-      const ext = mimeType === 'application/pdf' ? 'pdf' : 'png';
-      const fileName = `CertTemplate_${template.name.replace(/\s+/g, '_')}_${Date.now()}.${ext}`;
 
       const { publicId, secureUrl } = await r2Service.uploadFile(
         imageBuffer,
@@ -333,12 +334,12 @@ const deleteTemplate = async (req, res, next) => {
       return next(ApiError.notFound('Template not found.'));
     }
 
-    // Check if template is used by any issued certificates
-    const usageCount = await Certificate.countDocuments({ template: template._id, status: 'issued' });
+    // Check if template is used by any certificates (issued or revoked)
+    const usageCount = await Certificate.countDocuments({ template: template._id });
     if (usageCount > 0) {
       return next(
         ApiError.conflict(
-          `This template is used by ${usageCount} issued certificate(s). Deactivate it instead, or revoke the certificates first.`
+          `This template is used by ${usageCount} certificate(s) (including revoked). Deactivate it instead to preserve audit history.`
         )
       );
     }
@@ -417,16 +418,59 @@ const downloadTemplate = async (req, res, next) => {
 // ─────────────────────────────────────────────────────────────
 
 /**
+ * Helper to resolve fields from application for certificate generation and preview.
+ * @private
+ */
+const _resolveCertificateFields = async (application, overrides = {}, templateDefaults = null) => {
+  const student = application.user;
+  const internship = application.internship;
+  
+  let guideName = '';
+  if (student.assignedGuide) {
+    const guide = await User.findById(student.assignedGuide);
+    if (guide) guideName = guide.name;
+  }
+
+  let skills = [];
+  if (overrides.skillsAcquired && overrides.skillsAcquired.length > 0) {
+    skills = overrides.skillsAcquired;
+  } else if (templateDefaults && templateDefaults.get('skillsAcquired')) {
+    skills = templateDefaults.get('skillsAcquired').split(',').map(s => s.trim());
+  } else {
+    skills = application.skills || student.skills || [];
+  }
+  const skillsText = skills.join(', ');
+
+  const grade = overrides.grade || (templateDefaults ? templateDefaults.get('grade') : null) || 'A';
+  const performance = overrides.performance || (templateDefaults ? templateDefaults.get('performance') : null) || 'Good';
+
+  return {
+    studentName: student.name,
+    internshipTitle: internship.title,
+    duration: internship.duration || '3 Months',
+    guideName,
+    startDate: internship.startDate,
+    endDate: internship.endDate,
+    collegeName: application.college || student.college || 'College Name',
+    companyName: 'InternHub',
+    skills: skillsText,
+    skillsAcquiredArray: skills,
+    grade,
+    performance,
+  };
+};
+
+/**
  * Internal helper — generates a single certificate for one application.
  * Used by both single and bulk generation endpoints.
  * @private
  */
-const _generateSingleCertificate = async ({ application, grade, skillsAcquired, performance, templateId, issuerId, overwrite = false, customFields = {} }) => {
+const _generateSingleCertificate = async ({ application, grade, skillsAcquired, performance, templateId, resolvedTemplate, issuerId, overwrite = false, customFields = {} }) => {
   const student = application.user;
   const internship = application.internship;
 
   // Resolve template (custom or default fallback)
-  let template = null;
+  let template = resolvedTemplate;
   let backgroundImageBuffer = null;
 
   if (templateId) {
@@ -443,6 +487,16 @@ const _generateSingleCertificate = async ({ application, grade, skillsAcquired, 
       name: 'Classical Gold Border',
       isDefault: true,
       createdBy: issuerId,
+      overlays: [
+        {
+          id: `qr-${Date.now()}`,
+          field: 'qrCode',
+          x: 12,
+          y: 88,
+          maxWidth: 12,
+          height: 12,
+        }
+      ]
     });
   }
 
@@ -467,16 +521,8 @@ const _generateSingleCertificate = async ({ application, grade, skillsAcquired, 
     }
   }
 
-  // Resolve assigned guide details
-  let guideName = '';
-  let guideId = null;
-  if (student.assignedGuide) {
-    const guide = await User.findById(student.assignedGuide);
-    if (guide) {
-      guideName = guide.name;
-      guideId = guide._id;
-    }
-  }
+  // Resolve fields matching the real generation path (Phase 0 fix)
+  const resolvedFields = await _resolveCertificateFields(application, { grade, skillsAcquired, performance }, template.defaultFieldValues);
 
   // Download custom background if template has one
   if (template.backgroundImageUrl) {
@@ -499,12 +545,7 @@ const _generateSingleCertificate = async ({ application, grade, skillsAcquired, 
   const completionDate = new Date();
   const pdfBuffer = await buildCertificatePDF({
     certificateId,
-    studentName: student.name,
-    internshipTitle: internship.title,
-    duration: internship.duration || '3 Months',
     completionDate,
-    grade: grade || 'A',
-    guideName,
     qrCodeBase64,
     backgroundImageBuffer,
     layout: template.layout,
@@ -514,12 +555,7 @@ const _generateSingleCertificate = async ({ application, grade, skillsAcquired, 
     canvasHeight: template.height || 595,
     pageFormat: template.pageFormat,
     orientation: template.orientation,
-    startDate: internship.startDate,
-    endDate: internship.endDate,
-    collegeName: application.college || student.college || 'College Name',
-    companyName: 'InternHub',
-    skills: (skillsAcquired && skillsAcquired.length > 0 ? skillsAcquired : (application.skills || student.skills || [])).join(', '),
-    performance: performance || 'Good',
+    ...resolvedFields,
     ...customFields,
   });
 
@@ -539,27 +575,48 @@ const _generateSingleCertificate = async ({ application, grade, skillsAcquired, 
   });
 
   // Write Certificate record to Database
-  const certificate = await Certificate.create({
-    certificateId,
-    student: student._id,
-    internship: internship._id,
-    guide: guideId,
-    template: template._id,
-    studentName: student.name,
-    internshipTitle: internship.title,
-    duration: internship.duration || '3 Months',
-    completionDate,
-    grade: grade || 'A',
-    skillsAcquired: skillsAcquired || [],
-    performance: performance || 'Good',
-    verificationUrl,
-    qrCodeDataUrl: qrCodeBase64,
-    pdfUrl: secureUrl,
-    pdfPublicId: publicId,
-    verificationHash,
-    issuedBy: issuerId,
-    status: 'issued',
-    documentType: template?.documentCategory || 'certificate',
+  let certificate;
+  try {
+    certificate = await Certificate.create({
+      certificateId,
+      student: student._id,
+      internship: internship._id,
+      guide: guideId,
+      template: template._id,
+      studentName: student.name,
+      internshipTitle: internship.title,
+      duration: internship.duration || '3 Months',
+      completionDate,
+      grade: resolvedFields.grade,
+      skillsAcquired: resolvedFields.skillsAcquiredArray,
+      performance: resolvedFields.performance,
+      verificationUrl,
+      qrCodeDataUrl: qrCodeBase64,
+      pdfUrl: secureUrl,
+      pdfPublicId: publicId,
+      verificationHash,
+      issuedBy: issuerId,
+      status: 'issued',
+      documentType: template?.documentCategory || 'certificate',
+    });
+  } catch (dbError) {
+    logger.error(`Database failure while issuing certificate, attempting to rollback R2 upload...`, dbError);
+    try {
+      await r2Service.deleteFile(publicId, 'image');
+    } catch (cleanupErr) {
+      logger.error(`CRITICAL: Orphaned R2 artifact ${publicId}. Cleanup failed!`, cleanupErr);
+    }
+    throw dbError;
+  }
+
+  // Record Audit Log
+  await AuditLog.create({
+    admin: issuerId,
+    action: 'issue_certificate',
+    targetModel: 'Certificate',
+    targetId: certificate._id,
+    changes: { certificateId },
+    ipAddress: null, // Controller caller could pass IP, keeping it null for now
   });
 
   const docTypeName = template?.documentCategory?.replace('_', ' ') || 'certificate';
@@ -573,14 +630,10 @@ const _generateSingleCertificate = async ({ application, grade, skillsAcquired, 
     link: '/student/certificates',
   });
 
-  // Send styled congratulations email (non-blocking)
+  // Send certificate delivery email with PDF link (non-blocking)
   emailService
-    .sendReminderEmail(
-      student,
-      `${docTypeName.charAt(0).toUpperCase() + docTypeName.slice(1)} Issued! 🎓`,
-      `Congratulations! Your ${docTypeName} for "${internship.title}" has been successfully generated and is now available on your portfolio dashboard.`
-    )
-    .catch((err) => logger.error(`Email failed for ${student.email}:`, err));
+    .sendCertificateDelivery(student, internship.title, certificateId, secureUrl)
+    .catch((err) => logger.error(`Certificate email failed for ${student.email}:`, err));
 
   logger.info(`Certificate generated & issued: ${certificateId} for student ${student.email}`);
 
@@ -654,57 +707,86 @@ const bulkGenerate = async (req, res, next) => {
       details: [],
     };
 
-    // Process sequentially to avoid Drive API quota issues
-    for (const appId of applicationIds) {
-      try {
-        const application = await Application.findById(appId)
-          .populate('user')
-          .populate('internship');
-
-        if (!application) {
-          results.failed++;
-          results.details.push({ applicationId: appId, success: false, error: 'Application not found' });
-          continue;
-        }
-
-        const result = await _generateSingleCertificate({
-          application,
-          grade,
-          skillsAcquired,
-          performance,
-          templateId,
-          issuerId: req.user.id,
-          overwrite: overwrite === true,
-          customFields,
-        });
-
-        if (result.success) {
-          results.succeeded++;
-          results.details.push({
-            applicationId: appId,
-            studentName: result.certificate.studentName,
-            certificateId: result.certificate.certificateId,
-            success: true,
-          });
-        } else {
-          results.failed++;
-          results.details.push({
-            applicationId: appId,
-            studentName: result.studentName,
-            success: false,
-            error: result.error,
-          });
-        }
-      } catch (genErr) {
-        results.failed++;
-        results.details.push({
-          applicationId: appId,
-          success: false,
-          error: genErr.message || 'Generation failed',
-        });
-        logger.error(`Bulk generation failed for app ${appId}:`, genErr);
-      }
+    // Resolve the template once for the whole batch
+    let batchTemplate = null;
+    if (templateId) {
+      batchTemplate = await CertificateTemplate.findById(templateId);
+      if (!batchTemplate) return next(ApiError.badRequest('Selected template not found.'));
+    } else {
+      batchTemplate = await CertificateTemplate.findOne({ isDefault: true, status: 'active' });
+      if (!batchTemplate) return next(ApiError.badRequest('No active default template found.'));
     }
+
+    // Process with bounded concurrency (e.g. 4 at a time)
+    const CONCURRENCY_LIMIT = 4;
+    for (let i = 0; i < applicationIds.length; i += CONCURRENCY_LIMIT) {
+      const chunk = applicationIds.slice(i, i + CONCURRENCY_LIMIT);
+      
+      await Promise.all(
+        chunk.map(async (appId) => {
+          try {
+            const application = await Application.findById(appId)
+              .populate('user')
+              .populate('internship');
+
+            if (!application) {
+              results.failed++;
+              results.details.push({ applicationId: appId, success: false, error: 'Application not found' });
+              return;
+            }
+
+            const result = await _generateSingleCertificate({
+              application,
+              grade,
+              skillsAcquired,
+              performance,
+              resolvedTemplate: batchTemplate,
+              issuerId: req.user.id,
+              overwrite: overwrite === true,
+              customFields,
+            });
+
+            if (result.success) {
+              results.succeeded++;
+              results.details.push({
+                applicationId: appId,
+                studentName: result.certificate.studentName,
+                certificateId: result.certificate.certificateId,
+                success: true,
+              });
+            } else {
+              results.failed++;
+              results.details.push({
+                applicationId: appId,
+                studentName: result.studentName,
+                success: false,
+                error: result.error,
+              });
+            }
+          } catch (genErr) {
+            results.failed++;
+            results.details.push({
+              applicationId: appId,
+              success: false,
+              error: genErr.message || 'Generation failed',
+            });
+            logger.error(`Bulk generation failed for app ${appId}:`, genErr);
+          }
+        })
+      );
+    }
+
+    await AuditLog.create({
+      admin: req.user.id,
+      action: 'bulk_issue_certificates',
+      targetModel: 'Certificate',
+      targetId: batchTemplate._id, // linking to the template used
+      changes: { 
+        totalAttempted: results.total,
+        succeeded: results.succeeded,
+        failed: results.failed 
+      },
+    });
 
     logger.info(`Bulk certificate generation: ${results.succeeded}/${results.total} succeeded by ${req.user.email}`);
 
@@ -726,7 +808,7 @@ const bulkGenerate = async (req, res, next) => {
  */
 const previewCertificate = async (req, res, next) => {
   try {
-    const { applicationId, grade, templateId, ...customFields } = req.body;
+    const { applicationId, grade, skillsAcquired, performance, templateId, ...customFields } = req.body;
 
     if (!applicationId) {
       return next(ApiError.badRequest('applicationId is required.'));
@@ -762,12 +844,8 @@ const previewCertificate = async (req, res, next) => {
       }
     }
 
-    // Resolve guide
-    let guideName = '';
-    if (student.assignedGuide) {
-      const guide = await User.findById(student.assignedGuide);
-      if (guide) guideName = guide.name;
-    }
+    // Resolve fields similarly to _generateSingleCertificate
+    const resolvedFields = await _resolveCertificateFields(application, { grade, skillsAcquired, performance }, template?.defaultFieldValues);
 
     const previewCertId = 'CERT-PREVIEW-00000000';
     const previewVerifUrl = `${process.env.CLIENT_URL || 'http://localhost:5173'}/verify-certificate/${previewCertId}`;
@@ -775,12 +853,7 @@ const previewCertificate = async (req, res, next) => {
 
     const pdfBuffer = await buildCertificatePDF({
       certificateId: previewCertId,
-      studentName: student.name,
-      internshipTitle: internship.title,
-      duration: internship.duration || '3 Months',
       completionDate: new Date(),
-      grade: grade || 'A',
-      guideName,
       qrCodeBase64,
       backgroundImageBuffer,
       layout: template?.layout || {},
@@ -790,6 +863,7 @@ const previewCertificate = async (req, res, next) => {
       canvasHeight: template?.height || 595,
       pageFormat: template?.pageFormat,
       orientation: template?.orientation,
+      ...resolvedFields,
       ...customFields,
     });
 
@@ -921,6 +995,14 @@ const revokeCertificate = async (req, res, next) => {
     certificate.status = 'revoked';
     await certificate.save();
 
+    await AuditLog.create({
+      admin: req.user.id,
+      action: 'revoke_certificate',
+      targetModel: 'Certificate',
+      targetId: certificate._id,
+      changes: { status: 'revoked', certificateId: certificate.certificateId },
+    });
+
     logger.warn(`Admin ${req.user.email} revoked certificate: ${certificate.certificateId}`);
 
     ApiResponse.success(res, 200, 'Certificate revoked successfully.', certificate);
@@ -963,10 +1045,100 @@ const downloadCertificate = async (req, res, next) => {
   }
 };
 
+/**
+ * @desc    Duplicate an existing template
+ * @route   POST /api/certificates/templates/:id/duplicate
+ * @access  Admin
+ */
+const duplicateTemplate = async (req, res, next) => {
+  try {
+    const template = await CertificateTemplate.findById(req.params.id);
+    if (!template) {
+      return next(ApiError.notFound('Template not found.'));
+    }
+
+    const copy = new CertificateTemplate({
+      ...template.toObject(),
+      _id: undefined,
+      name: `${template.name} (Copy)`,
+      isDefault: false,
+      status: 'active',
+      createdBy: req.user.id,
+      createdAt: undefined,
+      updatedAt: undefined,
+    });
+
+    await copy.save();
+
+    logger.info(`Template duplicated: ${template.name} -> ${copy.name} by ${req.user.email}`);
+    ApiResponse.success(res, 201, 'Template duplicated successfully.', copy);
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * @desc    Test render a template with mock data
+ * @route   GET /api/certificates/templates/:id/test-render
+ * @access  Admin
+ */
+const testRenderTemplate = async (req, res, next) => {
+  try {
+    const template = await CertificateTemplate.findById(req.params.id);
+    if (!template) {
+      return next(ApiError.notFound('Template not found.'));
+    }
+
+    let backgroundImageBuffer = null;
+    if (template.backgroundImageUrl) {
+      try {
+        backgroundImageBuffer = await r2Service.downloadFile(template.backgroundImageUrl);
+      } catch (dlErr) {
+        logger.warn(`Failed to download template background for test render: ${dlErr.message}`);
+      }
+    }
+
+    const mockData = {
+      certificateId: 'TEST-12345-RENDER',
+      studentName: 'John Doe',
+      internshipTitle: 'Software Engineering Internship',
+      collegeName: 'Test University',
+      companyName: 'InternHub',
+      startDate: new Date(new Date().setMonth(new Date().getMonth() - 3)),
+      endDate: new Date(),
+      duration: '3 Months',
+      guideName: 'Jane Smith',
+      grade: template.defaultFieldValues?.grade || 'A+',
+      skillsAcquired: template.defaultFieldValues?.skillsAcquired || ['React', 'Node.js', 'MongoDB'],
+      performance: template.defaultFieldValues?.performance || 'Outstanding',
+      completionDate: new Date(),
+      qrCodeBase64: await generateQRCode('https://example.com/verify/TEST-12345-RENDER'),
+      backgroundImageBuffer,
+      layout: template.layout,
+      typography: template.typography,
+      overlays: template.overlays || [],
+      canvasWidth: template.width || 842,
+      canvasHeight: template.height || 595,
+      pageFormat: template.pageFormat,
+      orientation: template.orientation,
+    };
+
+    const pdfBuffer = await buildCertificatePDF(mockData);
+
+    ApiResponse.success(res, 200, 'Test render generated successfully.', {
+      pdfBase64: `data:application/pdf;base64,${pdfBuffer.toString('base64')}`,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   getTemplates,
   getTemplateStats,
   createTemplate,
+  duplicateTemplate,
+  testRenderTemplate,
   updateTemplate,
   deleteTemplate,
   toggleTemplateStatus,
@@ -979,4 +1151,5 @@ module.exports = {
   verifyCertificatePublic,
   revokeCertificate,
   downloadCertificate,
+  _generateSingleCertificate,
 };

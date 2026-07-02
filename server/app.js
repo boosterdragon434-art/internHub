@@ -10,6 +10,7 @@ const logger = require('./utils/logger');
 const { generalLimiter } = require('./middleware/rateLimiter');
 const errorHandler = require('./middleware/errorHandler');
 const { passiveReminderCheck } = require('./services/reminderService');
+const { passiveBackgroundChecks } = require('./services/passiveBackgroundChecks');
 
 // Route imports
 const authRoutes = require('./routes/authRoutes');
@@ -52,6 +53,14 @@ app.use(async (req, res, next) => {
 
 // --------------- Security Middleware ---------------
 // Custom Helmet configuration for premium security headers
+const r2Origin = process.env.R2_PUBLIC_URL ? new URL(process.env.R2_PUBLIC_URL).origin : '';
+const imgSrc = ["'self'", "data:"];
+const connectSrc = ["'self'", "https://api.razorpay.com"];
+if (r2Origin) {
+  imgSrc.push(r2Origin);
+  connectSrc.push(r2Origin);
+}
+
 app.use(
   helmet({
     contentSecurityPolicy: {
@@ -60,8 +69,8 @@ app.use(
         scriptSrc: ["'self'", "'unsafe-inline'"],
         styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
         fontSrc: ["'self'", "https://fonts.gstatic.com"],
-        imgSrc: ["'self'", "data:", "https://res.cloudinary.com", "https://drive.google.com"],
-        connectSrc: ["'self'", "https://api.razorpay.com"],
+        imgSrc,
+        connectSrc,
         frameSrc: ["'self'", "https://api.razorpay.com", "https://checkout.razorpay.com"],
       },
     },
@@ -101,6 +110,7 @@ app.use(xssClean());
 app.use(express.json({ limit: '15mb' }));
 app.use(express.urlencoded({ extended: true, limit: '15mb' }));
 app.use(passiveReminderCheck);
+app.use(passiveBackgroundChecks);
 
 if (process.env.NODE_ENV === 'development') {
   app.use(morgan('dev'));

@@ -17,9 +17,13 @@ api.defaults.adapter = async (config) => {
     ? axios.getAdapter(config.adapter)
     : defaultAdapter;
 
-  // Only cache GET requests
-  if (config.method === 'get') {
-    const cacheKey = config.url + '?' + JSON.stringify(config.params || {});
+  // Only cache GET requests and exclude identity-scoped endpoints
+  const noCacheEndpoints = ['/auth/me', '/attendance/my-status', '/notifications'];
+  const isCacheableGet = config.method === 'get' && !noCacheEndpoints.some(ep => config.url?.includes(ep));
+
+  if (isCacheableGet) {
+    const token = localStorage.getItem('token') || 'unauth';
+    const cacheKey = token.slice(-10) + ':' + config.url + '?' + JSON.stringify(config.params || {});
     const cached = apiCache.get(cacheKey);
 
     if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
@@ -73,17 +77,32 @@ api.interceptors.response.use(
   (error) => {
     if (error.response && error.response.status === 401) {
       // Token is invalid or expired
+      const userStr = localStorage.getItem('user');
+      let role = 'student';
+      if (userStr) {
+        try {
+          const user = JSON.parse(userStr);
+          role = user.role || 'student';
+        } catch (e) {}
+      }
+      
       localStorage.removeItem('token');
       localStorage.removeItem('user');
       
       // Redirect to login if not already on an auth page
       const currentPath = window.location.pathname;
       if (!currentPath.includes('/login') && !currentPath.includes('/register')) {
-        window.location.href = '/login?expired=true';
+        let loginPath = '/login';
+        if (role === 'admin') loginPath = '/admin/login';
+        if (role === 'guide') loginPath = '/guide/login';
+        
+        window.location.href = `${loginPath}?expired=true`;
       }
     }
     return Promise.reject(error);
   }
 );
+
+export const clearApiCache = () => apiCache.clear();
 
 export default api;

@@ -171,19 +171,13 @@ const buildCertificatePDF = (certData) => {
       const pageFormat = certData.pageFormat || 'A4';
       const orientation = certData.orientation || 'landscape';
 
-      const doc = new PDFDocument({
-        size: pageFormat,
-        layout: orientation,
-        margins: { top: 0, bottom: 0, left: 0, right: 0 },
-      });
-
-      const buffers = [];
-      doc.on('data', (chunk) => buffers.push(chunk));
-      doc.on('end', () => resolve(Buffer.concat(buffers)));
-      doc.on('error', (err) => reject(err));
-
       let pdfW, pdfH;
-      if (pageFormat === 'Letter') {
+      let sizeOpt = pageFormat;
+      if (pageFormat === 'Custom') {
+        pdfW = certData.customPageWidth || 842;
+        pdfH = certData.customPageHeight || 595;
+        sizeOpt = [pdfW, pdfH];
+      } else if (pageFormat === 'Letter') {
         pdfW = orientation === 'landscape' ? 792 : 612;
         pdfH = orientation === 'landscape' ? 612 : 792;
       } else {
@@ -191,6 +185,17 @@ const buildCertificatePDF = (certData) => {
         pdfW = orientation === 'landscape' ? 841.89 : 595.28;
         pdfH = orientation === 'landscape' ? 595.28 : 841.89;
       }
+
+      const doc = new PDFDocument({
+        size: sizeOpt,
+        layout: pageFormat === 'Custom' ? undefined : orientation,
+        margins: { top: 0, bottom: 0, left: 0, right: 0 },
+      });
+
+      const buffers = [];
+      doc.on('data', (chunk) => buffers.push(chunk));
+      doc.on('end', () => resolve(Buffer.concat(buffers)));
+      doc.on('error', (err) => reject(err));
 
       const hasCustomBg = certData.backgroundImageBuffer && certData.backgroundImageBuffer.length > 0;
       const hasOverlays = certData.overlays && certData.overlays.length > 0;
@@ -272,6 +277,36 @@ const _buildOverlayPDF = (doc, certData, pdfW, pdfH) => {
       doc.fillColor(overlay.color || '#ffffff');
       doc.opacity(overlay.opacity ?? 1);
       doc.rect(x - maxWidthPt / 2, y - heightPt / 2, maxWidthPt, heightPt).fill();
+      doc.restore();
+      continue;
+    }
+
+    if (overlay.field === 'qrCode' || overlay.field === 'logo' || overlay.field === 'signature') {
+      doc.save();
+      if (overlay.rotation) {
+        doc.translate(x, y);
+        doc.rotate(overlay.rotation);
+        doc.translate(-x, -y);
+      }
+      doc.opacity(overlay.opacity ?? 1);
+      
+      let base64Data = null;
+      if (overlay.field === 'qrCode') base64Data = certData.qrCodeBase64;
+      if (overlay.field === 'logo') base64Data = certData.logoBase64;
+      if (overlay.field === 'signature') base64Data = certData.signatureBase64;
+
+      if (base64Data) {
+        try {
+          const imgBuffer = Buffer.from(base64Data.replace(/^data:image\/\w+;base64,/, ''), 'base64');
+          doc.image(imgBuffer, x - maxWidthPt / 2, y - heightPt / 2, {
+            fit: [maxWidthPt, heightPt],
+            align: 'center',
+            valign: 'center'
+          });
+        } catch (err) {
+          logger.warn(`Failed to embed ${overlay.field} in overlay PDF:`, err.message);
+        }
+      }
       doc.restore();
       continue;
     }

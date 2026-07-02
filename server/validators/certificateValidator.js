@@ -35,7 +35,7 @@ const typographySchema = Joi.object({
 const overlayItemSchema = Joi.object({
   id: Joi.string().required(),
   field: Joi.string()
-    .valid('studentName', 'courseName', 'date', 'certificateId', 'serialNumber', 'instructorName', 'startDate', 'endDate', 'collegeName', 'companyName', 'grade', 'skills', 'performance', 'customText', 'wipe')
+    .valid('studentName', 'courseName', 'date', 'certificateId', 'serialNumber', 'instructorName', 'startDate', 'endDate', 'collegeName', 'companyName', 'grade', 'skills', 'performance', 'customText', 'wipe', 'qrCode', 'logo', 'signature')
     .required(),
   x: Joi.number().min(0).max(100).optional(),
   y: Joi.number().min(0).max(100).optional(),
@@ -121,6 +121,9 @@ const certificateValidator = {
     width: Joi.number().min(100).max(5000).optional(),
     height: Joi.number().min(100).max(5000).optional(),
     isDefault: Joi.boolean().optional(),
+    customPageWidth: Joi.number().min(100).max(5000).optional(),
+    customPageHeight: Joi.number().min(100).max(5000).optional(),
+    defaultFieldValues: Joi.object().pattern(Joi.string(), Joi.string().allow('')).optional(),
   }),
 
   updateTemplate: Joi.object({
@@ -145,6 +148,9 @@ const certificateValidator = {
     width: Joi.number().min(100).max(5000).optional(),
     height: Joi.number().min(100).max(5000).optional(),
     isDefault: Joi.boolean().optional(),
+    customPageWidth: Joi.number().min(100).max(5000).optional(),
+    customPageHeight: Joi.number().min(100).max(5000).optional(),
+    defaultFieldValues: Joi.object().pattern(Joi.string(), Joi.string().allow('')).optional(),
   }),
 
   toggleStatus: Joi.object({

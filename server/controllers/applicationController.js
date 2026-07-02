@@ -3,36 +3,19 @@ const Application = require('../models/Application');
 const Internship = require('../models/Internship');
 const Notification = require('../models/Notification');
 const User = require('../models/User');
-const Certificate = require('../models/Certificate');
-const CertificateTemplate = require('../models/CertificateTemplate');
-const Counter = require('../models/Counter');
 const Cooldown = require('../models/Cooldown');
 const PaymentRequest = require('../models/PaymentRequest');
+const Payment = require('../models/Payment');
+const Settings = require('../models/Settings');
 const AuditLog = require('../models/AuditLog');
 const ApiError = require('../utils/ApiError');
 const ApiResponse = require('../utils/ApiResponse');
 const r2Service = require('../services/r2Service');
 const emailService = require('../services/emailService');
 const csvService = require('../services/csvService');
-const {
-  generateQRCode,
-  buildCertificatePDF,
-  generateVerificationHash,
-} = require('../services/certificateService');
-const { APPLICATION_STATUS, PAGINATION, INTERNSHIP_CERT_PREFIX } = require('../config/constants');
+const { _generateSingleCertificate } = require('./certificateController');
+const { APPLICATION_STATUS, PAGINATION } = require('../config/constants');
 const logger = require('../utils/logger');
-
-/**
- * Generate a sequential internship certificate ID.
- * Format: FWT-INT-YYYY-XXXX (e.g., FWT-INT-2026-0001)
- * @returns {Promise<string>}
- */
-const generateInternshipCertId = async () => {
-  const seq = await Counter.getNextSequence('internship_certificate');
-  const year = new Date().getFullYear();
-  const paddedSeq = String(seq).padStart(4, '0');
-  return `${INTERNSHIP_CERT_PREFIX}-${year}-${paddedSeq}`;
-};
 
 /**
  * @desc    Submit application
@@ -253,6 +236,7 @@ const updateApplicationStatus = async (req, res, next) => {
       return next(ApiError.notFound('Application not found.'));
     }
 
+    const oldStatus = application.status;
     application.status = status;
     if (adminNotes !== undefined) application.adminNotes = adminNotes;
     await application.save();
@@ -260,7 +244,7 @@ const updateApplicationStatus = async (req, res, next) => {
     const user = await User.findById(application.user);
 
     // Send status-specific emails and notifications (non-blocking)
-    if (status === APPLICATION_STATUS.APPROVED) {
+    if (status === APPLICATION_STATUS.APPROVED && oldStatus !== APPLICATION_STATUS.APPROVED) {
       await Notification.create({
         user: application.user,
         title: 'Application Approved! 🎉',
@@ -271,7 +255,7 @@ const updateApplicationStatus = async (req, res, next) => {
       setImmediate(() => {
         emailService.sendInternshipApproval(user, application.internship.title, application.internship.startDate).catch(() => {});
       });
-    } else if (status === APPLICATION_STATUS.REJECTED) {
+    } else if (status === APPLICATION_STATUS.REJECTED && oldStatus !== APPLICATION_STATUS.REJECTED) {
       await Notification.create({
         user: application.user,
         title: 'Application Update',
@@ -279,10 +263,25 @@ const updateApplicationStatus = async (req, res, next) => {
         type: 'application',
         link: '/student/applications',
       });
+      
+      // Apply cooldown on rejection
+      const setting = await Settings.findOne({ key: 'applicationCooldown' });
+      const cooldownDays = setting && setting.value !== undefined ? setting.value : 0;
+      if (cooldownDays > 0) {
+        const expiresAt = new Date();
+        expiresAt.setDate(expiresAt.getDate() + cooldownDays);
+        await Cooldown.create({
+          user: application.user,
+          internship: application.internship._id,
+          expiresAt,
+          reason: 'Application rejected',
+        });
+      }
+
       setImmediate(() => {
         emailService.sendApplicationRejected(user, application.internship.title).catch(() => {});
       });
-    } else if (status === APPLICATION_STATUS.JOINED) {
+    } else if (status === APPLICATION_STATUS.JOINED && oldStatus !== APPLICATION_STATUS.JOINED) {
       // Increment filled positions
       await Internship.findByIdAndUpdate(application.internship._id, {
         $inc: { filledPositions: 1 },
@@ -299,7 +298,8 @@ const updateApplicationStatus = async (req, res, next) => {
 };
 
 /**
- * @desc    Mark application as completed — generates certificate + sends delivery email
+ * @desc    Mark application as completed — delegates to the canonical certificate
+ *          generation pipeline in certificateController._generateSingleCertificate
  * @route   PUT /api/applications/:id/complete
  * @access  Admin
  */
@@ -317,153 +317,31 @@ const completeApplication = async (req, res, next) => {
       return next(ApiError.conflict('This application is already marked as completed.'));
     }
 
-    const student = application.user;
-    const internship = application.internship;
-
-    // ── Generate Internship Completion Certificate ──
-    const certificateId = await generateInternshipCertId();
-    const verificationUrl = `${process.env.CLIENT_URL || 'http://localhost:5173'}/verify-certificate/${certificateId}`;
-    const qrCodeBase64 = await generateQRCode(verificationUrl);
-
-    // Resolve template
-    let template = null;
-    let backgroundImageBuffer = null;
-
-    template = await CertificateTemplate.findOne({ isDefault: true, status: 'active' });
-    if (!template) {
-      template = await CertificateTemplate.create({
-        name: 'Classical Gold Border',
-        isDefault: true,
-        createdBy: req.user.id,
-      });
-    }
-
-    if (template.backgroundImageUrl) {
-      try {
-        backgroundImageBuffer = await r2Service.downloadFile(template.backgroundImageUrl);
-      } catch (dlErr) {
-        logger.warn(`Failed to download template background, using classic: ${dlErr.message}`);
-      }
-    }
-
-    // Resolve guide
-    let guideName = '';
-    let guideId = null;
-    if (student.assignedGuide) {
-      const guide = await User.findById(student.assignedGuide);
-      if (guide) {
-        guideName = guide.name;
-        guideId = guide._id;
-      }
-    }
-
-    const completionDate = new Date();
-    const pdfBuffer = await buildCertificatePDF({
-      certificateId,
-      studentName: student.name,
-      internshipTitle: internship.title,
-      duration: internship.duration || '3 Months',
-      completionDate,
-      grade: req.body.grade || 'A',
-      guideName,
-      qrCodeBase64,
-      backgroundImageBuffer,
-      layout: template.layout,
-      typography: template.typography,
-      overlays: template.overlays || [],
-      canvasWidth: template.width || 842,
-      canvasHeight: template.height || 595,
-      pageFormat: template.pageFormat,
-      orientation: template.orientation,
-      startDate: internship.startDate,
-      endDate: internship.endDate,
-      collegeName: application.college || student.college || 'Institution',
-      companyName: 'FWT iZON',
-      skills: (application.skills || student.skills || []).join(', '),
-      performance: req.body.performance || 'Good',
+    // Delegate to the single canonical certificate issuance pipeline
+    const result = await _generateSingleCertificate({
+      application,
+      grade: req.body.grade,
+      skillsAcquired: req.body.skillsAcquired,
+      performance: req.body.performance,
+      templateId: req.body.templateId,
+      issuerId: req.user.id,
+      overwrite: false,
     });
 
-    // Upload PDF to Cloudinary (Outside Transaction to avoid long locks)
-    const { publicId, secureUrl } = await r2Service.uploadFile(
-      pdfBuffer,
-      'internhub/certificates',
-      'image'
-    );
-
-    // Generate verification hash
-    const verificationHash = generateVerificationHash({
-      certificateId,
-      studentName: student.name,
-      internshipTitle: internship.title,
-      completionDate,
-    });
-
-    // ── START DATABASE TRANSACTION ──
-    const session = await mongoose.startSession();
-    session.startTransaction();
-
-    let certificate;
-    try {
-      // Create certificate record
-      const certs = await Certificate.create([{
-        certificateId,
-        student: student._id,
-        internship: internship._id,
-        guide: guideId,
-        template: template._id,
-        studentName: student.name,
-        internshipTitle: internship.title,
-        duration: internship.duration || '3 Months',
-        completionDate,
-        grade: req.body.grade || 'A',
-        skillsAcquired: application.skills || [],
-        performance: req.body.performance || 'Good',
-        verificationUrl,
-        qrCodeDataUrl: qrCodeBase64,
-        pdfUrl: secureUrl,
-        pdfPublicId: publicId,
-        verificationHash,
-        issuedBy: req.user.id,
-        status: 'issued',
-        documentType: 'certificate',
-      }], { session });
-      certificate = certs[0];
-
-      // Update application status and certificate URL
-      application.status = APPLICATION_STATUS.COMPLETED;
-      application.certificateUrl = secureUrl;
-      await application.save({ session });
-
-      // Create notification
-      await Notification.create([{
-        user: student._id,
-        title: 'Internship Completed! 🎓',
-        message: `Congratulations! Your certificate for "${internship.title}" is ready for download.`,
-        type: 'certificate',
-        link: '/student/certificates',
-      }], { session });
-
-      await session.commitTransaction();
-    } catch (txError) {
-      await session.abortTransaction();
-      throw txError;
-    } finally {
-      session.endSession();
+    if (!result.success) {
+      return next(ApiError.conflict(result.error || 'Certificate generation failed.'));
     }
-    // ── END DATABASE TRANSACTION ──
 
-    // Send certificate delivery email with PDF attachment (non-blocking)
-    setImmediate(() => {
-      emailService.sendCertificateDelivery(student, internship.title, certificateId, secureUrl).catch((err) => {
-        logger.error(`Failed to send certificate email to ${student.email}:`, err);
-      });
-    });
+    // Mark application as completed
+    application.status = APPLICATION_STATUS.COMPLETED;
+    application.certificateUrl = result.certificate.pdfUrl;
+    await application.save();
 
-    logger.info(`Application ${application._id} completed. Certificate ${certificateId} issued for ${student.email}`);
+    logger.info(`Application ${application._id} completed. Certificate ${result.certificate.certificateId} issued for ${application.user.email}`);
 
     ApiResponse.success(res, 200, 'Application completed and certificate issued.', {
       application,
-      certificate,
+      certificate: result.certificate,
     });
   } catch (error) {
     next(error);
@@ -487,6 +365,10 @@ const assignPayment = async (req, res, next) => {
 
     if (!application) {
       return next(ApiError.notFound('Application not found.'));
+    }
+
+    if (application.status !== APPLICATION_STATUS.APPROVED) {
+      return next(ApiError.conflict('Payment can only be assigned to approved applications.'));
     }
 
     // Check if PaymentRequest already exists and is pending
@@ -602,6 +484,10 @@ const bulkAction = async (req, res, next) => {
           );
         }
 
+        // Cascade delete dependent payment records
+        await PaymentRequest.deleteMany({ application: { $in: applicationIds } });
+        await Payment.deleteMany({ application: { $in: applicationIds } });
+
         await Application.deleteMany({ _id: { $in: applicationIds } });
         return ApiResponse.success(res, 200, `${applicationIds.length} applications deleted.`);
       }
@@ -613,6 +499,57 @@ const bulkAction = async (req, res, next) => {
       { _id: { $in: applicationIds } },
       { $set: updateData }
     );
+
+    // Fan-out notifications for the bulk action
+    setImmediate(async () => {
+      try {
+        const apps = await Application.find({ _id: { $in: applicationIds } })
+          .populate('user')
+          .populate('internship', 'title startDate');
+
+        for (const app of apps) {
+          const user = app.user;
+          if (!user) continue;
+
+          if (action === 'approve') {
+            await Notification.create({
+              user: user._id,
+              title: 'Application Approved! 🎉',
+              message: `Your application for ${app.internship.title} has been approved.`,
+              type: 'application',
+              link: '/student/applications',
+            });
+            await emailService.sendInternshipApproval(user, app.internship.title, app.internship.startDate).catch(() => {});
+          } else if (action === 'reject') {
+            await Notification.create({
+              user: user._id,
+              title: 'Application Update',
+              message: `Your application for ${app.internship.title} has been reviewed.`,
+              type: 'application',
+              link: '/student/applications',
+            });
+            
+            // Apply cooldown on bulk rejection
+            const setting = await Settings.findOne({ key: 'applicationCooldown' });
+            const cooldownDays = setting && setting.value !== undefined ? setting.value : 0;
+            if (cooldownDays > 0) {
+              const expiresAt = new Date();
+              expiresAt.setDate(expiresAt.getDate() + cooldownDays);
+              await Cooldown.create({
+                user: user._id,
+                internship: app.internship._id,
+                expiresAt,
+                reason: 'Application rejected',
+              });
+            }
+
+            await emailService.sendApplicationRejected(user, app.internship.title).catch(() => {});
+          }
+        }
+      } catch (err) {
+        logger.error('Failed to send bulk action notifications:', err);
+      }
+    });
 
     ApiResponse.success(res, 200, message);
   } catch (error) {

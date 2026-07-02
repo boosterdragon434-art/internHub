@@ -4,6 +4,8 @@ const {
   getTemplates,
   getTemplateStats,
   createTemplate,
+  duplicateTemplate,
+  testRenderTemplate,
   updateTemplate,
   deleteTemplate,
   toggleTemplateStatus,
@@ -57,6 +59,8 @@ router.put(
   toggleTemplateStatus
 );
 router.get('/templates/:id/download', protect, authorize('admin'), downloadTemplate);
+router.post('/templates/:id/duplicate', protect, authorize('admin'), duplicateTemplate);
+router.get('/templates/:id/test-render', protect, authorize('admin'), testRenderTemplate);
 router.delete('/templates/:id', protect, authorize('admin'), deleteTemplate);
 
 // ─── Admin Certificate Generation & Management ──────────────

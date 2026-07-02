@@ -14,3 +14,8 @@ export const resetPasswordRequest = async (token, password) => {
   const response = await api.put(`/auth/reset-password/${token}`, { password });
   return response.data;
 };
+
+export const logout = async () => {
+  const response = await api.post('/auth/logout');
+  return response.data;
+};

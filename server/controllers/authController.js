@@ -67,6 +67,10 @@ const login = async (req, res, next) => {
       return next(ApiError.unauthorized('Invalid email or password.'));
     }
 
+    if (!user.isActive) {
+      return next(ApiError.forbidden('Your account has been deactivated. Contact the administrator.'));
+    }
+
     // Check account lockout
     if (user.isLocked()) {
       const minutesLeft = Math.ceil((user.lockUntil - Date.now()) / 60000);
@@ -125,6 +129,10 @@ const adminLogin = async (req, res, next) => {
     const user = await User.findOne({ email, role: 'admin' }).select('+password +loginAttempts +lockUntil');
     if (!user) {
       return next(ApiError.unauthorized('Invalid admin credentials.'));
+    }
+
+    if (!user.isActive) {
+      return next(ApiError.forbidden('Your account has been deactivated. Contact the administrator.'));
     }
 
     // Check account lockout
@@ -324,7 +332,7 @@ const resetPassword = async (req, res, next) => {
  */
 const getMe = async (req, res, next) => {
   try {
-    const user = await User.findById(req.user.id);
+    const user = req.user; // Use the user object already attached by the protect middleware
 
     const userData = {
       id: user._id,

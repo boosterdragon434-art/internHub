@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import api from '../api/axios';
+import api, { clearApiCache } from '../api/axios';
+import { logout as logoutApi } from '../api/authApi';
 
 const AuthContext = createContext(null);
 
@@ -131,10 +132,17 @@ export const AuthProvider = ({ children }) => {
   };
 
   // Logout
-  const logoutUser = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
-    setUser(null);
+  const logoutUser = async () => {
+    try {
+      await logoutApi(); // server-side token invalidation
+    } catch {
+      // Network failure — still clear locally
+    } finally {
+      clearApiCache(); // clear axios cache
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      setUser(null);
+    }
   };
 
   // Update profile in local state after controller successfully updates DB

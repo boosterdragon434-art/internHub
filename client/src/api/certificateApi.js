@@ -59,6 +59,12 @@ export const updateTemplate = (id, data, onUploadProgress) =>
 /** Delete a certificate template */
 export const deleteTemplate = (id) => api.delete(`/certificates/templates/${id}`);
 
+/** Duplicate a certificate template */
+export const duplicateTemplate = (id) => api.post(`/certificates/templates/${id}/duplicate`);
+
+/** Test render a template */
+export const testRenderTemplate = (id) => api.get(`/certificates/templates/${id}/test-render`);
+
 /** Toggle template active/inactive status */
 export const toggleTemplateStatus = (id, status) =>
   api.put(`/certificates/templates/${id}/toggle-status`, { status });

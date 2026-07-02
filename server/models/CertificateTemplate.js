@@ -12,7 +12,7 @@ const overlaySchema = new mongoose.Schema(
     },
     field: {
       type: String,
-      enum: ['studentName', 'courseName', 'date', 'certificateId', 'serialNumber', 'instructorName', 'startDate', 'endDate', 'collegeName', 'companyName', 'grade', 'skills', 'performance', 'customText', 'wipe'],
+      enum: ['studentName', 'courseName', 'date', 'certificateId', 'serialNumber', 'instructorName', 'startDate', 'endDate', 'collegeName', 'companyName', 'grade', 'skills', 'performance', 'customText', 'wipe', 'qrCode', 'logo', 'signature'],
       required: true,
     },
     x: {
@@ -135,6 +135,18 @@ const certificateTemplateSchema = new mongoose.Schema(
       enum: ['A4', 'Letter', 'Custom'],
       default: 'A4',
     },
+    customPageWidth: {
+      type: Number,
+      default: 842,
+      min: 100,
+      max: 5000,
+    },
+    customPageHeight: {
+      type: Number,
+      default: 595,
+      min: 100,
+      max: 5000,
+    },
     orientation: {
       type: String,
       enum: ['portrait', 'landscape'],
@@ -230,6 +242,11 @@ const certificateTemplateSchema = new mongoose.Schema(
     isDefault: {
       type: Boolean,
       default: false,
+    },
+    defaultFieldValues: {
+      type: Map,
+      of: String,
+      default: {},
     },
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,
