@@ -106,7 +106,10 @@ const CertificateGeneratorPage = () => {
   const [applications, setApplications] = useState([]);
   const [loadingApps, setLoadingApps] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [internshipFilter, setInternshipFilter] = useState('');
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
   const [bulkSelected, setBulkSelected] = useState(new Set());
   const [bulkGenerating, setBulkGenerating] = useState(false);
 
@@ -121,6 +124,7 @@ const CertificateGeneratorPage = () => {
   // ── Templates Tab State ──
   const [templates, setTemplates] = useState([]);
   const [loadingTemplates, setLoadingTemplates] = useState(false);
+  const [actionLoading, setActionLoading] = useState(null);
   const [templateSearch, setTemplateSearch] = useState('');
   const [templateStatusFilter, setTemplateStatusFilter] = useState('all');
   const [templateStats, setTemplateStats] = useState(null);
@@ -141,19 +145,39 @@ const CertificateGeneratorPage = () => {
   const [previewing, setPreviewing] = useState(false);
 
   // ── Data Fetch ──
-  const fetchApplications = useCallback(async () => {
+  const fetchApplications = useCallback(async (currentPage = page, search = debouncedSearch, internship = internshipFilter) => {
     setLoadingApps(true);
     try {
-      const response = await getAllApplications({ limit: 500 });
+      const response = await getAllApplications({ page: currentPage, limit: 20, search, internship });
       if (response?.success) {
         setApplications(response.data || []);
+        if (response.pagination) {
+          setTotalPages(response.pagination.totalPages || 1);
+        }
       }
     } catch {
       toast.error('Failed to load eligible applications');
     } finally {
       setLoadingApps(false);
     }
-  }, []);
+  }, [page, debouncedSearch, internshipFilter]);
+
+  // Debounce search query
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedSearch(searchQuery);
+    }, 400);
+    return () => clearTimeout(handler);
+  }, [searchQuery]);
+
+  useEffect(() => {
+    setPage(1);
+    fetchApplications(1, debouncedSearch, internshipFilter);
+  }, [debouncedSearch, internshipFilter, fetchApplications]);
+
+  useEffect(() => {
+    fetchApplications(page, debouncedSearch, internshipFilter);
+  }, [page, fetchApplications]);
 
   const fetchTemplates = useCallback(async () => {
     setLoadingTemplates(true);
@@ -172,9 +196,8 @@ const CertificateGeneratorPage = () => {
   }, []);
 
   useEffect(() => {
-    fetchApplications();
     fetchTemplates();
-  }, [fetchApplications, fetchTemplates]);
+  }, [fetchTemplates]);
 
   // ── File Handling ──
   const processFile = (file) => {
@@ -322,42 +345,53 @@ const CertificateGeneratorPage = () => {
   };
 
   const handleDeleteTemplate = async (id) => {
-    if (!window.confirm('Delete this template permanently?')) return;
+    if (!window.confirm('Delete this template? Any issued certificates remain valid but you cannot use this template again.')) return;
+    setActionLoading(id);
     try {
       await deleteTemplate(id);
       toast.success('Template deleted');
       fetchTemplates();
     } catch (err) {
       toast.error(err.response?.data?.message || 'Failed to delete template');
+    } finally {
+      setActionLoading(null);
     }
   };
 
   const handleToggleStatus = async (id, currentStatus) => {
-    const newStatus = currentStatus === 'active' ? 'inactive' : 'active';
+    setActionLoading(id);
     try {
-      await toggleTemplateStatus(id, newStatus);
-      toast.success(`Template ${newStatus === 'active' ? 'activated' : 'deactivated'}`);
+      await toggleTemplateStatus(id, currentStatus === 'active' ? 'inactive' : 'active');
+      toast.success(`Template marked as ${currentStatus === 'active' ? 'inactive' : 'active'}`);
       fetchTemplates();
     } catch (err) {
       toast.error(err.response?.data?.message || 'Failed to update status');
+    } finally {
+      setActionLoading(null);
     }
   };
 
   const handleDuplicateTemplate = async (id) => {
+    setActionLoading(id);
     try {
       await duplicateTemplate(id);
       toast.success('Template duplicated');
       fetchTemplates();
     } catch (err) {
       toast.error(err.response?.data?.message || 'Failed to duplicate template');
+    } finally {
+      setActionLoading(null);
     }
   };
 
   const handleTestRender = async (tpl) => {
     try {
       const response = await testRenderTemplate(tpl._id);
+      const rawBase64 = response.data.data?.pdfBase64 || '';
+      // Safely strip data URI prefix if present, otherwise use raw base64
+      const pdfBase64 = rawBase64.includes(',') ? rawBase64.split(',')[1] : rawBase64;
       setPreviewData({
-        pdfBase64: response.data.data.pdfBase64.split(',')[1], // strip data prefix if present
+        pdfBase64,
         studentName: 'Test Render',
         internshipTitle: tpl.name,
       });
@@ -390,23 +424,14 @@ const CertificateGeneratorPage = () => {
   };
 
   const toggleSelectAll = () => {
-    if (bulkSelected.size === filteredApps.length) {
+    if (bulkSelected.size === applications.length) {
       setBulkSelected(new Set());
     } else {
-      setBulkSelected(new Set(filteredApps.map((a) => a._id)));
+      setBulkSelected(new Set(applications.map((a) => a._id)));
     }
   };
 
-  const filteredApps = applications.filter((app) => {
-    const q = searchQuery.toLowerCase();
-    const matchSearch = (
-      (app.user?.name || '').toLowerCase().includes(q) ||
-      (app.user?.email || '').toLowerCase().includes(q) ||
-      (app.internship?.title || '').toLowerCase().includes(q)
-    );
-    const matchInternship = internshipFilter ? app.internship?._id === internshipFilter : true;
-    return matchSearch && matchInternship;
-  });
+  const filteredApps = applications; // Filtering is now server-side
 
   const uniqueInternships = Array.from(new Set(applications.map(app => app.internship?._id)))
     .map(id => applications.find(a => a.internship?._id === id)?.internship)
@@ -470,6 +495,7 @@ const CertificateGeneratorPage = () => {
               templates={templates} selectedTemplateId={selectedTemplateId}
               setSelectedTemplateId={setSelectedTemplateId} grade={grade} setGrade={setGrade}
               uniqueInternships={uniqueInternships} internshipFilter={internshipFilter} setInternshipFilter={setInternshipFilter}
+              page={page} totalPages={totalPages} setPage={setPage}
             />
           </motion.div>
         )}
@@ -482,7 +508,7 @@ const CertificateGeneratorPage = () => {
               onUpload={() => setShowUploadModal(true)} onEdit={(tpl) => setEditorTemplate(tpl)}
               onDelete={handleDeleteTemplate} onToggleStatus={handleToggleStatus}
               onDownload={handleDownloadTemplate} onDuplicate={handleDuplicateTemplate}
-              onTestRender={handleTestRender}
+              onTestRender={handleTestRender} actionLoading={actionLoading}
             />
           </motion.div>
         )}
@@ -540,7 +566,7 @@ const CertificateGeneratorPage = () => {
 // ─────────────────────────────────────────────────────────────
 // StudentsTab
 // ─────────────────────────────────────────────────────────────
-const StudentsTab = ({ loading, filteredApps, searchQuery, setSearchQuery, setSelectedApp, bulkSelected, toggleBulkSelect, toggleSelectAll, handleBulkGenerate, bulkGenerating, onPreview, templates, selectedTemplateId, setSelectedTemplateId, grade, setGrade, uniqueInternships, internshipFilter, setInternshipFilter }) => (
+const StudentsTab = ({ loading, filteredApps, searchQuery, setSearchQuery, setSelectedApp, bulkSelected, toggleBulkSelect, toggleSelectAll, handleBulkGenerate, bulkGenerating, onPreview, templates, selectedTemplateId, setSelectedTemplateId, grade, setGrade, uniqueInternships, internshipFilter, setInternshipFilter, page, totalPages, setPage }) => (
   <>
     <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/20">
       <div className="flex flex-col sm:flex-row flex-1 gap-3 w-full sm:max-w-xl">
@@ -600,7 +626,7 @@ const StudentsTab = ({ loading, filteredApps, searchQuery, setSearchQuery, setSe
           </tbody>
         </table>
       </div>
-    ) : filteredApps.length > 0 ? (
+    ) : (
       <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm">
         <table className="w-full text-left text-sm text-slate-600 dark:text-slate-400 whitespace-nowrap">
           <thead className="bg-slate-50 dark:bg-slate-900/80 text-xs uppercase font-extrabold text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-800">
@@ -660,11 +686,32 @@ const StudentsTab = ({ loading, filteredApps, searchQuery, setSearchQuery, setSe
                 </td>
               </tr>
             ))}
+            {filteredApps.length === 0 && (
+              <tr>
+                <td colSpan="6" className="px-6 py-16 text-center">
+                  <div className="flex flex-col items-center max-w-sm mx-auto">
+                    <div className="w-20 h-20 bg-violet-100 dark:bg-violet-900/30 rounded-full flex items-center justify-center mb-4 text-violet-500">
+                      <FiSearch className="w-8 h-8" />
+                    </div>
+                    <h3 className="text-sm font-bold text-slate-800 dark:text-slate-200 mb-1">No applications found</h3>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">Try adjusting your search or internship filter to find students.</p>
+                  </div>
+                </td>
+              </tr>
+            )}
           </tbody>
         </table>
       </div>
-    ) : (
-      <div className="text-center py-20 text-slate-400 dark:text-slate-500 text-sm">No student applications found.</div>
+    )}
+
+    {totalPages > 1 && !loading && (
+      <div className="flex justify-between items-center bg-white dark:bg-slate-900 p-3 rounded-xl border border-slate-200 dark:border-slate-800">
+        <span className="text-xs text-slate-500">Page {page} of {totalPages}</span>
+        <div className="flex items-center gap-1">
+          <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 disabled:opacity-50 hover:bg-slate-50 dark:hover:bg-slate-800 transition"><FiChevronLeft size={16} /></button>
+          <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages} className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 disabled:opacity-50 hover:bg-slate-50 dark:hover:bg-slate-800 transition"><FiChevronRight size={16} /></button>
+        </div>
+      </div>
     )}
   </>
 );
@@ -672,8 +719,8 @@ const StudentsTab = ({ loading, filteredApps, searchQuery, setSearchQuery, setSe
 // ─────────────────────────────────────────────────────────────
 // TemplatesTab
 // ─────────────────────────────────────────────────────────────
-const TemplatesTab = ({ loading, templates, stats, searchQuery, setSearchQuery, statusFilter, setStatusFilter, onUpload, onEdit, onDelete, onToggleStatus, onDownload, onDuplicate, onTestRender }) => (
-  <>
+const TemplatesTab = ({ loading, templates, stats, searchQuery, setSearchQuery, statusFilter, setStatusFilter, onUpload, onEdit, onDelete, onToggleStatus, onDownload, onDuplicate, onTestRender, actionLoading }) => (
+  <div className="space-y-6">
     {/* Stats Bar */}
     {stats && (
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -712,81 +759,81 @@ const TemplatesTab = ({ loading, templates, stats, searchQuery, setSearchQuery, 
       </button>
     </div>
 
-    {loading ? (
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-        {[1,2,3].map((i) => (
-          <div key={i} className="bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden animate-pulse">
-            <div className="h-36 bg-slate-200 dark:bg-slate-800" />
-            <div className="p-4 space-y-3"><div className="h-4 bg-slate-200 dark:bg-slate-800 rounded w-32" /><div className="flex gap-2"><div className="h-9 bg-slate-200 dark:bg-slate-800 rounded-lg flex-1" /><div className="h-9 bg-slate-200 dark:bg-slate-800 rounded-lg w-10" /></div></div>
-          </div>
-        ))}
-      </div>
-    ) : templates.length > 0 ? (
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-        {templates.map((tpl) => (
-          <motion.div key={tpl._id} whileHover={{ y: -3 }} className="bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-lg hover:shadow-xl transition-shadow">
-            <div className="h-36 bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-800 dark:to-slate-900 flex items-center justify-center relative overflow-hidden">
-              {tpl.backgroundImageUrl ? (
-                <img src={tpl.backgroundImageUrl} alt={tpl.name} className="w-full h-full object-cover" onError={(e) => { e.target.style.display = 'none'; }} />
-              ) : (
-                <div className="text-center"><FiAward className="w-10 h-10 text-slate-400 dark:text-slate-600 mx-auto mb-1" /><span className="text-[10px] text-slate-400 dark:text-slate-500 font-medium">Classic Design</span></div>
-              )}
-              {tpl.isDefault && (
-                <span className="absolute top-2 right-2 flex items-center gap-1 px-2 py-0.5 bg-amber-500/90 text-white text-[9px] font-bold uppercase rounded-full"><FiStar className="w-3 h-3" /> Default</span>
-              )}
-              <span className={`absolute top-2 left-2 px-2 py-0.5 text-[9px] font-bold uppercase rounded-full ${
-                tpl.status === 'active' ? 'bg-emerald-500/90 text-white' : 'bg-slate-500/80 text-white'
-              }`}>{tpl.status}</span>
-              <span className="absolute bottom-2 left-2 px-2 py-0.5 bg-black/50 backdrop-blur text-white text-[9px] font-bold rounded-full">
-                {tpl.overlays?.length || 0} overlays
-              </span>
-              {tpl.fileSize > 0 && (
-                <span className="absolute bottom-2 right-2 px-2 py-0.5 bg-black/50 backdrop-blur text-white text-[9px] font-bold rounded-full">
-                  {formatBytes(tpl.fileSize)}
-                </span>
-              )}
-            </div>
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+      {loading ? (
+        [1,2,3,4].map(i => (
+          <div key={i} className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-sm animate-pulse">
+            <div className="aspect-[1.414] bg-slate-100 dark:bg-slate-800" />
             <div className="p-4 space-y-3">
-              <div>
-                <h3 className="font-bold text-slate-800 dark:text-slate-200 text-sm">{tpl.name}</h3>
-                {tpl.description && <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5 line-clamp-2">{tpl.description}</p>}
-              </div>
-              <div className="flex gap-2">
-                <button onClick={() => onEdit(tpl)} className="flex-1 py-2 bg-violet-50 dark:bg-violet-950/30 hover:bg-violet-100 dark:hover:bg-violet-900/40 text-violet-700 dark:text-violet-400 rounded-lg text-[10px] font-bold flex items-center justify-center gap-1 transition border border-violet-200 dark:border-violet-800">
-                  <FiSliders className="w-3.5 h-3.5" /> Editor
-                </button>
-                <button onClick={() => onToggleStatus(tpl._id, tpl.status)} className="py-2 px-2 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-400 rounded-lg text-[10px] transition border border-slate-200 dark:border-slate-700" title={tpl.status === 'active' ? 'Deactivate' : 'Activate'}>
-                  {tpl.status === 'active' ? <FiToggleRight className="w-4 h-4 text-emerald-500" /> : <FiToggleLeft className="w-4 h-4" />}
-                </button>
-                <button onClick={() => onDuplicate(tpl._id)} className="py-2 px-2 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-400 rounded-lg text-[10px] transition border border-slate-200 dark:border-slate-700" title="Duplicate">
-                  <FiCopy className="w-3.5 h-3.5" />
-                </button>
-                <button onClick={() => onDownload(tpl)} className="py-2 px-2 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-400 rounded-lg text-[10px] transition border border-slate-200 dark:border-slate-700" title="Download">
-                  <FiDownload className="w-3.5 h-3.5" />
-                </button>
-                <button onClick={() => onTestRender(tpl)} className="py-2 px-2 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-400 rounded-lg text-[10px] transition border border-slate-200 dark:border-slate-700" title="Test Render">
-                  <FiEye className="w-3.5 h-3.5" />
-                </button>
-                <button onClick={() => onDelete(tpl._id)} className="py-2 px-2 bg-red-50 dark:bg-red-950/30 hover:bg-red-100 dark:hover:bg-red-900/40 text-red-600 dark:text-red-400 rounded-lg text-[10px] transition border border-red-200 dark:border-red-800" title="Delete">
-                  <FiTrash2 className="w-3.5 h-3.5" />
-                </button>
+              <div className="flex justify-between items-start"><div className="h-4 w-32 bg-slate-200 dark:bg-slate-700 rounded" /><div className="h-4 w-12 bg-slate-200 dark:bg-slate-700 rounded-full" /></div>
+              <div className="h-3 w-48 bg-slate-100 dark:bg-slate-800 rounded" />
+              <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex gap-2"><div className="h-8 flex-1 bg-slate-200 dark:bg-slate-700 rounded-lg" /><div className="h-8 flex-1 bg-slate-200 dark:bg-slate-700 rounded-lg" /></div>
+            </div>
+          </div>
+        ))
+      ) : templates.length > 0 ? (
+        templates.map((tpl) => (
+          <div key={tpl._id} className="group bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-violet-300 dark:hover:border-violet-700 rounded-2xl overflow-hidden shadow-sm hover:shadow-xl hover:shadow-violet-500/10 transition-all duration-300 flex flex-col relative">
+            {tpl.isDefault && (
+              <div className="absolute top-3 right-3 z-10 px-2 py-0.5 bg-amber-500/90 text-white text-[9px] font-bold uppercase tracking-wider rounded backdrop-blur shadow-sm">Default</div>
+            )}
+            <div className="aspect-[1.414] w-full bg-slate-100 dark:bg-slate-800 relative overflow-hidden group-hover:opacity-90 transition">
+              {tpl.backgroundImageUrl ? (
+                <img src={tpl.backgroundImageUrl} alt={tpl.name} className="w-full h-full object-cover" />
+              ) : (
+                <div className="w-full h-full flex flex-col items-center justify-center text-slate-400">
+                  <FiImage className="w-10 h-10 mb-2 opacity-50" />
+                  <span className="text-[10px] font-medium">No Background</span>
+                </div>
+              )}
+              {/* Hover Actions */}
+              <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-[2px] opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-3">
+                <button onClick={() => onEdit(tpl)} className="w-10 h-10 rounded-full bg-white text-violet-600 flex items-center justify-center hover:scale-110 shadow-lg transition" title="Edit Overlays"><FiEdit2 size={16} /></button>
+                <button onClick={() => onTestRender(tpl)} className="w-10 h-10 rounded-full bg-slate-800 text-white flex items-center justify-center hover:scale-110 hover:bg-slate-700 shadow-lg transition" title="Test Render"><FiEye size={16} /></button>
               </div>
             </div>
-          </motion.div>
-        ))}
-      </div>
-    ) : (
-      <div className="text-center py-16 text-slate-400 dark:text-slate-500 text-sm">No templates found. Upload a certificate background to get started.</div>
-    )}
-  </>
+
+            <div className="p-4 flex-1 flex flex-col">
+              <div className="flex justify-between items-start mb-1.5">
+                <h3 className="font-bold text-sm text-slate-800 dark:text-slate-200 truncate pr-2">{tpl.name}</h3>
+                <span className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider shrink-0 ${tpl.status === 'active' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400'}`}>
+                  {tpl.status}
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 line-clamp-2 mb-4 flex-1">{tpl.description || 'No description provided'}</p>
+              
+              <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex gap-2">
+                <div className="flex-1 flex gap-1 border border-slate-200 dark:border-slate-700 rounded-lg overflow-hidden bg-slate-50 dark:bg-slate-800/50">
+                  <button onClick={() => onDuplicate(tpl._id)} disabled={actionLoading === tpl._id} className="flex-1 py-1.5 text-slate-600 dark:text-slate-400 hover:text-violet-600 dark:hover:text-violet-400 hover:bg-slate-100 dark:hover:bg-slate-700 transition flex items-center justify-center disabled:opacity-50" title="Duplicate">
+                    {actionLoading === tpl._id ? <FiRefreshCw className="w-3.5 h-3.5 animate-spin" /> : <FiCopy size={14} />}
+                  </button>
+                  <div className="w-px bg-slate-200 dark:bg-slate-700" />
+                  <button onClick={() => onToggleStatus(tpl._id, tpl.status)} disabled={actionLoading === tpl._id} className={`flex-1 py-1.5 transition flex items-center justify-center disabled:opacity-50 ${tpl.status === 'active' ? 'text-amber-600 hover:bg-amber-50 dark:text-amber-500 dark:hover:bg-amber-900/20' : 'text-emerald-600 hover:bg-emerald-50 dark:text-emerald-500 dark:hover:bg-emerald-900/20'}`} title={tpl.status === 'active' ? 'Deactivate' : 'Activate'}>
+                    {actionLoading === tpl._id ? <FiRefreshCw className="w-3.5 h-3.5 animate-spin" /> : (tpl.status === 'active' ? <FiToggleRight size={14} /> : <FiToggleLeft size={14} />)}
+                  </button>
+                  <div className="w-px bg-slate-200 dark:bg-slate-700" />
+                  <button onClick={() => onDelete(tpl._id)} disabled={actionLoading === tpl._id} className="flex-1 py-1.5 text-slate-600 dark:text-slate-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition flex items-center justify-center disabled:opacity-50" title="Delete">
+                    {actionLoading === tpl._id ? <FiRefreshCw className="w-3.5 h-3.5 animate-spin" /> : <FiTrash2 size={14} />}
+                  </button>
+                </div>
+                <button onClick={() => onDownload(tpl)} className="px-3 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-400 rounded-lg transition" title="Download Base Image"><FiDownloadCloud size={14} /></button>
+              </div>
+            </div>
+          </div>
+        ))
+      ) : (
+        <div className="col-span-1 md:col-span-2 lg:col-span-3 xl:col-span-4 text-center py-16 text-slate-400 dark:text-slate-500 text-sm">No templates found. Upload a certificate background to get started.</div>
+      )}
+    </div>
+  </div>
 );
 
 // ─────────────────────────────────────────────────────────────
 // UploadTemplateModal
 // ─────────────────────────────────────────────────────────────
 const UploadTemplateModal = ({ form, setForm, uploading, uploadProgress, isDragOver, fileRef, onBgChange, onDrop, onDragOver, onDragLeave, onClose, onSubmit }) => (
-  <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-50">
-    <motion.form onSubmit={onSubmit} initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="w-full max-w-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 space-y-4 shadow-2xl">
+  <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-50 overflow-y-auto">
+    <motion.form onSubmit={onSubmit} initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="w-full max-w-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 space-y-4 shadow-2xl my-8">
       <div className="flex justify-between items-center border-b border-slate-200 dark:border-slate-800 pb-3">
         <h3 className="text-sm font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5"><FiUploadCloud className="text-violet-500 w-4 h-4" /> Upload New Template</h3>
         <button type="button" onClick={onClose} className="p-1 text-slate-500 hover:text-slate-800 dark:hover:text-white rounded hover:bg-slate-100 dark:hover:bg-slate-800"><FiX className="w-4 h-4" /></button>
@@ -882,6 +929,9 @@ const UploadTemplateModal = ({ form, setForm, uploading, uploadProgress, isDragO
           <div className="space-y-2 text-center">
             <img src={form.backgroundPreview} alt="Preview" className="max-h-28 rounded-lg shadow-md mx-auto" />
             <p className="text-[10px] text-slate-500 font-medium">{form.fileName} ({formatBytes(form.fileSize)})</p>
+            {form.width && form.height && (
+              <p className="text-[9px] text-slate-400 font-mono">{form.width} × {form.height}px</p>
+            )}
           </div>
         ) : form.fileName ? (
           <div className="space-y-2 text-center">
@@ -899,12 +949,35 @@ const UploadTemplateModal = ({ form, setForm, uploading, uploadProgress, isDragO
           </>
         )}
       </div>
+      {(form.backgroundPreview || form.fileName) && (
+        <button type="button" onClick={(e) => { e.stopPropagation(); setForm((p) => ({ ...p, backgroundImage: '', backgroundPreview: '', fileName: '', fileSize: 0, width: 842, height: 595 })); if (fileRef.current) fileRef.current.value = ''; }}
+          className="flex items-center gap-1.5 px-3 py-1.5 bg-red-50 dark:bg-red-950/30 hover:bg-red-100 dark:hover:bg-red-900/40 text-red-600 dark:text-red-400 rounded-lg text-[10px] font-bold transition border border-red-200 dark:border-red-800">
+          <FiTrash2 className="w-3 h-3" /> Remove File
+        </button>
+      )}
       <input ref={fileRef} type="file" accept="image/png,image/jpeg,image/webp,application/pdf" onChange={onBgChange} className="hidden" />
 
       <label className="flex items-center gap-3 cursor-pointer">
         <input type="checkbox" checked={form.isDefault} onChange={(e) => setForm((p) => ({ ...p, isDefault: e.target.checked }))} className="w-4 h-4 rounded accent-violet-600" />
         <span className="text-xs text-slate-600 dark:text-slate-400 font-medium">Set as default template</span>
       </label>
+
+      {/* Custom Text Template */}
+      {['offer_letter', 'joining_letter', 'completion_letter', 'appreciation_letter', 'custom'].includes(form.documentCategory) && (
+        <div>
+          <label className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider block mb-1.5">Document Body Template</label>
+          <textarea value={form.customTextTemplate} onChange={(e) => setForm((p) => ({ ...p, customTextTemplate: e.target.value }))} placeholder="Write the letter body content here... Use {{variables}} for dynamic fields." rows={5}
+            className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:border-violet-500 rounded-xl px-3 py-2.5 text-sm text-slate-800 dark:text-slate-200 outline-none transition resize-none font-mono" />
+          <div className="flex flex-wrap gap-1 mt-2">
+            {['{{student_name}}', '{{internship_role}}', '{{start_date}}', '{{end_date}}', '{{company_name}}', '{{college_name}}', '{{guide_name}}'].map((v) => (
+              <button key={v} type="button" onClick={() => setForm((p) => ({ ...p, customTextTemplate: (p.customTextTemplate || '') + ' ' + v }))}
+                className="px-2 py-0.5 bg-violet-50 dark:bg-violet-950/30 text-violet-600 dark:text-violet-400 rounded text-[9px] font-mono font-bold hover:bg-violet-100 dark:hover:bg-violet-900/40 transition border border-violet-200 dark:border-violet-800">
+                {v}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Upload Progress */}
       {uploading && (
@@ -992,7 +1065,6 @@ const IssuanceModal = ({ selectedApp, grade, setGrade, skillsText, setSkillsText
             <option value="Good">Good</option>
             <option value="Average">Average</option>
             <option value="Poor">Poor</option>
-            <option value="Worse">Worse</option>
           </select>
         </div>
 
@@ -1068,8 +1140,14 @@ const AdvancedEditor = ({ template, onSaved, onClose }) => {
   const [historyIndex, setHistoryIndex] = useState(0);
   const [templateImg, setTemplateImg] = useState(null);
   const [replacingBg, setReplacingBg] = useState(false);
+  const [draggedOverlayIdx, setDraggedOverlayIdx] = useState(null);
   const canvasRef = useRef(null);
   const replaceBgRef = useRef(null);
+  const savedAtIndexRef = useRef(0);
+  const fieldDropdownRef = useRef(null);
+  const [canvasCursorPos, setCanvasCursorPos] = useState(null);
+  const [showFieldDropdown, setShowFieldDropdown] = useState(false);
+  const hasUnsavedChanges = historyIndex !== savedAtIndexRef.current;
 
   const handleReplaceBg = async (e) => {
     const file = e.target.files?.[0];
@@ -1104,12 +1182,28 @@ const AdvancedEditor = ({ template, onSaved, onClose }) => {
     img.src = template.backgroundImageUrl;
   }, [template.backgroundImageUrl]);
 
-  // Keyboard shortcuts
+  // Close field dropdown on outside click
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (fieldDropdownRef.current && !fieldDropdownRef.current.contains(e.target)) {
+        setShowFieldDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Keyboard shortcuts — proper dependency array prevents stacking listeners
   useEffect(() => {
     const handler = (e) => {
+      // Skip shortcuts when user is typing in form fields
+      const tag = e.target.tagName;
+      if (['INPUT', 'TEXTAREA', 'SELECT'].includes(tag)) return;
+
       if (e.ctrlKey && e.key === 'z') { e.preventDefault(); undo(); }
       if (e.ctrlKey && e.key === 'y') { e.preventDefault(); redo(); }
       if (e.ctrlKey && e.key === 's') { e.preventDefault(); handleSave(); }
+      if (e.key === 'Escape') { setSelected(null); setShowFieldDropdown(false); }
       if (e.key === 'Delete' && selected && !e.ctrlKey) { deleteOverlay(selected.id); }
       if (selected && !locked.has(selected.id) && ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
         e.preventDefault();
@@ -1124,7 +1218,8 @@ const AdvancedEditor = ({ template, onSaved, onClose }) => {
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selected, locked, historyIndex, history, overlays, zoom, showGrid, gridSize]);
 
   // Canvas render
   useEffect(() => {
@@ -1161,6 +1256,19 @@ const AdvancedEditor = ({ template, onSaved, onClose }) => {
       const gridPx = (gridSize / 100) * baseW * scale;
       for (let x = 0; x < renderW; x += gridPx) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, renderH); ctx.stroke(); }
       for (let y = 0; y < renderH; y += gridPx) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(renderW, y); ctx.stroke(); }
+    }
+
+    if (selected) {
+      ctx.strokeStyle = 'rgba(139, 92, 246, 0.3)';
+      ctx.lineWidth = 1;
+      ctx.setLineDash([4, 4]);
+      if (selected.x === 50) {
+        ctx.beginPath(); ctx.moveTo(renderW / 2, 0); ctx.lineTo(renderW / 2, renderH); ctx.stroke();
+      }
+      if (selected.y === 50) {
+        ctx.beginPath(); ctx.moveTo(0, renderH / 2); ctx.lineTo(renderW, renderH / 2); ctx.stroke();
+      }
+      ctx.setLineDash([]);
     }
 
     overlays.forEach((overlay) => {
@@ -1200,6 +1308,9 @@ const AdvancedEditor = ({ template, onSaved, onClose }) => {
         ctx.beginPath();
         ctx.arc(boxX - 6, y - height / 2, 4, 0, Math.PI * 2);
         ctx.fill();
+
+        ctx.fillStyle = '#6366f1';
+        ctx.fillRect(boxX + maxWidth - 4, y - height / 2 - 4, 8, 8);
       }
 
       ctx.save();
@@ -1270,25 +1381,21 @@ const AdvancedEditor = ({ template, onSaved, onClose }) => {
   };
   
   const moveOverlayForward = (id) => {
-    setOverlays((prev) => {
-      const idx = prev.findIndex((o) => o.id === id);
-      if (idx < 0 || idx === prev.length - 1) return prev;
-      const updated = [...prev];
-      [updated[idx], updated[idx + 1]] = [updated[idx + 1], updated[idx]];
-      saveToHistory(updated);
-      return updated;
-    });
+    const idx = overlays.findIndex((o) => o.id === id);
+    if (idx < 0 || idx === overlays.length - 1) return;
+    const updated = [...overlays];
+    [updated[idx], updated[idx + 1]] = [updated[idx + 1], updated[idx]];
+    setOverlays(updated);
+    saveToHistory(updated);
   };
 
   const moveOverlayBackward = (id) => {
-    setOverlays((prev) => {
-      const idx = prev.findIndex((o) => o.id === id);
-      if (idx <= 0) return prev;
-      const updated = [...prev];
-      [updated[idx], updated[idx - 1]] = [updated[idx - 1], updated[idx]];
-      saveToHistory(updated);
-      return updated;
-    });
+    const idx = overlays.findIndex((o) => o.id === id);
+    if (idx <= 0) return;
+    const updated = [...overlays];
+    [updated[idx], updated[idx - 1]] = [updated[idx - 1], updated[idx]];
+    setOverlays(updated);
+    saveToHistory(updated);
   };
 
   const toggleLock = (id) => setLocked((prev) => { const s = new Set(prev); s.has(id) ? s.delete(id) : s.add(id); return s; });
@@ -1297,23 +1404,54 @@ const AdvancedEditor = ({ template, onSaved, onClose }) => {
     const rect = canvasRef.current.getBoundingClientRect();
     const mx = ((e.clientX - rect.left) / rect.width) * 100;
     const my = ((e.clientY - rect.top) / rect.height) * 100;
+
+    if (selected && !locked.has(selected.id)) {
+      const o = selected;
+      const ox = o.x, oy = o.y, ow = o.maxWidth, oh = o.height;
+      const bx = o.field === 'wipe' ? ox - ow / 2 : o.align === 'center' ? ox - ow / 2 : o.align === 'right' ? ox - ow : ox;
+      if (mx >= bx + ow - 2 && mx <= bx + ow + 2 && Math.abs(oy - my) < oh / 2 + 2) {
+        setDragging({ id: o.id, type: 'resize' });
+        return;
+      }
+    }
+
     const hit = [...overlays].reverse().find((o) => {
       if (!o.visible) return false;
       const ox = o.x, oy = o.y, ow = o.maxWidth, oh = o.height;
       const bx = o.field === 'wipe' ? ox - ow / 2 : o.align === 'center' ? ox - ow / 2 : o.align === 'right' ? ox - ow : ox;
       return mx >= bx - 2 && mx <= bx + ow + 2 && Math.abs(oy - my) < oh / 2 + 2;
     });
-    if (hit) { if (!locked.has(hit.id)) { setDragging(hit.id); setSelected(hit); } }
+    if (hit) { if (!locked.has(hit.id)) { setDragging({ id: hit.id, type: 'move' }); setSelected(hit); } }
     else { setSelected(null); }
   };
 
   const handleCanvasMouseMove = (e) => {
+    const rect = canvasRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const rawX = ((e.clientX - rect.left) / rect.width) * 100;
+    const rawY = ((e.clientY - rect.top) / rect.height) * 100;
+
+    setCanvasCursorPos({ x: rawX.toFixed(1), y: rawY.toFixed(1) });
+
     if (!dragging) return;
-    const rect = canvasRef.current.getBoundingClientRect();
-    let x = Math.max(0, Math.min(100, ((e.clientX - rect.left) / rect.width) * 100));
-    let y = Math.max(0, Math.min(100, ((e.clientY - rect.top) / rect.height) * 100));
+
+    if (dragging.type === 'resize') {
+      const o = overlays.find(ov => ov.id === dragging.id);
+      if (!o) return;
+      const bx = o.field === 'wipe' ? o.x - o.maxWidth / 2 : o.align === 'center' ? o.x - o.maxWidth / 2 : o.align === 'right' ? o.x - o.maxWidth : o.x;
+      const newWidth = Math.max(5, rawX - bx);
+      updateOverlay(dragging.id, { maxWidth: parseFloat(newWidth.toFixed(2)) }, true);
+      return;
+    }
+
+    let x = Math.max(0, Math.min(100, rawX));
+    let y = Math.max(0, Math.min(100, rawY));
+    
+    if (Math.abs(x - 50) < 1.5) x = 50;
+    if (Math.abs(y - 50) < 1.5) y = 50;
+
     if (showGrid) { x = Math.round(x / gridSize) * gridSize; y = Math.round(y / gridSize) * gridSize; }
-    updateOverlay(dragging, { x: parseFloat(x.toFixed(2)), y: parseFloat(y.toFixed(2)) }, true);
+    updateOverlay(dragging.id, { x: parseFloat(x.toFixed(2)), y: parseFloat(y.toFixed(2)) }, true);
   };
 
   const handleCanvasMouseUp = () => {
@@ -1321,6 +1459,11 @@ const AdvancedEditor = ({ template, onSaved, onClose }) => {
       setOverlays(prev => { saveToHistory(prev); return prev; });
       setDragging(null);
     }
+  };
+
+  const handleCanvasMouseLeave = () => {
+    setCanvasCursorPos(null);
+    handleCanvasMouseUp();
   };
 
   // Touch support for mobile
@@ -1341,6 +1484,7 @@ const AdvancedEditor = ({ template, onSaved, onClose }) => {
       const res = await updateTemplate(template._id, { overlays, metadata: { editorZoom: zoom, showGrid, gridSize } });
       if (res.data?.success) {
         toast.success('Template saved!');
+        savedAtIndexRef.current = historyIndex;
         onSaved?.(res.data.data);
       }
     } catch (err) {
@@ -1351,8 +1495,19 @@ const AdvancedEditor = ({ template, onSaved, onClose }) => {
   };
 
   const handleClose = () => {
-    if (historyIndex > 0 && !window.confirm('You have unsaved changes. Are you sure you want to close?')) return;
+    if (hasUnsavedChanges && !window.confirm('You have unsaved changes. Are you sure you want to close?')) return;
     onClose();
+  };
+
+  const handleZoomToFit = () => {
+    const container = canvasRef.current?.parentElement?.parentElement;
+    if (!container) return;
+    const baseW = template.width || 842;
+    const baseH = template.height || 595;
+    const containerW = container.clientWidth - 64;
+    const containerH = container.clientHeight - 64;
+    const fitZoom = Math.min((containerW / baseW) * 100, (containerH / baseH) * 100);
+    setZoom(Math.max(10, Math.min(300, Math.round(fitZoom))));
   };
 
   const fieldLabel = (field) => FIELD_OPTIONS.find((f) => f.value === field)?.label || field;
@@ -1367,15 +1522,17 @@ const AdvancedEditor = ({ template, onSaved, onClose }) => {
             <FiLayers className="text-violet-500" size={20} />
             <div>
               <h2 className="text-sm font-bold text-slate-800 dark:text-white">Advanced Template Editor</h2>
-              <p className="text-[10px] text-slate-500 dark:text-slate-400">{template.name} — Drag to position | Ctrl+S save | Ctrl+Z undo | Delete remove</p>
+              <p className="text-[10px] text-slate-500 dark:text-slate-400">{template.name} — Drag to position | Ctrl+S save | Ctrl+Z undo | Delete remove | Esc deselect</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
             <button onClick={undo} disabled={historyIndex === 0} className="p-2 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-400 disabled:opacity-30 transition" title="Undo (Ctrl+Z)"><FiRotateCcw size={14} /></button>
             <button onClick={redo} disabled={historyIndex === history.length - 1} className="p-2 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-400 disabled:opacity-30 transition" title="Redo (Ctrl+Y)"><FiRotateCw size={14} /></button>
             <div className="w-px h-6 bg-slate-200 dark:bg-slate-700" />
-            <button onClick={handleSave} disabled={saving} className="flex items-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-lg transition shadow-lg shadow-emerald-600/20 disabled:opacity-50">
-              {saving ? <FiRefreshCw size={14} className="animate-spin" /> : <FiSave size={14} />} Save
+            <button onClick={handleSave} disabled={saving} className={`flex items-center gap-1.5 px-4 py-2 text-white text-xs font-bold rounded-lg transition shadow-lg disabled:opacity-50 ${hasUnsavedChanges ? 'bg-amber-600 hover:bg-amber-500 shadow-amber-600/20' : 'bg-emerald-600 hover:bg-emerald-500 shadow-emerald-600/20'}`}>
+              {saving ? <FiRefreshCw size={14} className="animate-spin" /> : <FiSave size={14} />}
+              {hasUnsavedChanges ? 'Save*' : 'Saved'}
+              {hasUnsavedChanges && <span className="w-2 h-2 bg-white rounded-full animate-pulse" />}
             </button>
             <button onClick={handleClose} className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 transition"><FiX size={18} /></button>
           </div>
@@ -1390,6 +1547,12 @@ const AdvancedEditor = ({ template, onSaved, onClose }) => {
                 <input type="range" min="10" max="300" value={zoom} onChange={(e) => setZoom(+e.target.value)} className="w-28 h-1.5 rounded-lg accent-violet-600" />
                 <button onClick={() => setZoom((z) => Math.min(300, z + 10))} className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-400 transition"><FiZoomIn size={14} /></button>
                 <span className="text-[10px] font-bold text-slate-500 w-10 text-center">{zoom}%</span>
+                <button onClick={handleZoomToFit} className="px-2 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-400 transition text-[9px] font-bold" title="Fit to Screen">Fit</button>
+                {canvasCursorPos && (
+                  <span className="text-[9px] font-mono text-slate-400 dark:text-slate-500 bg-slate-50 dark:bg-slate-800 px-2 py-0.5 rounded border border-slate-200 dark:border-slate-700">
+                    X:{canvasCursorPos.x}% Y:{canvasCursorPos.y}%
+                  </span>
+                )}
               </div>
               <div className="flex items-center gap-2">
                 <input ref={replaceBgRef} type="file" accept="image/png,image/jpeg,image/webp,application/pdf" onChange={handleReplaceBg} className="hidden" />
@@ -1399,9 +1562,24 @@ const AdvancedEditor = ({ template, onSaved, onClose }) => {
                 </button>
                 <div className="w-px h-4 bg-slate-200 dark:bg-slate-700" />
                 <button onClick={() => setShowGrid(!showGrid)} className={`p-1.5 rounded-lg transition ${showGrid ? 'bg-violet-600 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'}`}><FiGrid size={14} /></button>
-                <div className="flex items-center gap-1">
-                  <button onClick={() => addOverlay('studentName')} className="flex items-center gap-1 px-3 py-1.5 bg-violet-600 hover:bg-violet-500 text-white text-[10px] font-bold rounded-lg rounded-r-none transition"><FiPlus size={12} /> Add Field</button>
-                  <button onClick={() => addOverlay('wipe')} className="flex items-center gap-1 px-3 py-1.5 bg-slate-700 hover:bg-slate-600 text-white text-[10px] font-bold rounded-lg rounded-l-none border-l border-slate-600 transition"><FiLayers size={12} /> Wipe</button>
+                <div className="relative" ref={fieldDropdownRef}>
+                  <button onClick={() => setShowFieldDropdown(!showFieldDropdown)} className="flex items-center gap-1 px-3 py-1.5 bg-violet-600 hover:bg-violet-500 text-white text-[10px] font-bold rounded-lg transition">
+                    <FiPlus size={12} /> Add Field <span className="text-[8px] opacity-70">▾</span>
+                  </button>
+                  <AnimatePresence>
+                    {showFieldDropdown && (
+                      <motion.div initial={{ opacity: 0, y: -4, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: -4, scale: 0.95 }} transition={{ duration: 0.12 }}
+                        className="absolute right-0 top-full mt-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-2xl z-50 w-56 max-h-72 overflow-y-auto p-1.5">
+                        {FIELD_OPTIONS.map((f) => (
+                          <button key={f.value} onClick={() => { addOverlay(f.value); setShowFieldDropdown(false); }}
+                            className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-left text-[11px] font-semibold text-slate-700 dark:text-slate-300 hover:bg-violet-50 dark:hover:bg-violet-900/30 transition">
+                            <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: f.color }} />
+                            {f.label}
+                          </button>
+                        ))}
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
                 </div>
               </div>
             </div>
@@ -1409,7 +1587,7 @@ const AdvancedEditor = ({ template, onSaved, onClose }) => {
               <div className="min-w-full min-h-full w-fit h-fit p-8 flex">
                 <canvas ref={canvasRef}
                   onMouseDown={handleCanvasMouseDown} onMouseMove={handleCanvasMouseMove}
-                  onMouseUp={handleCanvasMouseUp} onMouseLeave={handleCanvasMouseUp}
+                  onMouseUp={handleCanvasMouseUp} onMouseLeave={handleCanvasMouseLeave}
                   onTouchStart={handleTouchStart} onTouchMove={handleTouchMove}
                   onTouchEnd={handleCanvasMouseUp}
                   className="m-auto border-2 border-slate-300 dark:border-slate-700 rounded-lg shadow-xl cursor-grab active:cursor-grabbing touch-none max-w-none"
@@ -1425,8 +1603,21 @@ const AdvancedEditor = ({ template, onSaved, onClose }) => {
               <div className="space-y-1 max-h-44 overflow-y-auto pr-1">
                 {overlays.length === 0 ? (
                   <p className="text-[10px] text-slate-400 text-center py-4">No overlays. Click "Add Field" to start.</p>
-                ) : overlays.map((o) => (
+                ) : overlays.map((o, idx) => (
                   <div key={o.id} onClick={() => setSelected(o)}
+                    draggable
+                    onDragStart={(e) => { e.dataTransfer.effectAllowed = 'move'; setDraggedOverlayIdx(idx); }}
+                    onDragOver={(e) => e.preventDefault()}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      if (draggedOverlayIdx === null || draggedOverlayIdx === idx) return;
+                      const updated = [...overlays];
+                      const [moved] = updated.splice(draggedOverlayIdx, 1);
+                      updated.splice(idx, 0, moved);
+                      setOverlays(updated);
+                      saveToHistory(updated);
+                      setDraggedOverlayIdx(null);
+                    }}
                     className={`flex items-center justify-between px-2.5 py-2 rounded-lg cursor-pointer transition-all text-[11px] ${
                       selected?.id === o.id ? 'bg-violet-50 dark:bg-violet-950/30 border border-violet-200 dark:border-violet-800' : 'hover:bg-slate-50 dark:hover:bg-slate-800 border border-transparent'
                     }`}>

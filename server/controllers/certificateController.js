@@ -468,6 +468,7 @@ const _resolveCertificateFields = async (application, overrides = {}, templateDe
 const _generateSingleCertificate = async ({ application, grade, skillsAcquired, performance, templateId, resolvedTemplate, issuerId, overwrite = false, customFields = {} }) => {
   const student = application.user;
   const internship = application.internship;
+  const guideId = student.assignedGuide || null;
 
   // Resolve template (custom or default fallback)
   let template = resolvedTemplate;
