@@ -8,6 +8,13 @@ const ApiResponse = require('../utils/ApiResponse');
 const logger = require('../utils/logger');
 const escapeRegex = require('../utils/escapeRegex');
 
+/** In-app route each role's task workspace lives at. */
+const ROLE_TASK_PATHS = {
+  admin: '/admin/tasks',
+  guide: '/guide/tasks',
+  student: '/student/tasks',
+};
+
 /**
  * Helper to log task activity.
  */
@@ -25,10 +32,50 @@ const logActivity = async (taskId, userId, action, details = {}) => {
 };
 
 /**
- * Helper to check role authorization and ownership.
- * Returns true if allowed, false or throws ApiError otherwise.
+ * Builds role-aware notification documents for a batch of recipients in a single
+ * query, so a guide/admin never receives a notification that deep-links into
+ * the student workspace (and vice-versa).
+ * @param {Array<string>} userIds
+ * @param {(userId: string, role: string) => { title: string, message: string, type: string }} buildPayload
  */
-const checkTaskAccess = async (task, req) => {
+const buildRoleLinkedNotifications = async (userIds, buildPayload) => {
+  const uniqueIds = [...new Set(userIds.filter(Boolean).map((id) => id.toString()))];
+  if (uniqueIds.length === 0) return [];
+
+  const users = await User.find({ _id: { $in: uniqueIds } }).select('role').lean();
+  const roleMap = new Map(users.map((u) => [u._id.toString(), u.role]));
+
+  return uniqueIds.map((id) => {
+    const role = roleMap.get(id) || 'student';
+    const payload = buildPayload(id, role);
+    return {
+      user: id,
+      link: ROLE_TASK_PATHS[role] || ROLE_TASK_PATHS.student,
+      ...payload,
+    };
+  });
+};
+
+/**
+ * Notifies a batch of users without letting a notification failure affect the
+ * primary request/response flow.
+ */
+const notifyUsers = async (userIds, buildPayload) => {
+  try {
+    const notifications = await buildRoleLinkedNotifications(userIds, buildPayload);
+    if (notifications.length > 0) {
+      await Notification.insertMany(notifications);
+    }
+  } catch (err) {
+    logger.error('Failed to create task notifications:', err);
+  }
+};
+
+/**
+ * Helper to check role authorization and ownership.
+ * Returns true if allowed, false otherwise.
+ */
+const checkTaskAccess = (task, req) => {
   const { id: userId, role } = req.user;
 
   if (role === 'admin') return true;
@@ -39,16 +86,11 @@ const checkTaskAccess = async (task, req) => {
     if (creatorId === userId) return true;
 
     // Or tasks assigned to students assigned to this guide
-    const guide = await User.findById(userId).select('assignedStudents');
-    if (!guide) return false;
-    const assignedStudentIds = (guide.assignedStudents || []).map((id) => id.toString());
-    const isAssignedToGuideStudent = task.assignees.some((assignee) => {
+    const assignedStudentIds = (req.user.assignedStudents || []).map((id) => id.toString());
+    return task.assignees.some((assignee) => {
       const assigneeId = assignee?._id ? assignee._id.toString() : assignee?.toString();
       return assigneeId && assignedStudentIds.includes(assigneeId);
     });
-    if (isAssignedToGuideStudent) return true;
-
-    return false;
   }
 
   if (role === 'student') {
@@ -60,6 +102,19 @@ const checkTaskAccess = async (task, req) => {
   }
 
   return false;
+};
+
+/**
+ * Ensures a guide can only assign tasks to students under their own cohort.
+ * Admins are unrestricted. Returns an error message string, or null if valid.
+ */
+const validateGuideAssignees = (req, assignees) => {
+  if (req.user.role !== 'guide' || !assignees || assignees.length === 0) return null;
+
+  const allowedIds = new Set((req.user.assignedStudents || []).map((id) => id.toString()));
+  const hasInvalidAssignee = assignees.some((id) => !allowedIds.has(id.toString()));
+
+  return hasInvalidAssignee ? 'You can only assign tasks to students in your own cohort.' : null;
 };
 
 /**
@@ -86,6 +141,11 @@ const createTask = async (req, res, next) => {
       isRecurring,
       recurringConfig,
     } = req.body;
+
+    const assigneeError = validateGuideAssignees(req, assignees);
+    if (assigneeError) {
+      return next(ApiError.forbidden(assigneeError));
+    }
 
     // Resolve initial order (place at the end of the current column)
     const taskCount = await Task.countDocuments({ status: status || 'todo' });
@@ -115,19 +175,19 @@ const createTask = async (req, res, next) => {
 
     // Send notifications to assignees
     if (assignees && assignees.length > 0) {
-      const notificationPromises = assignees.map((assigneeId) =>
-        Notification.create({
-          user: assigneeId,
-          title: 'New Task Assigned',
-          message: `You have been assigned a new task: "${task.title}"`,
-          type: 'task',
-          link: `/student/tasks`,
-        }).catch((err) => logger.error(`Failed to notify user ${assigneeId}:`, err))
-      );
-      await Promise.all(notificationPromises);
+      await notifyUsers(assignees, () => ({
+        title: 'New Task Assigned',
+        message: `You have been assigned a new task: "${task.title}"`,
+        type: 'task',
+      }));
     }
 
-    ApiResponse.success(res, 201, 'Task created successfully.', task);
+    const populatedTask = await task.populate([
+      { path: 'assignees', select: 'name email avatar role' },
+      { path: 'createdBy', select: 'name email avatar role' },
+    ]);
+
+    ApiResponse.success(res, 201, 'Task created successfully.', populatedTask);
   } catch (error) {
     next(error);
   }
@@ -149,8 +209,7 @@ const getTasks = async (req, res, next) => {
     if (role === 'student') {
       filter.assignees = userId;
     } else if (role === 'guide') {
-      const guide = await User.findById(userId).select('assignedStudents');
-      const assignedStudentIds = guide.assignedStudents || [];
+      const assignedStudentIds = req.user.assignedStudents || [];
       filter.$or = [
         { createdBy: userId },
         { assignees: { $in: assignedStudentIds } },
@@ -214,8 +273,7 @@ const getTask = async (req, res, next) => {
       return next(ApiError.notFound('Task not found.'));
     }
 
-    const hasAccess = await checkTaskAccess(task, req);
-    if (!hasAccess) {
+    if (!checkTaskAccess(task, req)) {
       return next(ApiError.forbidden('You are not authorized to view this task.'));
     }
 
@@ -239,8 +297,7 @@ const updateTask = async (req, res, next) => {
       return next(ApiError.notFound('Task not found.'));
     }
 
-    const hasAccess = await checkTaskAccess(task, req);
-    if (!hasAccess) {
+    if (!checkTaskAccess(task, req)) {
       return next(ApiError.forbidden('You are not authorized to edit this task.'));
     }
 
@@ -257,6 +314,14 @@ const updateTask = async (req, res, next) => {
         updates.checklist = req.body.checklist;
       }
     } else {
+      // Guides may only (re)assign students within their own cohort
+      if (req.body.assignees !== undefined) {
+        const assigneeError = validateGuideAssignees(req, req.body.assignees);
+        if (assigneeError) {
+          return next(ApiError.forbidden(assigneeError));
+        }
+      }
+
       // Admin/Guide can update all fields
       const allowedUpdates = [
         'title',
@@ -309,22 +374,16 @@ const updateTask = async (req, res, next) => {
         newStatus: updates.status,
       });
 
-      // Send status change notification to watchers/assignees
-      const notifiedUsers = new Set();
-      updatedTask.assignees.forEach((assignee) => notifiedUsers.add(assignee._id.toString()));
-      notifiedUsers.add(updatedTask.createdBy._id.toString());
-      notifiedUsers.delete(userId); // Do not notify the active user who changed it
+      // Notify assignees + creator (excluding whoever just made the change)
+      const notifiedUserIds = new Set(updatedTask.assignees.map((a) => a._id.toString()));
+      notifiedUserIds.add(updatedTask.createdBy._id.toString());
+      notifiedUserIds.delete(userId);
 
-      const notifyPromises = Array.from(notifiedUsers).map((recipientId) =>
-        Notification.create({
-          user: recipientId,
-          title: 'Task Status Updated',
-          message: `The status of "${updatedTask.title}" was updated to ${updates.status} by ${req.user.name}.`,
-          type: 'task',
-          link: `/student/tasks`,
-        }).catch((err) => logger.error(`Failed to send status update notification:`, err))
-      );
-      await Promise.all(notifyPromises);
+      await notifyUsers(Array.from(notifiedUserIds), () => ({
+        title: 'Task Status Updated',
+        message: `The status of "${updatedTask.title}" was updated to ${updates.status.replace('_', ' ')} by ${req.user.name}.`,
+        type: 'task',
+      }));
     } else {
       await logActivity(taskId, userId, 'updated', updates);
     }
@@ -348,12 +407,11 @@ const deleteTask = async (req, res, next) => {
       return next(ApiError.notFound('Task not found.'));
     }
 
-    const hasAccess = await checkTaskAccess(task, req);
-    if (!hasAccess) {
+    if (!checkTaskAccess(task, req)) {
       return next(ApiError.forbidden('You are not authorized to delete this task.'));
     }
 
-    // Delete subtasks recursively or detach them
+    // Detach subtasks rather than cascading the delete to them
     await Task.updateMany({ parentTask: task._id }, { parentTask: null });
 
     // Delete comments and activity logs related to this task
@@ -383,14 +441,13 @@ const addComment = async (req, res, next) => {
       return next(ApiError.notFound('Task not found.'));
     }
 
-    const hasAccess = await checkTaskAccess(task, req);
-    if (!hasAccess) {
+    if (!checkTaskAccess(task, req)) {
       return next(ApiError.forbidden('You are not authorized to comment on this task.'));
     }
 
     const { content, attachments } = req.body;
 
-    // Detect mentions in the format @[UserId] or similar
+    // Detect mentions in the format @[UserId]
     const mentionRegex = /@([a-fA-F0-9]{24})/g;
     const mentions = [];
     let match;
@@ -412,27 +469,21 @@ const addComment = async (req, res, next) => {
     await logActivity(taskId, req.user.id, 'commented', { commentId: comment._id });
 
     // Notify task assignees, creator, and mentioned users
-    const notifiedUsers = new Set(mentions);
-    task.assignees.forEach((assigneeId) => notifiedUsers.add(assigneeId.toString()));
-    notifiedUsers.add(task.createdBy.toString());
-    notifiedUsers.delete(req.user.id); // exclude the comment author
+    const notifiedUserIds = new Set(mentions);
+    task.assignees.forEach((assigneeId) => notifiedUserIds.add(assigneeId.toString()));
+    notifiedUserIds.add(task.createdBy.toString());
+    notifiedUserIds.delete(req.user.id); // exclude the comment author
 
-    const notifyPromises = Array.from(notifiedUsers).map((recipientId) => {
-      const isMentioned = mentions.includes(recipientId);
-      const title = isMentioned ? 'Mentioned in a Task' : 'New Task Comment';
-      const message = isMentioned
-        ? `${req.user.name} mentioned you in a comment on "${task.title}".`
-        : `${req.user.name} commented on task "${task.title}".`;
-
-      return Notification.create({
-        user: recipientId,
-        title,
-        message,
+    await notifyUsers(Array.from(notifiedUserIds), (id) => {
+      const isMentioned = mentions.includes(id);
+      return {
+        title: isMentioned ? 'Mentioned in a Task' : 'New Task Comment',
+        message: isMentioned
+          ? `${req.user.name} mentioned you in a comment on "${task.title}".`
+          : `${req.user.name} commented on task "${task.title}".`,
         type: 'task',
-        link: `/student/tasks`,
-      }).catch((err) => logger.error(`Failed to send comment notification:`, err));
+      };
     });
-    await Promise.all(notifyPromises);
 
     ApiResponse.success(res, 201, 'Comment added successfully.', populatedComment);
   } catch (error) {
@@ -453,8 +504,7 @@ const getComments = async (req, res, next) => {
       return next(ApiError.notFound('Task not found.'));
     }
 
-    const hasAccess = await checkTaskAccess(task, req);
-    if (!hasAccess) {
+    if (!checkTaskAccess(task, req)) {
       return next(ApiError.forbidden('You are not authorized to view comments on this task.'));
     }
 
@@ -513,8 +563,7 @@ const getTaskActivity = async (req, res, next) => {
       return next(ApiError.notFound('Task not found.'));
     }
 
-    const hasAccess = await checkTaskAccess(task, req);
-    if (!hasAccess) {
+    if (!checkTaskAccess(task, req)) {
       return next(ApiError.forbidden('You are not authorized to view activity for this task.'));
     }
 
