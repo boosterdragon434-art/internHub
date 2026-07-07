@@ -16,6 +16,7 @@ const csvService = require('../services/csvService');
 const { _generateSingleCertificate } = require('./certificateController');
 const { APPLICATION_STATUS, PAGINATION } = require('../config/constants');
 const logger = require('../utils/logger');
+const escapeRegex = require('../utils/escapeRegex');
 
 /**
  * @desc    Submit application
@@ -55,7 +56,7 @@ const createApplication = async (req, res, next) => {
       );
     }
 
-    // Upload resume to Cloudinary
+    // Upload resume to R2 object storage
     let resumeUrl = '';
     let resumePublicId = '';
     if (req.file) {
@@ -173,10 +174,11 @@ const getAllApplications = async (req, res, next) => {
     if (status) filter.status = status;
     if (internship) filter.internship = internship;
     if (search) {
+      const escapedSearch = escapeRegex(search);
       filter.$or = [
-        { name: { $regex: search, $options: 'i' } },
-        { email: { $regex: search, $options: 'i' } },
-        { college: { $regex: search, $options: 'i' } },
+        { name: { $regex: escapedSearch, $options: 'i' } },
+        { email: { $regex: escapedSearch, $options: 'i' } },
+        { college: { $regex: escapedSearch, $options: 'i' } },
       ];
     }
 
@@ -271,7 +273,7 @@ const updateApplicationStatus = async (req, res, next) => {
         const expiresAt = new Date();
         expiresAt.setDate(expiresAt.getDate() + cooldownDays);
         await Cooldown.create({
-          user: application.user,
+          student: application.user,
           internship: application.internship._id,
           expiresAt,
           reason: 'Application rejected',
@@ -282,10 +284,8 @@ const updateApplicationStatus = async (req, res, next) => {
         emailService.sendApplicationRejected(user, application.internship.title).catch(() => {});
       });
     } else if (status === APPLICATION_STATUS.JOINED && oldStatus !== APPLICATION_STATUS.JOINED) {
-      // Increment filled positions
-      await Internship.findByIdAndUpdate(application.internship._id, {
-        $inc: { filledPositions: 1 },
-      });
+      // NOTE: filledPositions increment is handled exclusively by the payment verification flow
+      // (paymentController.verifyPayment) to prevent double-increment race conditions.
       setImmediate(() => {
         emailService.sendJoiningConfirmation(user, application.internship.title).catch(() => {});
       });
@@ -478,7 +478,7 @@ const bulkAction = async (req, res, next) => {
               try {
                 await r2Service.deleteFile(fileId, 'auto');
               } catch (err) {
-                logger.error(`Failed to delete Cloudinary file ${fileId} during bulk delete:`, err);
+                logger.error(`Failed to delete R2 file ${fileId} during bulk delete:`, err);
               }
             })
           );
@@ -536,7 +536,7 @@ const bulkAction = async (req, res, next) => {
               const expiresAt = new Date();
               expiresAt.setDate(expiresAt.getDate() + cooldownDays);
               await Cooldown.create({
-                user: user._id,
+                student: user._id,
                 internship: app.internship._id,
                 expiresAt,
                 reason: 'Application rejected',

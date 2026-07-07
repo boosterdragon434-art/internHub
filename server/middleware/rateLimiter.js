@@ -84,9 +84,23 @@ const certificateUploadLimiter = rateLimit({
   keyGenerator: (req) => req.user ? req.user.id : req.ip,
 });
 
+/** Stricter auth limiter for admin/guide login — 30 requests per 15 minutes (high-value targets) */
+const adminAuthLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 30,
+  message: {
+    success: false,
+    message: 'Too many admin/guide authentication attempts. Please try again after 15 minutes.',
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => req.ip,
+});
+
 module.exports = {
   generalLimiter,
   authLimiter,
+  adminAuthLimiter,
   paymentLimiter,
   attendanceLimiter,
   certificateGenerationLimiter,

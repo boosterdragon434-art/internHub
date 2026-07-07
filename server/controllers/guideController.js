@@ -5,6 +5,7 @@ const ApiError = require('../utils/ApiError');
 const ApiResponse = require('../utils/ApiResponse');
 const { PAGINATION } = require('../config/constants');
 const logger = require('../utils/logger');
+const escapeRegex = require('../utils/escapeRegex');
 
 /**
  * @desc    Get guide's dashboard statistics
@@ -78,10 +79,11 @@ const getAssignedStudents = async (req, res, next) => {
     const filter = { _id: { $in: studentIds } };
 
     if (search) {
+      const escapedSearch = escapeRegex(search);
       filter.$or = [
-        { name: { $regex: search, $options: 'i' } },
-        { email: { $regex: search, $options: 'i' } },
-        { college: { $regex: search, $options: 'i' } },
+        { name: { $regex: escapedSearch, $options: 'i' } },
+        { email: { $regex: escapedSearch, $options: 'i' } },
+        { college: { $regex: escapedSearch, $options: 'i' } },
       ];
     }
 

@@ -18,6 +18,7 @@ const ApiError = require('../utils/ApiError');
 const ApiResponse = require('../utils/ApiResponse');
 const logger = require('../utils/logger');
 const emailService = require('../services/emailService');
+const escapeRegex = require('../utils/escapeRegex');
 
 // ─────────────────────────────────────────────────────────────
 // Template CRUD Handlers
@@ -40,7 +41,7 @@ const getTemplates = async (req, res, next) => {
       filter.documentCategory = req.query.documentCategory;
     }
     if (search) {
-      filter.name = { $regex: search, $options: 'i' };
+      filter.name = { $regex: escapeRegex(search), $options: 'i' };
     }
 
     const skip = (Math.max(1, parseInt(page)) - 1) * Math.min(100, parseInt(limit));
@@ -96,7 +97,7 @@ const getTemplateStats = async (req, res, next) => {
  * @route   POST /api/certificates/templates
  * @access  Admin
  *
- * Accepts base64 background image and uploads it to Google Drive.
+ * Accepts base64 background image and uploads it to R2 object storage.
  */
 const createTemplate = async (req, res, next) => {
   try {
@@ -154,7 +155,7 @@ const createTemplate = async (req, res, next) => {
       fileSize = imageBuffer.length;
       templateType = detectedMime === 'application/pdf' ? 'pdf' : 'image';
 
-      const mimeType = detectedMime || 'image/png';
+
 
       const { publicId, secureUrl } = await r2Service.uploadFile(
         imageBuffer,
@@ -281,7 +282,7 @@ const updateTemplate = async (req, res, next) => {
         return next(ApiError.badRequest('File size exceeds 10MB limit.'));
       }
 
-      // Delete old background from Cloudinary
+      // Delete old background from R2
       if (template.cloudinaryPublicId) {
         await r2Service.deleteFile(template.cloudinaryPublicId, template.templateType === 'pdf' ? 'auto' : 'image').catch(() => { });
       }
@@ -291,7 +292,7 @@ const updateTemplate = async (req, res, next) => {
       if (existingWithHash) {
         return next(ApiError.conflict(`A template with this exact image already exists: "${existingWithHash.name}".`));
       }
-      const mimeType = detectedMime || 'image/png';
+      const detectedMimeType = detectedMime || 'image/png';
 
       const { publicId, secureUrl } = await r2Service.uploadFile(
         imageBuffer,
@@ -302,7 +303,7 @@ const updateTemplate = async (req, res, next) => {
       template.cloudinaryPublicId = publicId;
       template.fileSize = imageBuffer.length;
       template.fileHash = fileHash;
-      template.templateType = mimeType === 'application/pdf' ? 'pdf' : 'image';
+      template.templateType = detectedMimeType === 'application/pdf' ? 'pdf' : 'image';
     }
 
     // Handle default toggle
@@ -344,7 +345,7 @@ const deleteTemplate = async (req, res, next) => {
       );
     }
 
-    // Clean up Cloudinary file
+    // Clean up R2 file
     if (template.cloudinaryPublicId) {
       await r2Service.deleteFile(template.cloudinaryPublicId, template.templateType === 'pdf' ? 'auto' : 'image').catch((err) => {
         logger.warn(`Failed to delete template background from Cloudinary: ${err.message}`);
@@ -560,7 +561,7 @@ const _generateSingleCertificate = async ({ application, grade, skillsAcquired, 
     ...customFields,
   });
 
-  // Upload PDF buffer directly to Cloudinary
+  // Upload PDF buffer to R2 object storage
   const { publicId, secureUrl } = await r2Service.uploadFile(
     pdfBuffer,
     'internhub/certificates',
@@ -915,10 +916,11 @@ const getAllCertificates = async (req, res, next) => {
       filter.status = status;
     }
     if (search) {
+      const escapedSearch = escapeRegex(search);
       filter.$or = [
-        { studentName: { $regex: search, $options: 'i' } },
-        { internshipTitle: { $regex: search, $options: 'i' } },
-        { certificateId: { $regex: search, $options: 'i' } },
+        { studentName: { $regex: escapedSearch, $options: 'i' } },
+        { internshipTitle: { $regex: escapedSearch, $options: 'i' } },
+        { certificateId: { $regex: escapedSearch, $options: 'i' } },
       ];
     }
 
@@ -1065,6 +1067,7 @@ const duplicateTemplate = async (req, res, next) => {
       isDefault: false,
       status: 'active',
       createdBy: req.user.id,
+      fileHash: '', // Clear to prevent false duplicate detection on re-upload
       createdAt: undefined,
       updatedAt: undefined,
     });

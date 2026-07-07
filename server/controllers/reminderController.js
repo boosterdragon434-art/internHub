@@ -4,6 +4,7 @@ const { processDueReminders } = require('../services/reminderService');
 const ApiError = require('../utils/ApiError');
 const ApiResponse = require('../utils/ApiResponse');
 const logger = require('../utils/logger');
+const escapeRegex = require('../utils/escapeRegex');
 
 /**
  * Check if the current user has access to a specific reminder.
@@ -113,11 +114,22 @@ const getReminders = async (req, res, next) => {
     if (type) filter.type = type;
 
     if (search) {
-      filter.$or = filter.$or || [];
-      filter.$or.push(
-        { title: { $regex: search, $options: 'i' } },
-        { description: { $regex: search, $options: 'i' } }
-      );
+      const escapedSearch = escapeRegex(search);
+      const searchConditions = [
+        { title: { $regex: escapedSearch, $options: 'i' } },
+        { description: { $regex: escapedSearch, $options: 'i' } },
+      ];
+      // Merge with existing $or (role visibility) using $and to avoid overwriting
+      if (filter.$or) {
+        const existingOr = filter.$or;
+        delete filter.$or;
+        filter.$and = [
+          { $or: existingOr },
+          { $or: searchConditions },
+        ];
+      } else {
+        filter.$or = searchConditions;
+      }
     }
 
     const reminders = await Reminder.find(filter)

@@ -14,13 +14,13 @@ const {
 const { protect } = require('../middleware/auth');
 const validate = require('../middleware/validate');
 const authValidator = require('../validators/authValidator');
-const { authLimiter } = require('../middleware/rateLimiter');
+const { authLimiter, adminAuthLimiter } = require('../middleware/rateLimiter');
 
 // Public routes with auth rate limiter
 router.post('/register', authLimiter, validate(authValidator.register), register);
 router.post('/login', authLimiter, validate(authValidator.login), login);
-router.post('/admin/login', authLimiter, validate(authValidator.login), adminLogin);
-router.post('/guide/login', authLimiter, validate(authValidator.login), guideLogin);
+router.post('/admin/login', adminAuthLimiter, validate(authValidator.login), adminLogin);
+router.post('/guide/login', adminAuthLimiter, validate(authValidator.login), guideLogin);
 router.get('/verify-email/:token', authLimiter, verifyEmail);
 router.post('/forgot-password', authLimiter, validate(authValidator.forgotPassword), forgotPassword);
 router.put('/reset-password/:token', authLimiter, validate(authValidator.resetPassword), resetPassword);

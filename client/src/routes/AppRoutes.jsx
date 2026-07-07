@@ -11,8 +11,9 @@ import AdminRoute from './AdminRoute';
 import GuideRoute from './GuideRoute';
 import PublicRoute from './PublicRoute';
 
-// Loader
+// Core Components
 import { FullPageLoader } from '../components/common/Loader';
+import ErrorBoundary from '../components/common/ErrorBoundary';
 
 // Lazy loaded public pages
 const HomePage = lazy(() => import('../pages/public/HomePage'));
@@ -38,6 +39,7 @@ const ProfilePage = lazy(() => import('../pages/student/ProfilePage'));
 const StudentTasksPage = lazy(() => import('../pages/student/StudentTasksPage'));
 const StudentCalendarPage = lazy(() => import('../pages/student/StudentCalendarPage'));
 const StudentAttendancePage = lazy(() => import('../pages/student/StudentAttendancePage'));
+const MyCertificatesPage = lazy(() => import('../pages/student/MyCertificatesPage'));
 
 // Lazy loaded admin pages
 const AdminDashboard = lazy(() => import('../pages/admin/AdminDashboard'));
@@ -65,7 +67,8 @@ const CertificateVerifyPage = lazy(() => import('../pages/public/CertificateVeri
 
 const AppRoutes = () => {
   return (
-    <Suspense fallback={<FullPageLoader message="Loading page..." />}>
+    <ErrorBoundary>
+      <Suspense fallback={<FullPageLoader message="Loading page..." />}>
       <Routes>
         {/* Public Routes */}
         <Route element={<PublicLayout />}>
@@ -95,6 +98,22 @@ const AppRoutes = () => {
           element={
             <PublicRoute>
               <LoginPage />
+            </PublicRoute>
+          }
+        />
+        <Route
+          path="/admin/login"
+          element={
+            <PublicRoute>
+              <LoginPage role="admin" />
+            </PublicRoute>
+          }
+        />
+        <Route
+          path="/guide/login"
+          element={
+            <PublicRoute>
+              <LoginPage role="guide" />
             </PublicRoute>
           }
         />
@@ -148,6 +167,7 @@ const AppRoutes = () => {
           <Route path="payments" element={<PaymentPage />} />
           <Route path="profile" element={<ProfilePage />} />
           <Route path="attendance" element={<StudentAttendancePage />} />
+          <Route path="certificates" element={<MyCertificatesPage />} />
 
         </Route>
 
@@ -199,7 +219,8 @@ const AppRoutes = () => {
 
         </Route>
       </Routes>
-    </Suspense>
+      </Suspense>
+    </ErrorBoundary>
   );
 };
 

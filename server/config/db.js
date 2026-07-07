@@ -51,8 +51,9 @@ const connectDB = async () => {
       );
 
       if (retries >= MAX_RETRIES) {
-        logger.error('Max retries reached. Exiting process.');
-        process.exit(1);
+        const errorMsg = `MongoDB connection failed after ${MAX_RETRIES} attempts.`;
+        logger.error(errorMsg);
+        throw new Error(errorMsg);
       }
 
       // Exponential backoff: 1s, 2s, 4s, 8s, 16s

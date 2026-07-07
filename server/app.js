@@ -3,12 +3,15 @@ const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
 const mongoSanitize = require('express-mongo-sanitize');
-const xssClean = require('xss-clean');
+// NOTE: xss-clean has been removed — it is deprecated, unmaintained since 2021,
+// and has known bypass vectors. XSS is mitigated by Helmet CSP headers,
+// Joi input validation in route validators, and React's default output encoding.
 const mongoose = require('mongoose');
 const connectDB = require('./config/db');
 const logger = require('./utils/logger');
 const { generalLimiter } = require('./middleware/rateLimiter');
 const errorHandler = require('./middleware/errorHandler');
+const requestId = require('./middleware/requestId');
 const { passiveReminderCheck } = require('./services/reminderService');
 const { passiveBackgroundChecks } = require('./services/passiveBackgroundChecks');
 
@@ -33,6 +36,9 @@ const app = express();
 // Trust exactly one reverse proxy layer (prevent IP spoofing with multiple proxies)
 app.set('trust proxy', 1);
 
+// --------------- Request Correlation ID ---------------
+app.use(requestId);
+
 // --------------- Serverless Database Connection Middleware ---------------
 let isConnected = false;
 app.use(async (req, res, next) => {
@@ -41,11 +47,15 @@ app.use(async (req, res, next) => {
   }
   if (!isConnected) {
     try {
-      logger.info('Stateless serverless invocation: Establishing MongoDB connection...');
+      logger.info(`[${req.requestId}] Stateless serverless invocation: Establishing MongoDB connection...`);
       await connectDB();
       isConnected = true;
     } catch (err) {
-      logger.error('Database connection failed in serverless middleware:', err);
+      logger.error(`[${req.requestId}] Database connection failed in serverless middleware:`, err);
+      return res.status(503).json({
+        success: false,
+        message: 'Service temporarily unavailable. Database connection failed.',
+      });
     }
   }
   next();
@@ -77,22 +87,31 @@ app.use(
     crossOriginEmbedderPolicy: false,
   })
 );
+// Build explicit CORS allowlist from environment
+const corsAllowedOrigins = (() => {
+  const origins = new Set(['http://localhost:5173', 'http://localhost:5174']);
+  const clientUrl = (process.env.CLIENT_URL || '').replace(/\/+$/, '');
+  if (clientUrl) origins.add(clientUrl);
+  // Add additional allowed origins from comma-separated env var
+  const extra = (process.env.ALLOWED_ORIGINS || '').split(',').map(o => o.trim()).filter(Boolean);
+  extra.forEach(o => origins.add(o.replace(/\/+$/, '')));
+  return origins;
+})();
+
 app.use(
   cors({
     origin: (origin, callback) => {
-      // Allow requests with no origin (like mobile apps, curls, or server-to-server)
+      // Allow requests with no origin (mobile apps, curl, server-to-server)
       if (!origin) return callback(null, true);
 
-      const sanitizedOrigin = origin.replace(/\/$/, '');
-      let configuredClient = process.env.CLIENT_URL || 'http://localhost:5173';
-      configuredClient = configuredClient.replace(/\/$/, '');
+      const sanitizedOrigin = origin.replace(/\/+$/, '');
 
-      if (
-        sanitizedOrigin === configuredClient ||
-        sanitizedOrigin === 'http://localhost:5173' ||
-        sanitizedOrigin.endsWith('.vercel.app') ||
-        /https?:\/\/intern-hub-front(-[a-z0-9]+)?\.vercel\.app$/.test(sanitizedOrigin)
-      ) {
+      if (corsAllowedOrigins.has(sanitizedOrigin)) {
+        return callback(null, true);
+      }
+
+      // In development, also allow any localhost port
+      if (process.env.NODE_ENV === 'development' && /^https?:\/\/localhost(:\d+)?$/.test(sanitizedOrigin)) {
         return callback(null, true);
       }
 
@@ -104,7 +123,7 @@ app.use(
   })
 );
 app.use(mongoSanitize());
-app.use(xssClean());
+// xss-clean removed — see note at top of file
 
 // --------------- General Middleware ---------------
 app.use(express.json({ limit: '15mb' }));
@@ -117,7 +136,21 @@ if (process.env.NODE_ENV === 'development') {
 }
 
 // --------------- Rate Limiting ---------------
+// Apply to both prefixed and non-prefixed routes to prevent bypass
 app.use('/api', generalLimiter);
+app.use('/auth', generalLimiter);
+app.use('/internships', generalLimiter);
+app.use('/applications', generalLimiter);
+app.use('/payments', generalLimiter);
+app.use('/users', generalLimiter);
+app.use('/notifications', generalLimiter);
+app.use('/settings', generalLimiter);
+app.use('/guides', generalLimiter);
+app.use('/tasks', generalLimiter);
+app.use('/reminders', generalLimiter);
+app.use('/certificates', generalLimiter);
+app.use('/attendance', generalLimiter);
+app.use('/teams', generalLimiter);
 
 // --------------- API Routes ---------------
 // 1. Mounted with /api prefix (for local proxying & explicit setups)
@@ -154,11 +187,16 @@ app.use('/teams', teamRoutes);
 
 // --------------- Health Check ---------------
 const healthHandler = (_req, res) => {
-  res.status(200).json({
-    success: true,
-    message: 'InternHub API is running',
+  const dbState = mongoose.connection.readyState;
+  const dbStatus = { 0: 'disconnected', 1: 'connected', 2: 'connecting', 3: 'disconnecting' };
+  const isHealthy = dbState === 1;
+
+  res.status(isHealthy ? 200 : 503).json({
+    success: isHealthy,
+    message: isHealthy ? 'InternHub API is running' : 'InternHub API is degraded',
     timestamp: new Date().toISOString(),
     environment: process.env.NODE_ENV,
+    database: dbStatus[dbState] || 'unknown',
   });
 };
 app.get('/api/health', healthHandler);

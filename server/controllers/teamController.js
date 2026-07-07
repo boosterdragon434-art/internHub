@@ -5,6 +5,7 @@ const ApiResponse = require('../utils/ApiResponse');
 const { PAGINATION } = require('../config/constants');
 const { reassignStudentGuide } = require('../services/guideAssignmentService');
 const logger = require('../utils/logger');
+const escapeRegex = require('../utils/escapeRegex');
 
 /**
  * @desc    Create a new intern team/group
@@ -88,9 +89,10 @@ const getTeams = async (req, res, next) => {
     if (guideId) filter.guide = guideId;
     if (isActive !== undefined) filter.isActive = isActive === 'true';
     if (search) {
+      const escapedSearch = escapeRegex(search);
       filter.$or = [
-        { name: { $regex: search, $options: 'i' } },
-        { description: { $regex: search, $options: 'i' } },
+        { name: { $regex: escapedSearch, $options: 'i' } },
+        { description: { $regex: escapedSearch, $options: 'i' } },
       ];
     }
 

@@ -5,6 +5,7 @@ const r2Service = require('../services/r2Service');
 const { PAGINATION } = require('../config/constants');
 const { reassignStudentGuide } = require('../services/guideAssignmentService');
 const logger = require('../utils/logger');
+const escapeRegex = require('../utils/escapeRegex');
 
 /**
  * @desc    Update user profile
@@ -140,9 +141,10 @@ const getAllUsers = async (req, res, next) => {
     const filter = {};
     if (role) filter.role = role;
     if (search) {
+      const escapedSearch = escapeRegex(search);
       filter.$or = [
-        { name: { $regex: search, $options: 'i' } },
-        { email: { $regex: search, $options: 'i' } },
+        { name: { $regex: escapedSearch, $options: 'i' } },
+        { email: { $regex: escapedSearch, $options: 'i' } },
       ];
     }
 
@@ -332,9 +334,10 @@ const getAllGuides = async (req, res, next) => {
 
     const filter = { role: 'guide' };
     if (search) {
+      const escapedSearch = escapeRegex(search);
       filter.$or = [
-        { name: { $regex: search, $options: 'i' } },
-        { email: { $regex: search, $options: 'i' } },
+        { name: { $regex: escapedSearch, $options: 'i' } },
+        { email: { $regex: escapedSearch, $options: 'i' } },
       ];
     }
 

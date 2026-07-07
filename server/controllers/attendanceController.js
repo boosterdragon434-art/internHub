@@ -1,3 +1,4 @@
+const mongoose = require('mongoose');
 const AttendanceSession = require('../models/AttendanceSession');
 const AttendanceSettings = require('../models/AttendanceSettings');
 const User = require('../models/User');
@@ -9,6 +10,7 @@ const { PAGINATION } = require('../config/constants');
 const { generateAttendanceExcel } = require('../services/attendanceService');
 const logger = require('../utils/logger');
 const { getTodayIST, getISTNow, getISTMinutesSinceMidnight, getISTHour } = require('../utils/istTime');
+const escapeRegex = require('../utils/escapeRegex');
 
 /**
  * Parse an HH:MM time string into total minutes since midnight.
@@ -871,20 +873,25 @@ const getGuideAnalytics = async (req, res, next) => {
       (s) => s.attendanceStatus === 'on-break'
     ).length;
 
-    // Weekly data (last 7 days)
+    // Weekly data (last 7 days) — single aggregation instead of N+1 loop
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6);
+    const weekStartStr = sevenDaysAgo.toISOString().split('T')[0];
+
+    const weeklyAgg = await AttendanceSession.aggregate([
+      { $match: { user: { $in: studentIds }, date: { $gte: weekStartStr, $lte: today } } },
+      { $group: { _id: '$date', count: { $sum: 1 } } },
+      { $sort: { _id: 1 } },
+    ]);
+
+    const weeklyMap = new Map(weeklyAgg.map(r => [r._id, r.count]));
     const weeklyData = [];
     for (let i = 6; i >= 0; i--) {
       const d = new Date();
       d.setDate(d.getDate() - i);
       const dateStr = d.toISOString().split('T')[0];
       const dayName = d.toLocaleDateString('en-US', { weekday: 'short' });
-
-      const count = await AttendanceSession.countDocuments({
-        user: { $in: studentIds },
-        date: dateStr,
-      });
-
-      weeklyData.push({ date: dateStr, day: dayName, present: count });
+      weeklyData.push({ date: dateStr, day: dayName, present: weeklyMap.get(dateStr) || 0 });
     }
 
     ApiResponse.success(res, 200, 'Guide analytics fetched.', {
@@ -997,8 +1004,8 @@ const getAdminAllAttendance = async (req, res, next) => {
     if (search) {
       const matchingUsers = await User.find({
         $or: [
-          { name: { $regex: search, $options: 'i' } },
-          { email: { $regex: search, $options: 'i' } },
+          { name: { $regex: escapeRegex(search), $options: 'i' } },
+          { email: { $regex: escapeRegex(search), $options: 'i' } },
         ],
       })
         .select('_id')
@@ -1067,33 +1074,49 @@ const getAdminAnalytics = async (req, res, next) => {
       (s) => s.attendanceStatus === 'checked-out'
     ).length;
 
-    // Weekly trend (last 7 days)
+    // Weekly trend (last 7 days) — single aggregation instead of N+1 loop
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6);
+    const weekStartStr = sevenDaysAgo.toISOString().split('T')[0];
+
+    const weeklyAgg = await AttendanceSession.aggregate([
+      { $match: { date: { $gte: weekStartStr, $lte: today } } },
+      {
+        $group: {
+          _id: '$date',
+          count: { $sum: 1 },
+          lateCount: { $sum: { $cond: ['$isLate', 1, 0] } },
+        },
+      },
+      { $sort: { _id: 1 } },
+    ]);
+
+    const weeklyMap = new Map(weeklyAgg.map(r => [r._id, r]));
     const weeklyData = [];
     for (let i = 6; i >= 0; i--) {
       const d = new Date();
       d.setDate(d.getDate() - i);
       const dateStr = d.toISOString().split('T')[0];
       const dayName = d.toLocaleDateString('en-US', { weekday: 'short' });
-
-      const count = await AttendanceSession.countDocuments({ date: dateStr });
-      const lateCount = await AttendanceSession.countDocuments({
-        date: dateStr,
-        isLate: true,
-      });
-
+      const dayData = weeklyMap.get(dateStr);
       weeklyData.push({
         date: dateStr,
         day: dayName,
-        present: count,
-        late: lateCount,
-        absent: totalStudents - count,
+        present: dayData ? dayData.count : 0,
+        late: dayData ? dayData.lateCount : 0,
+        absent: totalStudents - (dayData ? dayData.count : 0),
       });
     }
 
-    // Monthly summary
+    // Monthly summary — efficient range query instead of regex
     const thisMonth = today.substring(0, 7);
+    const [year, mon] = thisMonth.split('-').map(Number);
+    const monthStart = `${thisMonth}-01`;
+    const nextYear = mon === 12 ? year + 1 : year;
+    const nextMonth = mon === 12 ? 1 : mon + 1;
+    const monthEnd = `${nextYear}-${String(nextMonth).padStart(2, '0')}-01`;
     const monthSessions = await AttendanceSession.find({
-      date: { $regex: `^${thisMonth}` },
+      date: { $gte: monthStart, $lt: monthEnd },
     }).lean();
 
     const monthTotalSessions = monthSessions.length;
@@ -1393,9 +1416,9 @@ const getAdminMonthlyHours = async (req, res, next) => {
     const limitNum = Math.min(parseInt(limit, 10), PAGINATION.MAX_LIMIT);
 
     const matchFilter = {};
-    if (userId) matchFilter.user = require('mongoose').Types.ObjectId.createFromHexString(userId);
-    if (teamId) matchFilter.team = require('mongoose').Types.ObjectId.createFromHexString(teamId);
-    if (guideId) matchFilter.guide = require('mongoose').Types.ObjectId.createFromHexString(guideId);
+    if (userId) matchFilter.user = mongoose.Types.ObjectId.createFromHexString(userId);
+    if (teamId) matchFilter.team = mongoose.Types.ObjectId.createFromHexString(teamId);
+    if (guideId) matchFilter.guide = mongoose.Types.ObjectId.createFromHexString(guideId);
 
     const pipeline = buildMonthlyHoursPipeline(matchFilter, currentMonth, (pageNum - 1) * limitNum, limitNum);
     const [result] = await AttendanceSession.aggregate(pipeline);
@@ -1445,9 +1468,9 @@ const getGuideMonthlyHours = async (req, res, next) => {
 
     const matchFilter = { user: { $in: studentIds } };
     if (userId && studentIds.some((id) => id.toString() === userId)) {
-      matchFilter.user = require('mongoose').Types.ObjectId.createFromHexString(userId);
+      matchFilter.user = mongoose.Types.ObjectId.createFromHexString(userId);
     }
-    if (teamId) matchFilter.team = require('mongoose').Types.ObjectId.createFromHexString(teamId);
+    if (teamId) matchFilter.team = mongoose.Types.ObjectId.createFromHexString(teamId);
 
     const pipeline = buildMonthlyHoursPipeline(matchFilter, currentMonth, (pageNum - 1) * limitNum, limitNum);
     const [result] = await AttendanceSession.aggregate(pipeline);
@@ -1475,7 +1498,7 @@ const getMyMonthlyHours = async (req, res, next) => {
     const { month } = req.query;
     const currentMonth = month || getTodayIST().substring(0, 7);
 
-    const matchFilter = { user: require('mongoose').Types.ObjectId.createFromHexString(userId) };
+    const matchFilter = { user: mongoose.Types.ObjectId.createFromHexString(userId) };
     const pipeline = buildMonthlyHoursPipeline(matchFilter, currentMonth, 0, 1);
     const [result] = await AttendanceSession.aggregate(pipeline);
 

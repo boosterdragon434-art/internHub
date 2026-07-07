@@ -36,6 +36,12 @@ api.defaults.adapter = async (config) => {
     const response = await adapter(config);
 
     if (response.status >= 200 && response.status < 300) {
+      if (apiCache.size > 200) {
+        // Evict oldest entry (Map iterates in insertion order)
+        const firstKey = apiCache.keys().next().value;
+        apiCache.delete(firstKey);
+      }
+
       apiCache.set(cacheKey, {
         timestamp: Date.now(),
         response: {
@@ -83,7 +89,9 @@ api.interceptors.response.use(
         try {
           const user = JSON.parse(userStr);
           role = user.role || 'student';
-        } catch (e) {}
+        } catch (e) {
+          console.warn('Failed to parse cached user for role detection:', e);
+        }
       }
       
       localStorage.removeItem('token');

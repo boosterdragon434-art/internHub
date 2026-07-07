@@ -4,6 +4,8 @@ const ApiError = require('../utils/ApiError');
 const ApiResponse = require('../utils/ApiResponse');
 const r2Service = require('../services/r2Service');
 const { PAGINATION } = require('../config/constants');
+const logger = require('../utils/logger');
+const escapeRegex = require('../utils/escapeRegex');
 
 /**
  * @desc    Get all internships (public, with search/filter/sort/pagination)
@@ -31,10 +33,11 @@ const getInternships = async (req, res, next) => {
     if (category) filter.category = category;
     if (mode) filter.mode = mode;
     if (search) {
+      const escapedSearch = escapeRegex(search);
       filter.$or = [
-        { title: { $regex: search, $options: 'i' } },
-        { description: { $regex: search, $options: 'i' } },
-        { category: { $regex: search, $options: 'i' } },
+        { title: { $regex: escapedSearch, $options: 'i' } },
+        { description: { $regex: escapedSearch, $options: 'i' } },
+        { category: { $regex: escapedSearch, $options: 'i' } },
       ];
     }
 
@@ -97,7 +100,7 @@ const createInternship = async (req, res, next) => {
   try {
     req.body.createdBy = req.user.id;
 
-    // Handle image upload to Google Drive
+    // Handle image upload to R2
     if (req.file) {
       const { publicId, secureUrl } = await r2Service.uploadFile(
         req.file.buffer,
@@ -177,7 +180,7 @@ const deleteInternship = async (req, res, next) => {
       return next(ApiError.conflict('Cannot delete internship because applications exist for it.'));
     }
 
-    // Delete image from Cloudinary
+    // Delete image from R2
     if (internship.imagePublicId) {
       await r2Service.deleteFile(internship.imagePublicId, 'image');
     }
