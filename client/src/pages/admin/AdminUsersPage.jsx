@@ -36,10 +36,15 @@ const AdminUsersPage = () => {
   }, [debouncedSearch, roleFilter, pagination.page]);
 
   const columns = [
-    { header: 'Name', render: (r) => (
-      <div>
-        <span className="font-bold text-slate-900 dark:text-slate-50">{r.name}</span>
-        <p className="text-[10px] text-slate-500">{r.email}</p>
+    { header: 'User', render: (r) => (
+      <div className="flex items-center gap-3.5">
+        <div className="h-10 w-10 shrink-0 rounded-full bg-gradient-to-br from-brand-100 to-brand-50 dark:from-brand-900/40 dark:to-brand-800/20 flex items-center justify-center text-brand-700 dark:text-brand-300 font-extrabold text-sm border border-brand-200/50 dark:border-brand-700/30">
+          {r.name.charAt(0).toUpperCase()}
+        </div>
+        <div>
+          <span className="font-bold text-slate-900 dark:text-slate-50">{r.name}</span>
+          <p className="text-[11px] font-medium text-slate-500 mt-0.5">{r.email}</p>
+        </div>
       </div>
     )},
     { header: 'Phone', key: 'phone' },
@@ -50,8 +55,9 @@ const AdminUsersPage = () => {
       </span>
     )},
     { header: 'Verified', render: (r) => (
-      <span className={`text-xs font-bold ${r.isEmailVerified ? 'text-emerald-600' : 'text-rose-500'}`}>
-        {r.isEmailVerified ? 'Yes' : 'No'}
+      <span className={`inline-flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1 rounded-full ${r.isEmailVerified ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-400' : 'bg-amber-50 text-amber-700 dark:bg-amber-900/20 dark:text-amber-400'}`}>
+        <span className={`w-1.5 h-1.5 rounded-full ${r.isEmailVerified ? 'bg-emerald-500' : 'bg-amber-500'}`}></span>
+        {r.isEmailVerified ? 'Verified' : 'Pending'}
       </span>
     )},
     { header: 'Joined', render: (r) => formatDate(r.createdAt) },
@@ -60,9 +66,14 @@ const AdminUsersPage = () => {
   return (
     <>
       <Helmet><title>Users — InternHub Admin</title></Helmet>
-      <div className="mb-6">
-        <h1 className="text-2xl font-extrabold text-slate-900 dark:text-slate-50">Manage Users</h1>
-        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">View and search all registered users.</p>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+        <div>
+          <h1 className="text-2xl font-extrabold text-slate-900 dark:text-slate-50 flex items-center gap-2">
+            <FiUsers className="w-6 h-6 text-brand-600 dark:text-brand-400" />
+            Manage Users
+          </h1>
+          <p className="mt-1.5 text-sm text-slate-500 dark:text-slate-400">View and manage all registered platform users elegantly.</p>
+        </div>
       </div>
 
       <SearchFilter

@@ -217,12 +217,12 @@ const AdminApplicationsPage = () => {
       />
 
       {/* ── Detail & Review Modal ── */}
-      <Modal isOpen={!!detailModal} onClose={() => setDetailModal(null)} title="Application Review" size="lg">
+      <Modal isOpen={!!detailModal} onClose={() => setDetailModal(null)} title="Application Review" size="xl">
         {detailModal && (
           <div className="space-y-5">
             
             {/* Applicant Details Grid */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-5">
               {[
                 ['Name', detailModal.name],
                 ['Email', detailModal.email],
@@ -234,33 +234,33 @@ const AdminApplicationsPage = () => {
                 ['Hours/Week', detailModal.hoursPerWeek ? `${detailModal.hoursPerWeek}h` : '20h'],
                 ['Available From', detailModal.availableFrom ? formatDate(detailModal.availableFrom) : 'Flexible'],
               ].map(([label, value]) => (
-                <div key={label} className="bg-slate-50 dark:bg-slate-900 rounded-xl p-3 border border-slate-100 dark:border-slate-800/60">
-                  <span className="text-[9px] text-slate-400 uppercase font-bold tracking-wider">{label}</span>
-                  <p className="text-xs font-semibold text-slate-900 dark:text-slate-50 mt-1 truncate" title={value}>{value || 'N/A'}</p>
+                <div key={label} className="bg-white dark:bg-slate-900 shadow-sm hover:shadow-md transition-shadow rounded-2xl p-5 border border-slate-200 dark:border-slate-800 flex flex-col justify-center">
+                  <span className="text-[10px] text-slate-500 uppercase font-bold tracking-wider">{label}</span>
+                  <p className="text-sm font-semibold text-slate-900 dark:text-slate-50 mt-1.5 truncate" title={value}>{value || 'N/A'}</p>
                 </div>
               ))}
             </div>
 
             {/* Extended Details */}
             {detailModal.motivation && (
-              <div className="bg-slate-50 dark:bg-slate-900 rounded-xl p-4 border border-slate-100 dark:border-slate-800/60">
-                <span className="text-[9px] text-slate-400 uppercase font-bold tracking-wider mb-2 block">Motivation</span>
-                <p className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed">{detailModal.motivation}</p>
+              <div className="bg-white dark:bg-slate-900 shadow-sm hover:shadow-md transition-shadow rounded-2xl p-5 border border-slate-200 dark:border-slate-800">
+                <span className="text-[10px] text-slate-500 uppercase font-bold tracking-wider mb-2 block">Motivation</span>
+                <p className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed">{detailModal.motivation}</p>
               </div>
             )}
             
             {(detailModal.relevantExperience || detailModal.portfolioUrl) && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
                 {detailModal.relevantExperience && (
-                  <div className="bg-slate-50 dark:bg-slate-900 rounded-xl p-4 border border-slate-100 dark:border-slate-800/60">
-                    <span className="text-[9px] text-slate-400 uppercase font-bold tracking-wider mb-2 block">Experience</span>
-                    <p className="text-xs text-slate-700 dark:text-slate-300">{detailModal.relevantExperience}</p>
+                  <div className="bg-white dark:bg-slate-900 shadow-sm hover:shadow-md transition-shadow rounded-2xl p-5 border border-slate-200 dark:border-slate-800">
+                    <span className="text-[10px] text-slate-500 uppercase font-bold tracking-wider mb-2 block">Experience</span>
+                    <p className="text-sm text-slate-700 dark:text-slate-300">{detailModal.relevantExperience}</p>
                   </div>
                 )}
                 {detailModal.portfolioUrl && (
-                  <div className="bg-slate-50 dark:bg-slate-900 rounded-xl p-4 border border-slate-100 dark:border-slate-800/60 flex flex-col justify-center">
-                    <span className="text-[9px] text-slate-400 uppercase font-bold tracking-wider mb-1 block">Portfolio Link</span>
-                    <a href={detailModal.portfolioUrl} target="_blank" rel="noopener noreferrer" className="text-xs font-semibold text-brand-600 dark:text-brand-400 hover:underline truncate">
+                  <div className="bg-white dark:bg-slate-900 shadow-sm hover:shadow-md transition-shadow rounded-2xl p-5 border border-slate-200 dark:border-slate-800 flex flex-col justify-center">
+                    <span className="text-[10px] text-slate-500 uppercase font-bold tracking-wider mb-1 block">Portfolio Link</span>
+                    <a href={detailModal.portfolioUrl} target="_blank" rel="noopener noreferrer" className="text-sm font-semibold text-brand-600 dark:text-brand-400 hover:underline truncate">
                       {detailModal.portfolioUrl}
                     </a>
                   </div>

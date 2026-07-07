@@ -52,10 +52,13 @@ const DataTable = ({
             {loading ? (
               // Loading Spinner
               <tr>
-                <td colSpan={columns.length + (onSelectAll ? 1 : 0)} className="py-20 text-center">
-                  <div className="flex flex-col items-center justify-center">
-                    <Spinner size="md" />
-                    <span className="mt-3 text-xs text-slate-400">Fetching records...</span>
+                <td colSpan={columns.length + (onSelectAll ? 1 : 0)} className="py-24 text-center">
+                  <div className="flex flex-col items-center justify-center space-y-4">
+                    <div className="relative flex justify-center items-center">
+                      <div className="absolute inset-0 rounded-full blur-md bg-accent-500/20 animate-pulse"></div>
+                      <Spinner size="lg" className="relative z-10" />
+                    </div>
+                    <span className="text-sm font-medium text-slate-500 dark:text-slate-400 animate-pulse">Loading records...</span>
                   </div>
                 </td>
               </tr>

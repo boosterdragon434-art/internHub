@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Helmet } from 'react-helmet-async';
-import { FiBriefcase, FiPlus, FiEdit2, FiTrash2 } from 'react-icons/fi';
+import { FiBriefcase, FiPlus, FiEdit2, FiTrash2, FiCheckCircle } from 'react-icons/fi';
 import { getInternshipsList, createInternship, updateInternship, deleteInternship } from '../../api/internshipApi';
 import { useToast } from '../../context/ToastContext';
 import DataTable from '../../components/ui/DataTable';
@@ -156,8 +156,8 @@ const AdminInternshipsPage = () => {
 
       {/* Create/Edit Modal */}
       <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title={editing ? 'Edit Internship' : 'Create Internship'} size="xl">
-        <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-1">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="space-y-6 max-h-[70vh] overflow-y-auto pr-2 custom-scrollbar">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
             <Input name="title" label="Title" value={form.title} onChange={handleChange} required />
             <Input name="category" label="Category" type="select" options={categoryOptions} placeholder="Select" value={form.category} onChange={handleChange} required />
             <Input name="duration" label="Duration" placeholder="e.g. 3 Months" value={form.duration} onChange={handleChange} required />
@@ -173,9 +173,19 @@ const AdminInternshipsPage = () => {
           <Input name="skills" label="Skills (comma-separated)" placeholder="React, Node.js" value={form.skills} onChange={handleChange} />
           <Input name="requirements" label="Requirements (one per line)" textarea rows={3} value={form.requirements} onChange={handleChange} />
           <Input name="responsibilities" label="Responsibilities (one per line)" textarea rows={3} value={form.responsibilities} onChange={handleChange} />
-          <div>
-            <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1.5">Cover Image</label>
-            <input type="file" accept="image/*" onChange={(e) => setImage(e.target.files[0])} className="text-xs text-slate-500" />
+          <div className="col-span-1 md:col-span-2">
+            <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">Cover Image</label>
+            <div className="flex items-center justify-center w-full">
+              <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-slate-300 border-dashed rounded-2xl cursor-pointer bg-slate-50 hover:bg-slate-100 dark:bg-slate-900/50 dark:border-slate-700 dark:hover:border-slate-600 dark:hover:bg-slate-800 transition-all">
+                <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                  <svg className="w-8 h-8 mb-3 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path></svg>
+                  <p className="mb-2 text-sm text-slate-600 dark:text-slate-400"><span className="font-semibold">Click to upload</span> or drag and drop</p>
+                  <p className="text-xs text-slate-500 dark:text-slate-500">SVG, PNG, JPG or WEBP (MAX. 800x400px)</p>
+                </div>
+                <input type="file" className="hidden" accept="image/*" onChange={(e) => setImage(e.target.files[0])} />
+              </label>
+            </div>
+            {image && <p className="mt-2 text-sm text-emerald-600 dark:text-emerald-400 font-medium flex items-center gap-1.5"><FiCheckCircle className="w-4 h-4"/> Selected: {image.name}</p>}
           </div>
         </div>
         <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-slate-200 dark:border-slate-800">

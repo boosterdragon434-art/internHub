@@ -45,19 +45,23 @@ const StudentDashboard = () => {
       <motion.div
         initial={{ opacity: 0, y: 15 }}
         animate={{ opacity: 1, y: 0 }}
-        className="mb-6 bg-gradient-to-r from-accent-600 to-accent-700 rounded-2xl p-6 text-white flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 shadow-sm"
+        className="relative mb-8 bg-gradient-to-br from-brand-600 via-brand-700 to-brand-900 rounded-[2rem] p-8 sm:p-10 text-white flex flex-col sm:flex-row sm:items-center sm:justify-between gap-6 shadow-xl shadow-brand-900/10 overflow-hidden"
       >
-        <div>
-          <h1 className="text-2xl font-extrabold">Welcome back, {user?.name?.split(' ')[0]}! 👋</h1>
-          <p className="text-sm text-accent-105 mt-1">
+        {/* Decorative Background Elements */}
+        <div className="absolute top-0 right-0 -mr-16 -mt-16 w-64 h-64 rounded-full bg-white opacity-[0.07] blur-3xl pointer-events-none"></div>
+        <div className="absolute bottom-0 left-0 -ml-16 -mb-16 w-48 h-48 rounded-full bg-brand-400 opacity-20 blur-2xl pointer-events-none"></div>
+        
+        <div className="relative z-10">
+          <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight">Welcome back, {user?.name?.split(' ')[0]}! 👋</h1>
+          <p className="text-brand-100/90 mt-2.5 font-medium max-w-lg leading-relaxed text-sm sm:text-base">
             Track your applications, manage payments, and stay on top of your internship journey.
           </p>
         </div>
         <Link
           to="/internships"
-          className="shrink-0 inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-white text-accent-700 hover:bg-accent-50 font-bold text-sm rounded-xl shadow-sm transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]"
+          className="relative z-10 shrink-0 inline-flex items-center justify-center gap-2.5 px-6 py-3.5 bg-white text-brand-700 hover:bg-brand-50 hover:text-brand-800 font-bold text-sm rounded-xl shadow-xl shadow-brand-900/20 transition-all duration-300 hover:-translate-y-0.5 active:translate-y-0"
         >
-          <FiBriefcase className="h-4.5 w-4.5 flex-shrink-0" />
+          <FiBriefcase className="h-5 w-5 flex-shrink-0" />
           Browse Internships
         </Link>
       </motion.div>
@@ -73,11 +77,11 @@ const StudentDashboard = () => {
       {/* Split Grid for Applications & Alerts */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
         {/* Recent Applications */}
-        <div className="lg:col-span-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-sm">
-          <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-slate-800">
-            <h2 className="text-sm font-bold text-slate-900 dark:text-slate-50">Recent Applications</h2>
-            <Link to="/student/applications" className="text-xs font-semibold text-accent-600 dark:text-accent-400 hover:text-accent-700">
-              View All
+        <div className="lg:col-span-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-[2rem] overflow-hidden shadow-sm hover:shadow-md transition-shadow duration-300">
+          <div className="flex items-center justify-between px-7 py-5 border-b border-slate-100 dark:border-slate-800/60">
+            <h2 className="text-base font-extrabold text-slate-900 dark:text-slate-50 tracking-tight">Recent Applications</h2>
+            <Link to="/student/applications" className="text-xs font-bold text-brand-600 dark:text-brand-400 hover:text-brand-700 hover:underline">
+              View All →
             </Link>
           </div>
           <div className="overflow-x-auto">
@@ -97,11 +101,11 @@ const StudentDashboard = () => {
                 </thead>
                 <tbody>
                   {applications.slice(0, 5).map((app) => (
-                    <tr key={app._id} className="border-b border-slate-100 dark:border-slate-800/60 hover:bg-slate-50/50 dark:hover:bg-slate-900/30 transition-colors">
-                      <td className="px-6 py-3 text-sm font-semibold text-slate-900 dark:text-slate-50 whitespace-nowrap">
+                    <tr key={app._id} className="border-b border-slate-100 dark:border-slate-800/60 hover:bg-slate-50/70 dark:hover:bg-slate-900/40 transition-colors cursor-default group">
+                      <td className="px-6 py-4 text-sm font-bold text-slate-800 dark:text-slate-100 whitespace-nowrap group-hover:text-brand-600 dark:group-hover:text-brand-400 transition-colors">
                         {app.internship?.title || 'N/A'}
                       </td>
-                      <td className="px-6 py-3 whitespace-nowrap">
+                      <td className="px-6 py-4 whitespace-nowrap">
                         <Badge status={app.status} />
                       </td>
                       <td className="px-6 py-3 text-xs text-slate-500 whitespace-nowrap">
