@@ -52,6 +52,11 @@ const applicationValidator = {
       'number.min': 'Payment amount must be at least ₹1',
       'any.required': 'Payment amount is required',
     }),
+    currency: Joi.string().valid('INR', 'USD').optional(),
+    deadline: Joi.date().required().messages({
+      'any.required': 'Payment deadline is required',
+    }),
+    notes: Joi.string().trim().max(1000).optional().allow(''),
   }),
 
   bulkAction: Joi.object({
