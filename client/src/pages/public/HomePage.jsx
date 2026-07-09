@@ -68,14 +68,11 @@ const AmbientBackground = () => (
  */
 const GenerativePlaceholder = ({ category }) => {
   const cat = (category || 'general').toLowerCase();
-  let grad = 'from-amber-600/10 to-yellow-550/10';
   let line = 'text-amber-500/20';
   if (cat.includes('web') || cat.includes('eng')) {
-    grad = 'from-amber-600/10 to-yellow-500/10';
     line = 'text-amber-500/25';
   } else if (cat.includes('design') || cat.includes('art')) {
-    grad = 'from-yellow-600/10 to-orange-500/10';
-    line = 'text-yellow-650/20';
+    line = 'text-yellow-600/20';
   }
 
   return (
@@ -90,7 +87,7 @@ const GenerativePlaceholder = ({ category }) => {
         <circle cx="50%" cy="50%" r="36" fill="none" stroke="currentColor" strokeWidth="1.2" strokeDasharray="3 3" />
         <path d="M 0 0 L 100 100" stroke="currentColor" strokeWidth="0.5" className="opacity-10" />
       </svg>
-      <FiBriefcase className="h-10 w-10 text-amber-600 dark:text-amber-450 drop-shadow-md z-10" />
+      <FiBriefcase className="h-10 w-10 text-amber-600 dark:text-amber-400 drop-shadow-md z-10" />
     </div>
   );
 };
@@ -110,9 +107,9 @@ const MockWorkspaceWidget = () => {
   }, []);
 
   const mockTasks = [
-    { title: 'Redesign Landing Page Grid', priority: 'urgent', status: 'In Review', color: 'rose' },
-    { title: 'Integrate Razorpay Webhooks', priority: 'high', status: 'In Progress', color: 'amber' },
-    { title: 'Configure Joi Date Ref Validator', priority: 'medium', status: 'Completed', color: 'emerald' },
+    { title: 'Redesign Landing Page Grid', priority: 'urgent', status: 'In Review' },
+    { title: 'Set Up CI Pipeline Checks', priority: 'high', status: 'In Progress' },
+    { title: 'Write Form Validation Rules', priority: 'medium', status: 'Completed' },
   ];
 
   return (
@@ -128,20 +125,20 @@ const MockWorkspaceWidget = () => {
             <span className="w-3 h-3 rounded-full bg-amber-500/90" />
             <span className="w-3 h-3 rounded-full bg-emerald-500/90" />
           </div>
-          <span className="text-[10px] font-mono font-bold tracking-widest text-slate-450 dark:text-slate-500 uppercase">
+          <span className="text-[10px] font-mono font-bold tracking-widest text-slate-400 dark:text-slate-500 uppercase">
             InternHub Workspace v2.4
           </span>
         </div>
         <div className="flex items-center gap-2">
           <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
-          <span className="px-2 py-0.5 rounded bg-amber-500/10 text-amber-700 dark:text-amber-400 text-[9px] font-black uppercase tracking-widest border border-amber-550/20">
+          <span className="px-2 py-0.5 rounded bg-amber-500/10 text-amber-700 dark:text-amber-400 text-[9px] font-black uppercase tracking-widest border border-amber-500/20">
             System Online
           </span>
         </div>
       </div>
 
       {/* Tabs list using solid gold gradient */}
-      <div className="flex gap-1 p-1 bg-slate-100 dark:bg-slate-950 rounded-2xl mb-4 border border-slate-200/40 dark:border-slate-850/60">
+      <div className="flex gap-1 p-1 bg-slate-100 dark:bg-slate-950 rounded-2xl mb-4 border border-slate-200/40 dark:border-slate-800/60">
         {['overview', 'tasks', 'metrics'].map((t) => (
           <button
             key={t}
@@ -170,19 +167,19 @@ const MockWorkspaceWidget = () => {
             >
               {/* Quick metrics grid */}
               <div className="grid grid-cols-3 gap-3">
-                <div className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-850 p-3 rounded-2xl flex flex-col justify-between hover:border-amber-500/20 transition-colors">
+                <div className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 p-3 rounded-2xl flex flex-col justify-between hover:border-amber-500/20 transition-colors">
                   <span className="text-[9px] font-black tracking-wider uppercase text-slate-400 dark:text-slate-500">
                     Total Hours
                   </span>
                   <span className="text-lg font-black text-slate-800 dark:text-white mt-1">124.5h</span>
                 </div>
-                <div className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-850 p-3 rounded-2xl flex flex-col justify-between hover:border-amber-500/20 transition-colors">
+                <div className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 p-3 rounded-2xl flex flex-col justify-between hover:border-amber-500/20 transition-colors">
                   <span className="text-[9px] font-black tracking-wider uppercase text-slate-400 dark:text-slate-500">
                     Active Tasks
                   </span>
                   <span className="text-lg font-black text-amber-600 dark:text-amber-400 mt-1">08/12</span>
                 </div>
-                <div className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-850 p-3 rounded-2xl flex flex-col justify-between hover:border-amber-500/20 transition-colors">
+                <div className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 p-3 rounded-2xl flex flex-col justify-between hover:border-amber-500/20 transition-colors">
                   <span className="text-[9px] font-black tracking-wider uppercase text-slate-400 dark:text-slate-500">
                     Grade Est.
                   </span>
@@ -191,7 +188,7 @@ const MockWorkspaceWidget = () => {
               </div>
 
               {/* Active Cohort card */}
-              <div className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-850 p-4 rounded-2xl flex justify-between items-center gap-3">
+              <div className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 p-4 rounded-2xl flex justify-between items-center gap-3">
                 <div className="min-w-0 flex-1">
                   <span className="text-[8px] font-black uppercase tracking-widest text-amber-600 dark:text-amber-400">
                     Active Cohort
@@ -199,7 +196,7 @@ const MockWorkspaceWidget = () => {
                   <h4 className="text-xs font-bold text-slate-800 dark:text-white truncate mt-0.5">
                     Full Stack Web Engineering
                   </h4>
-                  <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate mt-0.5">Under guidance of Dr. Jane Smith</p>
+                  <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate mt-0.5">Under guidance of your assigned mentor</p>
                 </div>
                 <div className="flex flex-col items-end shrink-0">
                   <span className="text-[10px] font-black text-slate-700 dark:text-slate-300">{taskProgress}% Done</span>
@@ -226,14 +223,14 @@ const MockWorkspaceWidget = () => {
               {mockTasks.map((tk, i) => (
                 <div
                   key={i}
-                  className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-850 rounded-2xl hover:border-amber-500/25 transition-colors"
+                  className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl hover:border-amber-500/25 transition-colors"
                 >
                   <div className="flex items-center gap-3 min-w-0">
                     <span className={`w-2.5 h-2.5 rounded-full shrink-0 shadow-md ${
                       tk.priority === 'urgent'
                         ? 'bg-rose-500'
                         : tk.priority === 'high'
-                          ? 'bg-amber-505'
+                          ? 'bg-amber-500'
                           : 'bg-emerald-500'
                     }`} />
                     <span className="text-[11px] font-extrabold text-slate-700 dark:text-slate-200 truncate">{tk.title}</span>
@@ -260,7 +257,7 @@ const MockWorkspaceWidget = () => {
               exit={{ opacity: 0, y: -8 }}
               className="space-y-3.5"
             >
-              <div className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-850 p-3.5 rounded-2xl space-y-2">
+              <div className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 p-3.5 rounded-2xl space-y-2">
                 <div className="flex justify-between items-center text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                   <span>Code Standards</span>
                   <span className="text-emerald-600 dark:text-emerald-400 font-bold">98% Match</span>
@@ -274,7 +271,7 @@ const MockWorkspaceWidget = () => {
                   />
                 </div>
               </div>
-              <div className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-850 p-3.5 rounded-2xl space-y-2">
+              <div className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 p-3.5 rounded-2xl space-y-2">
                 <div className="flex justify-between items-center text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                   <span>Milestone Compliance</span>
                   <span className="text-amber-600 dark:text-amber-400 font-bold">88% Compliance</span>
@@ -318,14 +315,14 @@ const HomePage = () => {
   const howItWorks = [
     { icon: FiSearch, title: 'Browse domain', desc: 'Explore curated internship roles across top modern tech sectors.' },
     { icon: FiFileText, title: 'Apply resume', desc: 'Submit details and resume profile. Our process takes minutes.' },
-    { icon: FiCreditCard, title: 'Confirm fee', desc: 'Secure payment requests handled via Razorpay integration.' },
+    { icon: FiCreditCard, title: 'Confirm fee', desc: 'Scan a QR code to pay via UPI/Google Pay, then confirm your transaction ID.' },
     { icon: FiCheckCircle, title: 'Start learning', desc: 'Unlock workspace boards, calendar reminders, and advisor chats.' },
   ];
 
   const faqs = [
     { q: 'How do I apply for an internship?', a: 'Create a free student profile, navigate to the internships catalog, select your preferred internship track, and click "Apply" to submit your application details and resume.' },
     { q: 'Is there a program joining fee?', a: 'Some specialized cohorts have an optional or nominal fee assigned by sponsoring guides. We support fully free options too.' },
-    { q: 'What payment modes are supported?', a: 'Once accepted, payments are made securely through our integrated Razorpay portal supporting UPI (Google Pay, PhonePe), net banking, and all major debit/credit cards.' },
+    { q: 'What payment modes are supported?', a: 'Once accepted and a fee is assigned, you\'ll pay securely via UPI — scan the QR code with Google Pay (or any UPI app), then submit your transaction ID along with a screenshot for verification. Our team confirms it and activates your enrollment.' },
     { q: 'Will I receive a verifiable certificate?', a: 'Yes! Upon successful completion of your internship tasks and milestone reviews, you will receive a secure credential complete with a dynamic QR validation signature code.' },
     { q: 'Can I apply to multiple cohorts?', a: 'Absolutely. You are encouraged to explore multiple tracks. Each request is evaluated independently by program coordinators.' },
   ];
@@ -381,7 +378,7 @@ const HomePage = () => {
               {/* Description body */}
               <motion.p
                 variants={fadeUp}
-                className="text-sm sm:text-base text-slate-650 dark:text-slate-205 leading-relaxed max-w-2xl font-semibold"
+                className="text-sm sm:text-base text-slate-600 dark:text-slate-300 leading-relaxed max-w-2xl font-semibold"
               >
                 Collaborate in ClickUp-style workspaces, solve cohort task challenges under advisor guides, and earn highly polished, dynamic credentials with embedded validation signatures.
               </motion.p>
@@ -444,11 +441,11 @@ const HomePage = () => {
                   className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 md:p-8 rounded-[2rem] text-left relative overflow-hidden group shadow-md hover:border-amber-500/30 dark:hover:border-amber-500/30 transition-all duration-300"
                 >
                   <div className="flex items-center justify-between mb-4">
-                    <div className="p-3 bg-amber-500/10 rounded-2xl w-fit text-amber-600 dark:text-amber-450 group-hover:scale-105 transition-transform duration-300 border border-amber-500/10">
+                    <div className="p-3 bg-amber-500/10 rounded-2xl w-fit text-amber-600 dark:text-amber-400 group-hover:scale-105 transition-transform duration-300 border border-amber-500/10">
                       <Icon className="h-6 w-6" />
                     </div>
                   </div>
-                  <h3 className="text-3xl md:text-4xl font-black bg-gradient-to-r from-amber-500 to-yellow-600 dark:from-amber-450 dark:to-yellow-450 bg-clip-text text-transparent tracking-tight">
+                  <h3 className="text-3xl md:text-4xl font-black bg-gradient-to-r from-amber-500 to-yellow-600 dark:from-amber-400 dark:to-yellow-400 bg-clip-text text-transparent tracking-tight">
                     {stat.value}
                   </h3>
                   <p className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest mt-2.5">
@@ -467,14 +464,14 @@ const HomePage = () => {
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-16 items-start">
             {/* Sticky Left block */}
             <div className="lg:col-span-4 lg:sticky lg:top-32 space-y-5 text-left z-10">
-              <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-2xl bg-amber-500/10 dark:bg-amber-950/45 border border-amber-200/80 dark:border-slate-800/80 text-[10px] font-black uppercase tracking-widest text-amber-750 dark:text-amber-400">
+              <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-2xl bg-amber-500/10 dark:bg-amber-950/45 border border-amber-200/80 dark:border-slate-800/80 text-[10px] font-black uppercase tracking-widest text-amber-700 dark:text-amber-400">
                 ⚡ Path To Success
               </div>
               <h2 className="text-3xl sm:text-4xl lg:text-5xl font-black tracking-tight text-slate-900 dark:text-white leading-tight">
                 Process Blueprint
               </h2>
-              <p className="text-sm text-slate-650 dark:text-slate-205 leading-relaxed font-semibold">
-                InternHub streamlines your learning path into four distinct, trackable segments. Explore active cohorts, submit your profile, handle Secure Razorpay steps, and unlock advisor guides.
+              <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed font-semibold">
+                InternHub streamlines your learning path into four distinct, trackable segments. Explore active cohorts, submit your profile, confirm your fee via UPI/Google Pay, and unlock advisor guides.
               </p>
             </div>
 
@@ -500,12 +497,12 @@ const HomePage = () => {
 
                     <div className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-[2rem] shadow-sm hover:shadow-md transition-all duration-300">
                       <div className="flex items-center gap-4 mb-3">
-                        <div className="p-2.5 bg-amber-500/10 text-amber-650 dark:text-amber-450 rounded-xl group-hover:scale-105 transition-transform duration-300 border border-amber-500/10">
+                        <div className="p-2.5 bg-amber-500/10 text-amber-600 dark:text-amber-400 rounded-xl group-hover:scale-105 transition-transform duration-300 border border-amber-500/10">
                           <step.icon className="h-5 w-5" />
                         </div>
                         <h3 className="text-base font-extrabold text-slate-800 dark:text-slate-100">{step.title}</h3>
                       </div>
-                      <p className="text-xs text-slate-655 dark:text-slate-250 leading-relaxed font-semibold pl-1">
+                      <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed font-semibold pl-1">
                         {step.desc}
                       </p>
                     </div>
@@ -523,19 +520,19 @@ const HomePage = () => {
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="flex items-end justify-between mb-12">
               <div className="text-left space-y-2">
-                <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-2xl bg-amber-500/10 dark:bg-amber-950/45 border border-amber-200/80 dark:border-slate-800/80 text-[10px] font-black uppercase tracking-widest text-amber-750 dark:text-amber-400">
+                <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-2xl bg-amber-500/10 dark:bg-amber-950/45 border border-amber-200/80 dark:border-slate-800/80 text-[10px] font-black uppercase tracking-widest text-amber-700 dark:text-amber-400">
                   📁 Current Cohorts
                 </div>
                 <h2 className="text-3xl sm:text-4xl font-black tracking-tight text-slate-900 dark:text-white">
                   Active Tracks
                 </h2>
-                <p className="text-xs text-slate-505 dark:text-slate-400 font-semibold">
+                <p className="text-xs text-slate-500 dark:text-slate-400 font-semibold">
                   Handpicked professional training cohorts launching soon.
                 </p>
               </div>
               <Link
                 to="/internships"
-                className="hidden sm:flex items-center gap-2 text-xs font-black uppercase tracking-widest text-amber-600 dark:text-amber-455 hover:text-amber-500 transition-colors"
+                className="hidden sm:flex items-center gap-2 text-xs font-black uppercase tracking-widest text-amber-600 dark:text-amber-400 hover:text-amber-500 transition-colors"
               >
                 View Catalog <FiArrowRight className="w-4 h-4" />
               </Link>
@@ -565,20 +562,20 @@ const HomePage = () => {
                       ) : (
                         <GenerativePlaceholder category={internship.category} />
                       )}
-                      <span className="absolute top-4 left-4 text-[9px] font-black uppercase px-3 py-1 rounded-xl bg-white dark:bg-slate-950 text-slate-850 dark:text-slate-205 shadow-md border border-slate-200/10">
+                      <span className="absolute top-4 left-4 text-[9px] font-black uppercase px-3 py-1 rounded-xl bg-white dark:bg-slate-950 text-slate-800 dark:text-slate-300 shadow-md border border-slate-200/10">
                         {internship.mode}
                       </span>
                     </div>
 
                     {/* Body container */}
                     <div className="p-6 text-left">
-                      <span className="inline-block text-[9px] font-black px-3 py-1 rounded-xl bg-amber-500/10 text-amber-750 dark:text-amber-450 border border-amber-500/15 uppercase mb-3.5">
+                      <span className="inline-block text-[9px] font-black px-3 py-1 rounded-xl bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/15 uppercase mb-3.5">
                         {internship.category}
                       </span>
                       <h3 className="text-base font-extrabold text-slate-900 dark:text-white group-hover:text-amber-600 dark:group-hover:text-amber-400 transition-colors truncate">
                         {internship.title}
                       </h3>
-                      <p className="mt-2 text-xs text-slate-655 dark:text-slate-250 line-clamp-2 leading-relaxed font-semibold min-h-[32px]">
+                      <p className="mt-2 text-xs text-slate-600 dark:text-slate-300 line-clamp-2 leading-relaxed font-semibold min-h-[32px]">
                         {internship.shortDescription || internship.description}
                       </p>
 
@@ -613,7 +610,7 @@ const HomePage = () => {
       <section className="py-24 relative z-10">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16 space-y-3">
-            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-2xl bg-amber-500/10 dark:bg-amber-905/40 border border-amber-200/80 dark:border-slate-800/80 text-[10px] font-black uppercase tracking-widest text-amber-705 dark:text-amber-400">
+            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-2xl bg-amber-500/10 dark:bg-amber-950/40 border border-amber-200/80 dark:border-slate-800/80 text-[10px] font-black uppercase tracking-widest text-amber-700 dark:text-amber-400">
               ❓ Support Desk
             </div>
             <h2 className="text-3xl sm:text-4xl font-black tracking-tight text-slate-900 dark:text-white">
@@ -646,8 +643,8 @@ const HomePage = () => {
                     transition={{ type: 'spring', stiffness: 200, damping: 15 }}
                     className={`p-1.5 rounded-full shrink-0 ml-4 border ${
                       openFaq === idx
-                        ? 'bg-amber-500/10 text-amber-605 border-amber-550/20'
-                        : 'bg-slate-100 dark:bg-slate-850 text-slate-400 dark:text-slate-550 border-slate-200/10'
+                        ? 'bg-amber-500/10 text-amber-600 border-amber-500/20'
+                        : 'bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 border-slate-200/10'
                     }`}
                   >
                     <FiChevronDown className="h-4 w-4" />
@@ -660,9 +657,9 @@ const HomePage = () => {
                       animate={{ height: 'auto', opacity: 1 }}
                       exit={{ height: 0, opacity: 0 }}
                       transition={{ duration: 0.22, ease: 'easeInOut' }}
-                      className="border-t border-slate-150 dark:border-slate-800/80 bg-slate-50 dark:bg-slate-950/40"
+                      className="border-t border-slate-200 dark:border-slate-800/80 bg-slate-50 dark:bg-slate-950/40"
                     >
-                      <div className="px-6 py-5 text-xs sm:text-sm text-slate-655 dark:text-slate-300 leading-relaxed font-semibold select-text">
+                      <div className="px-6 py-5 text-xs sm:text-sm text-slate-600 dark:text-slate-300 leading-relaxed font-semibold select-text">
                         {faq.a}
                       </div>
                     </motion.div>
@@ -691,7 +688,7 @@ const HomePage = () => {
                 <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} className="w-full sm:w-auto">
                   <Link
                     to="/register"
-                    className="w-full sm:w-auto px-8 py-4 bg-gradient-to-r from-amber-500 to-yellow-600 hover:from-amber-600 hover:to-yellow-750 text-slate-950 text-xs font-black uppercase tracking-widest rounded-2xl shadow-md shadow-amber-500/15 hover:shadow-lg transition-all duration-300 text-center block"
+                    className="w-full sm:w-auto px-8 py-4 bg-gradient-to-r from-amber-500 to-yellow-600 hover:from-amber-600 hover:to-yellow-700 text-slate-950 text-xs font-black uppercase tracking-widest rounded-2xl shadow-md shadow-amber-500/15 hover:shadow-lg transition-all duration-300 text-center block"
                   >
                     Sign Up Free
                   </Link>

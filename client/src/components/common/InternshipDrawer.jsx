@@ -5,9 +5,26 @@ import { FiX, FiClock, FiMapPin, FiUsers, FiCalendar, FiArrowRight, FiChevronDow
 import { FaRupeeSign } from 'react-icons/fa';
 import { useAuth } from '../../context/AuthContext';
 import { getMyApplications } from '../../api/applicationApi';
-import { getCooldownSetting } from '../../api/settingsApi';
 import { formatDate, formatDisplayAmount } from '../../utils/formatters';
 import InternshipApplicationForm from './InternshipApplicationForm';
+
+/**
+ * Application statuses that represent an application still "in flight" for this
+ * internship — re-applying while one of these is active would just create a
+ * confusing duplicate. Rejected and Completed are deliberately excluded: a
+ * rejected application should be governed by the server's real Cooldown record
+ * (checked authoritatively in createApplication), and a completed one shouldn't
+ * block a student from ever applying to the role again.
+ */
+const ACTIVE_APPLICATION_STATUSES = [
+  'Applied',
+  'Under Review',
+  'Approved',
+  'Payment Pending',
+  'Payment Verification Pending',
+  'Payment Completed',
+  'Joined',
+];
 
 /**
  * InternshipDrawer — Right-side detail panel with detail + application form modes.
@@ -29,29 +46,24 @@ const InternshipDrawer = ({ internship, isOpen, onClose }) => {
     setHasApplied(false);
   }, [internship?._id]);
 
-  // Check if user has already applied
+  // Check if the student already has an active application for this internship.
+  // The server's createApplication is the real authority on rejection cooldowns
+  // (via the Cooldown collection) — this is just a fast, accurate "you already
+  // have one in flight" check so the student doesn't fill out the whole form
+  // only to be rejected at the very last step.
   useEffect(() => {
     if (!isAuthenticated || !internship?._id || !isOpen) return;
     const checkStatus = async () => {
       setCheckingApplied(true);
       try {
-        const [appsRes, cooldownRes] = await Promise.all([
-          getMyApplications(),
-          getCooldownSetting(),
-        ]);
-        if (appsRes.success && cooldownRes.success) {
-          const cooldownHours = parseInt(cooldownRes.data.cooldown, 10) || 0;
+        const appsRes = await getMyApplications();
+        if (appsRes.success) {
           const relevant = appsRes.data.filter(
             (app) => app.internship?._id === internship._id || app.internship === internship._id
           );
           if (relevant.length > 0) {
             relevant.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-            if (cooldownHours === 0) {
-              setHasApplied(true);
-            } else {
-              const elapsed = (Date.now() - new Date(relevant[0].createdAt).getTime()) / (1000 * 60 * 60);
-              setHasApplied(elapsed < cooldownHours);
-            }
+            setHasApplied(ACTIVE_APPLICATION_STATUSES.includes(relevant[0].status));
           }
         }
       } catch (err) {

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import useEnrollment from '../../hooks/useEnrollment';
 import {
   FiGrid,
   FiBriefcase,
@@ -17,16 +18,22 @@ import {
   FiCalendar,
   FiAward,
   FiClock,
+  FiLock,
 } from 'react-icons/fi';
 
 /**
  * Collapsible admin/student/guide sidebar with active route highlighting.
+ * Student links are enrollment-aware: locked features show a lock icon when not enrolled.
  * Includes a mobile drawer overlay triggered externally via prop.
  */
 const Sidebar = ({ role = 'admin', mobileOpen = false, onMobileClose }) => {
   const [collapsed, setCollapsed] = useState(false);
   const { logout } = useAuth();
   const navigate = useNavigate();
+
+  // Only use enrollment hook for students
+  const enrollmentData = role === 'student' ? useEnrollment() : { isEnrolled: true, loading: false };
+  const { isEnrolled } = enrollmentData;
 
   const adminLinks = [
     { icon: FiGrid, label: 'Dashboard', to: '/admin/dashboard' },
@@ -55,10 +62,11 @@ const Sidebar = ({ role = 'admin', mobileOpen = false, onMobileClose }) => {
     { icon: FiGrid, label: 'Dashboard', to: '/student/dashboard' },
     { icon: FiBriefcase, label: 'Browse Internships', to: '/internships' },
     { icon: FiFileText, label: 'My Applications', to: '/student/applications' },
-    { icon: FiCheckSquare, label: 'My Tasks', to: '/student/tasks' },
-    { icon: FiClock, label: 'Attendance', to: '/student/attendance' },
-    { icon: FiCalendar, label: 'My Calendar', to: '/student/calendar' },
     { icon: FiCreditCard, label: 'Payments', to: '/student/payments' },
+    { icon: FiCheckSquare, label: 'My Tasks', to: '/student/tasks', requiresEnrollment: true },
+    { icon: FiClock, label: 'Attendance', to: '/student/attendance', requiresEnrollment: true },
+    { icon: FiCalendar, label: 'My Calendar', to: '/student/calendar', requiresEnrollment: true },
+    { icon: FiAward, label: 'Certificates', to: '/student/certificates', requiresEnrollment: true },
     { icon: FiUser, label: 'Profile', to: '/student/profile' },
   ];
 
@@ -81,26 +89,64 @@ const Sidebar = ({ role = 'admin', mobileOpen = false, onMobileClose }) => {
 
   const sidebarContent = (
     <>
+      {/* Enrollment badge for students */}
+      {role === 'student' && !enrollmentData.loading && (
+        <div className={`mx-2 mt-3 mb-1 px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-2 ${
+          isEnrolled
+            ? 'bg-emerald-50 dark:bg-emerald-950/20 text-emerald-600 dark:text-emerald-400 border border-emerald-200/60 dark:border-emerald-800/30'
+            : 'bg-amber-50 dark:bg-amber-950/20 text-amber-600 dark:text-amber-400 border border-amber-200/60 dark:border-amber-800/30'
+        }`}>
+          {(!collapsed || mobileOpen) ? (
+            <>
+              {isEnrolled ? (
+                <>
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse flex-shrink-0" />
+                  Enrolled
+                </>
+              ) : (
+                <>
+                  <FiLock className="h-3 w-3 flex-shrink-0" />
+                  Not Enrolled
+                </>
+              )}
+            </>
+          ) : (
+            <span className={`w-2.5 h-2.5 rounded-full mx-auto ${isEnrolled ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}`} />
+          )}
+        </div>
+      )}
+
       {/* Nav Links */}
-      <nav className="flex-1 p-2 space-y-1 overflow-y-auto mt-2">
-        {links.map((link) => (
-          <NavLink
-            key={link.to}
-            to={link.to}
-            end={link.to.endsWith('dashboard')}
-            onClick={handleNavClick}
-            className={({ isActive }) =>
-              `flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 group ${
-                isActive
-                  ? 'bg-accent-50 dark:bg-accent-950/30 text-accent-700 dark:text-accent-400 shadow-sm'
-                  : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-900 hover:text-slate-900 dark:hover:text-slate-200'
-              }`
-            }
-          >
-            <link.icon className={`h-5 w-5 flex-shrink-0 ${collapsed && !mobileOpen ? 'mx-auto' : ''}`} />
-            {(!collapsed || mobileOpen) && <span className="truncate">{link.label}</span>}
-          </NavLink>
-        ))}
+      <nav className="flex-1 p-2 space-y-1 overflow-y-auto mt-1">
+        {links.map((link) => {
+          const isLocked = link.requiresEnrollment && !isEnrolled;
+
+          return (
+            <NavLink
+              key={link.to}
+              to={link.to}
+              end={link.to.endsWith('dashboard')}
+              onClick={handleNavClick}
+              className={({ isActive }) =>
+                `flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 group ${
+                  isLocked
+                    ? 'text-slate-400/60 dark:text-slate-600 cursor-default'
+                    : isActive
+                      ? 'bg-accent-50 dark:bg-accent-950/30 text-accent-700 dark:text-accent-400 shadow-sm'
+                      : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-900 hover:text-slate-900 dark:hover:text-slate-200'
+                }`
+              }
+            >
+              <link.icon className={`h-5 w-5 flex-shrink-0 ${collapsed && !mobileOpen ? 'mx-auto' : ''} ${isLocked ? 'opacity-40' : ''}`} />
+              {(!collapsed || mobileOpen) && (
+                <span className={`truncate flex-1 ${isLocked ? 'opacity-50' : ''}`}>{link.label}</span>
+              )}
+              {(!collapsed || mobileOpen) && isLocked && (
+                <FiLock className="h-3 w-3 flex-shrink-0 text-slate-400/50 dark:text-slate-600" />
+              )}
+            </NavLink>
+          );
+        })}
       </nav>
 
       {/* Footer Controls */}

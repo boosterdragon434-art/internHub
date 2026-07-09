@@ -631,9 +631,32 @@ const getApplicationStats = async (req, res, next) => {
   }
 };
 
+/**
+ * @desc    Get student's enrollment instances (active internship enrollments)
+ * @route   GET /api/applications/my-enrollments
+ * @access  Student
+ */
+const getMyEnrollments = async (req, res, next) => {
+  try {
+    const EnrollmentInstance = mongoose.model('EnrollmentInstance');
+
+    const enrollments = await EnrollmentInstance.find({ student: req.user.id })
+      .populate('internship', 'title category mode duration imageUrl startDate endDate')
+      .populate('application', 'status name')
+      .populate('assignedGuide', 'name email')
+      .sort('-createdAt')
+      .lean();
+
+    ApiResponse.success(res, 200, 'Enrollments fetched successfully.', enrollments);
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   createApplication,
   getMyApplications,
+  getMyEnrollments,
   getAllApplications,
   getApplication,
   updateApplicationStatus,

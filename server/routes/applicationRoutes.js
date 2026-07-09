@@ -3,6 +3,7 @@ const router = express.Router();
 const {
   createApplication,
   getMyApplications,
+  getMyEnrollments,
   getAllApplications,
   getApplication,
   updateApplicationStatus,
@@ -20,6 +21,7 @@ const { uploadResume } = require('../middleware/upload');
 // Student routes
 router.post('/', protect, authorize('student'), uploadResume, validate(applicationValidator.create), createApplication);
 router.get('/my', protect, authorize('student'), getMyApplications);
+router.get('/my-enrollments', protect, authorize('student'), getMyEnrollments);
 
 // Admin routes
 router.get('/stats', protect, authorize('admin'), getApplicationStats);

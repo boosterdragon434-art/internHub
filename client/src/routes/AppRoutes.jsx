@@ -32,7 +32,6 @@ const VerifyEmailPage = lazy(() => import('../pages/auth/VerifyEmailPage'));
 
 // Lazy loaded student pages
 const StudentDashboard = lazy(() => import('../pages/student/StudentDashboard'));
-const ApplicationFormPage = lazy(() => import('../pages/student/ApplicationFormPage'));
 const MyApplicationsPage = lazy(() => import('../pages/student/MyApplicationsPage'));
 const PaymentPage = lazy(() => import('../pages/student/PaymentPage'));
 const ProfilePage = lazy(() => import('../pages/student/ProfilePage'));
@@ -78,17 +77,11 @@ const AppRoutes = () => {
           <Route path="/about" element={<AboutPage />} />
           <Route path="/contact" element={<ContactPage />} />
           <Route path="/verify-certificate/:certificateId" element={<CertificateVerifyPage />} />
-          
-          {/* Protected apply route (uses public layout header/footer) */}
-          <Route
-            path="/internships/:id/apply"
-            element={
-              <ProtectedRoute>
-                <ApplicationFormPage />
-              </ProtectedRoute>
-            }
-          />
-          
+
+          {/* NOTE: applying happens inline via the InternshipDrawer (opened from
+              /internships?selected=:id) — that is the single canonical apply flow.
+              There is intentionally no standalone "/internships/:id/apply" route. */}
+
           <Route path="*" element={<NotFoundPage />} />
         </Route>
 

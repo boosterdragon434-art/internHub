@@ -87,6 +87,8 @@ export const getApplicationStatusColor = (status) => {
       return 'bg-teal-100 text-teal-800 dark:bg-teal-900/30 dark:text-teal-400 border border-teal-200 dark:border-teal-800/50';
     case 'Payment Pending':
       return 'bg-accent-100 text-accent-800 dark:bg-accent-900/30 dark:text-accent-400 border border-accent-200 dark:border-accent-800/50';
+    case 'Payment Verification Pending':
+      return 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400 border border-orange-200 dark:border-orange-800/50';
     case 'Payment Completed':
       return 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400 border border-purple-200 dark:border-purple-800/50';
     case 'Joined':
@@ -109,9 +111,8 @@ export const getPaymentStatusColor = (status) => {
   switch (status) {
     case 'paid':
       return 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/50';
-    case 'created':
-    case 'attempted':
-      return 'bg-accent-100 text-accent-800 dark:bg-accent-900/30 dark:text-accent-400 border border-accent-200 dark:border-accent-800/50';
+    case 'pending_verification':
+      return 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400 border border-orange-200 dark:border-orange-800/50';
     case 'failed':
       return 'bg-rose-100 text-rose-800 dark:bg-rose-900/30 dark:text-rose-400 border border-rose-200 dark:border-rose-800/50';
     case 'refunded':

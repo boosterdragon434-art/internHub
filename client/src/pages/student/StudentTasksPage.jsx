@@ -1,11 +1,13 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Helmet } from 'react-helmet-async';
 import { toast } from 'react-hot-toast';
+import { FiCheckSquare } from 'react-icons/fi';
 import { getTasks, updateTask } from '../../api/taskApi';
 import TaskStatCards from '../../components/tasks/TaskStatCards';
 import TaskFilterBar from '../../components/tasks/TaskFilterBar';
 import TaskBoard from '../../components/tasks/TaskBoard';
 import TaskDetailModal from '../../components/tasks/TaskDetailModal';
+import EnrollmentGate from '../../components/common/EnrollmentGate';
 
 /**
  * StudentTasksPage — a student's personal view of deliverables assigned by
@@ -68,50 +70,59 @@ const StudentTasksPage = () => {
   });
 
   return (
-    <div className="space-y-6">
-      <Helmet>
-        <title>My Tasks — InternHub</title>
-      </Helmet>
+    <EnrollmentGate featureName="Tasks">
+      <div className="space-y-6">
+        <Helmet>
+          <title>My Tasks — InternHub</title>
+        </Helmet>
 
-      {/* Header Banner */}
-      <div className="glass-card hover-glow p-6 rounded-2xl border border-slate-800/80 bg-slate-900/40 relative overflow-hidden">
-        <h1 className="text-2xl font-extrabold tracking-tight text-white mb-1 bg-gradient-to-r from-violet-400 to-indigo-300 bg-clip-text text-transparent">
-          My Internship Tasks
-        </h1>
-        <p className="text-slate-400 text-sm">
-          Keep track of deliverables assigned by your guide, update completion states, and ask clarifying questions.
-        </p>
-      </div>
+        {/* Header Banner */}
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-2xl shadow-sm relative overflow-hidden">
+          <div className="flex items-center gap-3 mb-1">
+            <div className="w-10 h-10 bg-brand-50 dark:bg-brand-950/20 border border-brand-200/60 dark:border-brand-800/30 text-brand-600 dark:text-brand-400 rounded-xl flex items-center justify-center">
+              <FiCheckSquare className="w-5 h-5" />
+            </div>
+            <div>
+              <h1 className="text-xl sm:text-2xl font-extrabold tracking-tight text-slate-900 dark:text-slate-50">
+                My Internship Tasks
+              </h1>
+              <p className="text-slate-500 dark:text-slate-400 text-sm">
+                Keep track of deliverables assigned by your guide, update completion states, and ask clarifying questions.
+              </p>
+            </div>
+          </div>
+        </div>
 
-      <TaskStatCards tasks={tasks} />
+        <TaskStatCards tasks={tasks} />
 
-      <TaskFilterBar
-        searchQuery={searchQuery}
-        onSearchChange={setSearchQuery}
-        priority={selectedPriority}
-        onPriorityChange={setSelectedPriority}
-        viewMode={viewMode}
-        onViewModeChange={setViewMode}
-        searchPlaceholder="Search my tasks..."
-      />
-
-      <TaskBoard
-        tasks={filteredTasks}
-        loading={loading}
-        viewMode={viewMode}
-        onTaskClick={setSelectedTask}
-        onStatusChange={handleStatusChange}
-        emptyMessage="You don't have any tasks assigned yet."
-      />
-
-      {selectedTask && (
-        <TaskDetailModal
-          taskId={selectedTask._id}
-          onClose={() => setSelectedTask(null)}
-          onUpdate={handleTaskStateUpdate}
+        <TaskFilterBar
+          searchQuery={searchQuery}
+          onSearchChange={setSearchQuery}
+          priority={selectedPriority}
+          onPriorityChange={setSelectedPriority}
+          viewMode={viewMode}
+          onViewModeChange={setViewMode}
+          searchPlaceholder="Search my tasks..."
         />
-      )}
-    </div>
+
+        <TaskBoard
+          tasks={filteredTasks}
+          loading={loading}
+          viewMode={viewMode}
+          onTaskClick={setSelectedTask}
+          onStatusChange={handleStatusChange}
+          emptyMessage="You don't have any tasks assigned yet."
+        />
+
+        {selectedTask && (
+          <TaskDetailModal
+            taskId={selectedTask._id}
+            onClose={() => setSelectedTask(null)}
+            onUpdate={handleTaskStateUpdate}
+          />
+        )}
+      </div>
+    </EnrollmentGate>
   );
 };
 

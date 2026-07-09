@@ -6,7 +6,6 @@ import { QRCodeSVG } from 'qrcode.react';
 import { getMyPayments, submitUtr, getMyPaymentRequests } from '../../api/paymentApi';
 import { getPaymentUpiConfig } from '../../api/settingsApi';
 import { useToast } from '../../context/ToastContext';
-import { useAuth } from '../../context/AuthContext';
 import Badge from '../../components/common/Badge';
 import Button from '../../components/common/Button';
 import EmptyState from '../../components/common/EmptyState';
@@ -15,7 +14,6 @@ import { formatDate, formatCurrency } from '../../utils/formatters';
 
 const PaymentPage = () => {
   const toast = useToast();
-  const { user } = useAuth();
   const location = useLocation();
   const [payments, setPayments] = useState([]);
   const [pendingApps, setPendingApps] = useState([]);
@@ -38,7 +36,17 @@ const PaymentPage = () => {
         ]);
         if (payRes.success) setPayments(payRes.data);
         if (reqRes.success) {
-          setPendingApps(reqRes.data.filter((r) => r.status === 'pending'));
+          const pending = reqRes.data.filter((r) => r.status === 'pending');
+          setPendingApps(pending);
+
+          // Deep-link support: "My Applications" -> "Pay ₹X" navigates here with
+          // { state: { applicationId } } so the correct payment modal opens
+          // immediately instead of leaving the student to hunt for it.
+          const targetApplicationId = location.state?.applicationId;
+          if (targetApplicationId) {
+            const target = pending.find((r) => r.application === targetApplicationId || r.application?._id === targetApplicationId);
+            if (target) setPayingApp(target);
+          }
         }
         if (upiRes.success) {
           setUpiConfig(upiRes.data);
@@ -50,6 +58,7 @@ const PaymentPage = () => {
       }
     };
     fetchData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleFileChange = (e) => {
@@ -199,8 +208,11 @@ const PaymentPage = () => {
 
       {/* G-Pay UPI Payment Modal */}
       {payingApp && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 w-full max-w-md shadow-2xl relative overflow-hidden max-h-[90vh] overflow-y-auto">
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-slate-900/50 backdrop-blur-sm overflow-y-auto"
+          style={{ paddingTop: 'max(1rem, env(safe-area-inset-top))', paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}
+        >
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-5 sm:p-6 w-full max-w-md shadow-2xl relative my-auto">
             <h3 className="text-xl font-bold text-slate-900 dark:text-slate-50 mb-4 text-center">Google Pay (UPI)</h3>
             
             <div className="bg-slate-50 dark:bg-slate-800/50 rounded-2xl p-6 flex flex-col items-center justify-center mb-6 border border-slate-100 dark:border-slate-800">
@@ -265,23 +277,22 @@ const PaymentPage = () => {
                     </button>
                   </div>
                 ) : (
-                  <button
-                    type="button"
-                    onClick={() => fileInputRef.current?.click()}
-                    className="w-full py-6 rounded-xl border-2 border-dashed border-slate-300 dark:border-slate-600 hover:border-indigo-400 dark:hover:border-indigo-500 transition-colors flex flex-col items-center gap-2 text-slate-400 hover:text-indigo-500"
-                  >
+                  <div className="border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-2xl p-6 text-center hover:border-indigo-400 dark:hover:border-indigo-500 transition-colors bg-slate-50/50 dark:bg-slate-800/20">
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    onChange={handleFileChange}
+                    className="hidden"
+                    id="receipt-upload"
+                  />
+                  <label htmlFor="receipt-upload" className="cursor-pointer flex flex-col items-center gap-2 text-slate-400 hover:text-indigo-500">
                     <FiUpload className="h-6 w-6" />
                     <span className="text-sm font-medium">Upload receipt screenshot</span>
                     <span className="text-[10px]">JPEG, PNG, or WebP • Max 5MB</span>
-                  </button>
+                  </label>
+                  </div>
                 )}
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/jpeg,image/png,image/webp"
-                  onChange={handleFileChange}
-                  className="hidden"
-                />
               </div>
 
               <div className="flex items-center justify-end gap-3 pt-2">

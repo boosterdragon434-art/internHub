@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { Helmet } from 'react-helmet-async';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   FiClock,
@@ -13,6 +14,7 @@ import {
   FiAward,
   FiChevronLeft,
   FiChevronRight,
+  FiXCircle,
 } from 'react-icons/fi';
 import toast from 'react-hot-toast';
 import StatsCard from '../../components/ui/StatsCard';
@@ -20,6 +22,7 @@ import Spinner from '../../components/common/Loader';
 import EmptyState from '../../components/common/EmptyState';
 import Badge from '../../components/common/Badge';
 import Pagination from '../../components/common/Pagination';
+import EnrollmentGate from '../../components/common/EnrollmentGate';
 import {
   checkIn as apiCheckIn,
   breakStart as apiBreakStart,
@@ -377,6 +380,8 @@ const StudentAttendancePage = () => {
   }
 
   return (
+    <EnrollmentGate featureName="Attendance">
+    <Helmet><title>Attendance — InternHub</title></Helmet>
     <div className="space-y-6">
       {/* Page Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
@@ -891,6 +896,7 @@ const StudentAttendancePage = () => {
       {/* Spacer for mobile fixed bar */}
       <div className="h-20 md:hidden" />
     </div>
+    </EnrollmentGate>
   );
 };
 

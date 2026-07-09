@@ -41,7 +41,7 @@ const applicationValidator = {
     status: Joi.string()
       .valid(
         'Applied', 'Under Review', 'Approved', 'Rejected',
-        'Payment Pending', 'Payment Completed', 'Joined', 'Completed'
+        'Payment Pending', 'Payment Verification Pending', 'Payment Completed', 'Joined', 'Completed'
       )
       .required(),
     adminNotes: Joi.string().trim().max(1000).optional().allow(''),
