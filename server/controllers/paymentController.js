@@ -8,7 +8,6 @@ const Notification = require('../models/Notification');
 const User = require('../models/User');
 const ApiError = require('../utils/ApiError');
 const ApiResponse = require('../utils/ApiResponse');
-const paymentService = require('../services/paymentService');
 const emailService = require('../services/emailService');
 const csvService = require('../services/csvService');
 const r2Service = require('../services/r2Service');
