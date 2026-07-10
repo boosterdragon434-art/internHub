@@ -349,27 +349,50 @@ const completeApplication = async (req, res, next) => {
 };
 
 /**
- * @desc    Assign payment amount to application and create PaymentRequest
+ * @desc    Assign payment amount to application and create PaymentRequest.
+ *          Atomically approves the application if it is still in a pre-approved
+ *          state (Applied / Under Review), so the admin can approve + assign
+ *          payment in a single action without a 409 race condition.
  * @route   PUT /api/applications/:id/assign-payment
  * @access  Admin
  */
 const assignPayment = async (req, res, next) => {
   try {
     const { amount, currency = 'INR', deadline, notes = '' } = req.body;
-    
+
     if (!amount || !deadline) {
       return next(ApiError.badRequest('Amount and deadline are required for payment request.'));
     }
 
-    const application = await Application.findById(req.params.id).populate('internship', 'title');
+    const application = await Application.findById(req.params.id)
+      .populate('internship', 'title startDate');
 
     if (!application) {
       return next(ApiError.notFound('Application not found.'));
     }
 
-    if (application.status !== APPLICATION_STATUS.APPROVED) {
-      return next(ApiError.conflict('Payment can only be assigned to approved applications.'));
+    // ── Guard: Determine if the application is in an assignable state ──
+    const PRE_APPROVED_STATUSES = [
+      APPLICATION_STATUS.APPLIED,
+      APPLICATION_STATUS.UNDER_REVIEW,
+    ];
+    const ASSIGNABLE_STATUSES = [
+      ...PRE_APPROVED_STATUSES,
+      APPLICATION_STATUS.APPROVED,
+    ];
+
+    if (!ASSIGNABLE_STATUSES.includes(application.status)) {
+      // Application is in a terminal or post-payment state — refuse
+      return next(
+        ApiError.conflict(
+          `Payment cannot be assigned to applications with status "${application.status}". ` +
+          'Only Applied, Under Review, or Approved applications are eligible.'
+        )
+      );
     }
+
+    const needsApproval = PRE_APPROVED_STATUSES.includes(application.status);
+    const originalStatus = application.status;
 
     // Check if PaymentRequest already exists and is pending
     const existingRequest = await PaymentRequest.findOne({
@@ -386,6 +409,22 @@ const assignPayment = async (req, res, next) => {
 
     let paymentRequest;
     try {
+      // If application was not yet approved, approve it first within the transaction
+      if (needsApproval) {
+        application.status = APPLICATION_STATUS.APPROVED;
+        await application.save({ session });
+
+        await AuditLog.create([{
+          admin: req.user.id,
+          action: 'APPROVED_APPLICATION_FOR_PAYMENT',
+          targetModel: 'Application',
+          targetId: application._id,
+          changes: { previousStatus: originalStatus, newStatus: APPLICATION_STATUS.APPROVED },
+          ipAddress: req.ip,
+        }], { session });
+      }
+
+      // Create the payment request
       const reqs = await PaymentRequest.create([{
         application: application._id,
         student: application.user,
@@ -398,6 +437,7 @@ const assignPayment = async (req, res, next) => {
 
       paymentRequest = reqs[0];
 
+      // Transition to Payment Pending
       application.status = APPLICATION_STATUS.PAYMENT_PENDING;
       await application.save({ session });
 
@@ -420,6 +460,22 @@ const assignPayment = async (req, res, next) => {
 
     const user = await User.findById(application.user);
 
+    // Send approval notification + email if application was just approved
+    if (needsApproval && user) {
+      await Notification.create({
+        user: application.user,
+        title: 'Application Approved! 🎉',
+        message: `Your application for ${application.internship.title} has been approved.`,
+        type: 'application',
+        link: '/student/applications',
+      });
+      setImmediate(() => {
+        emailService.sendInternshipApproval(user, application.internship.title, application.internship.startDate).catch((err) => {
+          logger.error(`Failed to send approval email to ${user.email}:`, err);
+        });
+      });
+    }
+
     // Send payment request email and notification
     await Notification.create({
       user: application.user,
@@ -428,9 +484,13 @@ const assignPayment = async (req, res, next) => {
       type: 'payment',
       link: '/student/payments',
     });
-    setImmediate(() => {
-      emailService.sendPaymentRequest(user, application.internship.title, amount).catch(() => {});
-    });
+    if (user) {
+      setImmediate(() => {
+        emailService.sendPaymentRequest(user, application.internship.title, amount).catch((err) => {
+          logger.error(`Failed to send payment request email to ${user.email}:`, err);
+        });
+      });
+    }
 
     ApiResponse.success(res, 200, 'Payment amount assigned and request sent.', {
       application,

@@ -40,7 +40,9 @@ const AdminApplicationsPage = () => {
   const [completing, setCompleting] = useState(false);
 
   const statusOptions = [
-    'Applied', 'Under Review', 'Approved', 'Rejected', 'Payment Pending', 'Payment Completed', 'Joined', 'Completed'
+    'Applied', 'Under Review', 'Approved', 'Rejected',
+    'Payment Pending', 'Payment Verification Pending', 'Payment Completed',
+    'Joined', 'Completed'
   ].map((s) => ({ value: s, label: s }));
 
   const fetchData = async () => {
@@ -68,17 +70,39 @@ const AdminApplicationsPage = () => {
     setSaving(true);
     try {
       if (statusForm.status === 'Approved' && Number(paymentAmount) > 0) {
-        if (!paymentDeadline) { toast.error('Please specify a payment deadline.'); setSaving(false); return; }
-        await assignPaymentAmount(detailModal._id, Number(paymentAmount), paymentCurrency, paymentDeadline, paymentNotes);
+        // Validate payment fields before making API calls
+        if (!paymentDeadline) {
+          toast.error('Please specify a payment deadline.');
+          setSaving(false);
+          return;
+        }
+        if (new Date(paymentDeadline) <= new Date()) {
+          toast.error('Payment deadline must be in the future.');
+          setSaving(false);
+          return;
+        }
+
+        // Backend atomically approves + creates payment request in one call
+        await assignPaymentAmount(
+          detailModal._id,
+          Number(paymentAmount),
+          paymentCurrency,
+          paymentDeadline,
+          paymentNotes
+        );
         toast.success('Application approved and payment request sent!');
       } else {
         await updateApplicationStatus(detailModal._id, statusForm.status, statusForm.adminNotes);
         toast.success('Status updated successfully!');
       }
       setDetailModal(null);
+      setPaymentAmount('');
+      setPaymentNotes('');
       fetchData();
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Update failed.');
+      const serverMessage = err.response?.data?.message;
+      toast.error(serverMessage || 'Update failed. Please try again.');
+      console.error('Status update error:', err);
     } finally {
       setSaving(false);
     }
