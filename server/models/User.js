@@ -86,6 +86,36 @@ const userSchema = new mongoose.Schema(
       type: Boolean,
       default: true,
     },
+    // Lock audit trail
+    lockedAt: {
+      type: Date,
+      default: null,
+    },
+    lockedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      default: null,
+    },
+    lockReason: {
+      type: String,
+      trim: true,
+      maxlength: [500, 'Lock reason cannot exceed 500 characters'],
+      default: '',
+    },
+    // Soft-delete fields
+    isDeleted: {
+      type: Boolean,
+      default: false,
+    },
+    deletedAt: {
+      type: Date,
+      default: null,
+    },
+    deletedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      default: null,
+    },
     isEmailVerified: {
       type: Boolean,
       default: true,
@@ -131,6 +161,8 @@ userSchema.index({ email: 1 }, { unique: true });
 userSchema.index({ role: 1 });
 userSchema.index({ assignedGuide: 1 });
 userSchema.index({ isActive: 1 });
+userSchema.index({ isDeleted: 1 });
+userSchema.index({ isDeleted: 1, role: 1 });
 
 // --------- Pre-save: Hash password ---------
 userSchema.pre('save', async function (next) {

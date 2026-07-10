@@ -4,6 +4,7 @@ const ApiResponse = require('../utils/ApiResponse');
 const r2Service = require('../services/r2Service');
 const { PAGINATION } = require('../config/constants');
 const { reassignStudentGuide } = require('../services/guideAssignmentService');
+const userManagementService = require('../services/userManagementService');
 const logger = require('../utils/logger');
 const escapeRegex = require('../utils/escapeRegex');
 
@@ -132,6 +133,7 @@ const getAllUsers = async (req, res, next) => {
       limit = PAGINATION.DEFAULT_LIMIT,
       search,
       role,
+      status, // 'active' | 'locked' | 'deleted'
       sort = '-createdAt',
     } = req.query;
 
@@ -140,6 +142,21 @@ const getAllUsers = async (req, res, next) => {
 
     const filter = {};
     if (role) filter.role = role;
+
+    // Status filtering
+    if (status === 'deleted') {
+      filter.isDeleted = true;
+    } else if (status === 'locked') {
+      filter.isDeleted = { $ne: true };
+      filter.isActive = false;
+    } else if (status === 'active') {
+      filter.isDeleted = { $ne: true };
+      filter.isActive = true;
+    } else {
+      // Default: show non-deleted users
+      filter.isDeleted = { $ne: true };
+    }
+
     if (search) {
       const escapedSearch = escapeRegex(search);
       filter.$or = [
@@ -175,12 +192,15 @@ const getAllUsers = async (req, res, next) => {
  */
 const getUserStats = async (req, res, next) => {
   try {
-    const [totalStudents, totalAdmins, totalGuides, verifiedCount, recentUsers] = await Promise.all([
-      User.countDocuments({ role: 'student' }),
-      User.countDocuments({ role: 'admin' }),
-      User.countDocuments({ role: 'guide' }),
-      User.countDocuments({ isEmailVerified: true }),
-      User.find({ role: 'student' })
+    const activeFilter = { isDeleted: { $ne: true } };
+    const [totalStudents, totalAdmins, totalGuides, verifiedCount, lockedCount, softDeletedCount, recentUsers] = await Promise.all([
+      User.countDocuments({ ...activeFilter, role: 'student' }),
+      User.countDocuments({ ...activeFilter, role: 'admin' }),
+      User.countDocuments({ ...activeFilter, role: 'guide' }),
+      User.countDocuments({ ...activeFilter, isEmailVerified: true }),
+      User.countDocuments({ ...activeFilter, isActive: false }),
+      User.countDocuments({ isDeleted: true }),
+      User.find({ ...activeFilter, role: 'student' })
         .select('name email college createdAt')
         .sort('-createdAt')
         .limit(5)
@@ -192,6 +212,8 @@ const getUserStats = async (req, res, next) => {
       totalAdmins,
       totalGuides,
       verifiedCount,
+      lockedCount,
+      softDeletedCount,
       recentUsers,
     });
   } catch (error) {
@@ -367,6 +389,109 @@ const getAllGuides = async (req, res, next) => {
   }
 };
 
+/**
+ * @desc    Lock a user account (block access)
+ * @route   PUT /api/users/:id/lock
+ * @access  Admin
+ */
+const lockUser = async (req, res, next) => {
+  try {
+    const { reason } = req.body;
+    const result = await userManagementService.lockUser(req.params.id, req.user.id, reason || '');
+    ApiResponse.success(res, 200, 'User account locked successfully.', { user: result });
+  } catch (error) {
+    if (error.statusCode) {
+      return next(new ApiError(error.message, error.statusCode));
+    }
+    next(error);
+  }
+};
+
+/**
+ * @desc    Unlock a user account (restore access)
+ * @route   PUT /api/users/:id/unlock
+ * @access  Admin
+ */
+const unlockUser = async (req, res, next) => {
+  try {
+    const result = await userManagementService.unlockUser(req.params.id, req.user.id);
+    ApiResponse.success(res, 200, 'User account unlocked successfully.', { user: result });
+  } catch (error) {
+    if (error.statusCode) {
+      return next(new ApiError(error.message, error.statusCode));
+    }
+    next(error);
+  }
+};
+
+/**
+ * @desc    Soft-delete a user (hide from queries, preserve data)
+ * @route   DELETE /api/users/:id/soft
+ * @access  Admin
+ */
+const softDeleteUser = async (req, res, next) => {
+  try {
+    const { reason } = req.body;
+    const result = await userManagementService.softDeleteUser(req.params.id, req.user.id, reason || '');
+    ApiResponse.success(res, 200, 'User soft-deleted successfully. Data is preserved and can be restored.', { user: result });
+  } catch (error) {
+    if (error.statusCode) {
+      return next(new ApiError(error.message, error.statusCode));
+    }
+    next(error);
+  }
+};
+
+/**
+ * @desc    Restore a soft-deleted user
+ * @route   PUT /api/users/:id/restore
+ * @access  Admin
+ */
+const restoreUser = async (req, res, next) => {
+  try {
+    const result = await userManagementService.restoreUser(req.params.id, req.user.id);
+    ApiResponse.success(res, 200, 'User restored successfully.', { user: result });
+  } catch (error) {
+    if (error.statusCode) {
+      return next(new ApiError(error.message, error.statusCode));
+    }
+    next(error);
+  }
+};
+
+/**
+ * @desc    Permanently delete a user and all related data (IRREVERSIBLE)
+ * @route   DELETE /api/users/:id/permanent
+ * @access  Admin
+ */
+const hardDeleteUser = async (req, res, next) => {
+  try {
+    const { confirmEmail } = req.body;
+
+    if (!confirmEmail) {
+      return next(ApiError.badRequest('You must provide the user\'s email in confirmEmail to confirm permanent deletion.'));
+    }
+
+    // Verify confirmEmail matches the target user
+    const targetUser = await User.findById(req.params.id).select('email').lean();
+    if (!targetUser) {
+      return next(ApiError.notFound('User not found.'));
+    }
+
+    if (targetUser.email.toLowerCase() !== confirmEmail.toLowerCase()) {
+      return next(ApiError.badRequest('Confirmation email does not match. Permanent deletion aborted.'));
+    }
+
+    const result = await userManagementService.hardDeleteUser(req.params.id, req.user.id);
+    ApiResponse.success(res, 200, 'User permanently deleted. All related data has been removed.', { summary: result });
+  } catch (error) {
+    if (error.statusCode) {
+      return next(new ApiError(error.message, error.statusCode));
+    }
+    next(error);
+  }
+};
+
 module.exports = {
   updateProfile,
   uploadResume,
@@ -377,4 +502,9 @@ module.exports = {
   assignGuideToStudent,
   unassignGuide,
   getAllGuides,
+  lockUser,
+  unlockUser,
+  softDeleteUser,
+  restoreUser,
+  hardDeleteUser,
 };

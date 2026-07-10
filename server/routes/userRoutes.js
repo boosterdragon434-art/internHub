@@ -10,6 +10,11 @@ const {
   assignGuideToStudent,
   unassignGuide,
   getAllGuides,
+  lockUser,
+  unlockUser,
+  softDeleteUser,
+  restoreUser,
+  hardDeleteUser,
 } = require('../controllers/userController');
 const { protect, authorize } = require('../middleware/auth');
 const { uploadResume: multerUploadResume } = require('../middleware/upload');
@@ -27,6 +32,15 @@ router.get('/guides', protect, authorize('admin'), getAllGuides);
 router.post('/guides', protect, authorize('admin'), createGuide);
 router.put('/assign-guide', protect, authorize('admin'), assignGuideToStudent);
 router.put('/unassign-guide', protect, authorize('admin'), unassignGuide);
+
+// User management routes (admin only) — must be before the generic GET '/'
+router.put('/:id/lock', protect, authorize('admin'), lockUser);
+router.put('/:id/unlock', protect, authorize('admin'), unlockUser);
+router.delete('/:id/soft', protect, authorize('admin'), softDeleteUser);
+router.put('/:id/restore', protect, authorize('admin'), restoreUser);
+router.delete('/:id/permanent', protect, authorize('admin'), hardDeleteUser);
+
 router.get('/', protect, authorize('admin'), getAllUsers);
 
 module.exports = router;
+

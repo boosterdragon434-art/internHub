@@ -62,8 +62,12 @@ const login = async (req, res, next) => {
       return next(ApiError.unauthorized('Invalid email or password.'));
     }
 
+    if (user.isDeleted) {
+      return next(ApiError.forbidden('This account no longer exists. Contact the administrator.'));
+    }
+
     if (!user.isActive) {
-      return next(ApiError.forbidden('Your account has been deactivated. Contact the administrator.'));
+      return next(ApiError.forbidden('Your account has been locked. Contact the administrator.'));
     }
 
     // Check account lockout
@@ -126,8 +130,12 @@ const adminLogin = async (req, res, next) => {
       return next(ApiError.unauthorized('Invalid admin credentials.'));
     }
 
+    if (user.isDeleted) {
+      return next(ApiError.forbidden('This account no longer exists.'));
+    }
+
     if (!user.isActive) {
-      return next(ApiError.forbidden('Your account has been deactivated. Contact the administrator.'));
+      return next(ApiError.forbidden('Your admin account has been locked. Contact another administrator.'));
     }
 
     // Check account lockout
@@ -179,8 +187,12 @@ const guideLogin = async (req, res, next) => {
       return next(ApiError.unauthorized('Invalid guide credentials.'));
     }
 
+    if (user.isDeleted) {
+      return next(ApiError.forbidden('This account no longer exists. Contact the administrator.'));
+    }
+
     if (!user.isActive) {
-      return next(ApiError.forbidden('Your guide account has been deactivated. Contact the administrator.'));
+      return next(ApiError.forbidden('Your guide account has been locked. Contact the administrator.'));
     }
 
     // Check account lockout
