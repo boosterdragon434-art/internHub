@@ -33,3 +33,12 @@ export const updatePaymentUpiConfig = async (data) => {
   const res = await api.put('/settings/payment-upi', data);
   return res.data;
 };
+
+/**
+ * Fetch system health metrics.
+ * Requires admin privileges.
+ */
+export const getSystemHealth = async () => {
+  const res = await api.get('/settings/health');
+  return res.data;
+};

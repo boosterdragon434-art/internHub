@@ -16,7 +16,7 @@ import {
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import { updateProfile, changePassword } from '../../api/userApi';
-import { getCooldownSetting, updateCooldownSetting, getPaymentUpiConfig, updatePaymentUpiConfig } from '../../api/settingsApi';
+import { getCooldownSetting, updateCooldownSetting, getPaymentUpiConfig, updatePaymentUpiConfig, getSystemHealth } from '../../api/settingsApi';
 import Input from '../../components/common/Input';
 import Button from '../../components/common/Button';
 import AdminAttendanceSettingsSection from './AdminAttendanceSettingsSection';
@@ -160,6 +160,11 @@ const AdminSettingsPage = () => {
   // UPI Config Settings State
   const [upiConfig, setUpiConfig] = useState({ upiId: '', payeeName: '', qrCodeUrl: '' });
   const [upiLoading, setUpiLoading] = useState(false);
+  const [qrFile, setQrFile] = useState(null);
+
+  // System Health State
+  const [systemHealth, setSystemHealth] = useState(null);
+  const [systemHealthLoading, setSystemHealthLoading] = useState(true);
 
   const handleProfileSubmit = async (e) => {
     e.preventDefault();
@@ -210,13 +215,14 @@ const AdminSettingsPage = () => {
     }
   };
 
-  // Fetch application cooldown and UPI settings on mount
+  // Fetch application cooldown, UPI settings, and System Health on mount
   React.useEffect(() => {
     const fetchSettings = async () => {
       try {
-        const [cooldownRes, upiRes] = await Promise.all([
+        const [cooldownRes, upiRes, healthRes] = await Promise.all([
           getCooldownSetting(),
           getPaymentUpiConfig(),
+          getSystemHealth(),
         ]);
         if (cooldownRes.success) {
           setCooldown(cooldownRes.data.cooldown);
@@ -228,8 +234,13 @@ const AdminSettingsPage = () => {
             qrCodeUrl: upiRes.data.qrCodeUrl || '',
           });
         }
+        if (healthRes.success) {
+          setSystemHealth(healthRes.data);
+        }
       } catch (err) {
         console.error('Error fetching settings:', err);
+      } finally {
+        setSystemHealthLoading(false);
       }
     };
     fetchSettings();
@@ -254,9 +265,22 @@ const AdminSettingsPage = () => {
     e.preventDefault();
     setUpiLoading(true);
     try {
-      const res = await updatePaymentUpiConfig(upiConfig);
+      const formData = new FormData();
+      formData.append('upiId', upiConfig.upiId);
+      formData.append('payeeName', upiConfig.payeeName);
+      formData.append('qrCodeUrl', upiConfig.qrCodeUrl || '');
+      if (qrFile) {
+        formData.append('image', qrFile);
+      }
+
+      const res = await updatePaymentUpiConfig(formData);
       if (res.success) {
         toast.success('Payment UPI Configuration updated successfully!');
+        if (res.data && res.data.qrCodeUrl) {
+          setUpiConfig((prev) => ({ ...prev, qrCodeUrl: res.data.qrCodeUrl }));
+        }
+        setQrFile(null);
+        // Also clear the file input element manually if needed, but react handles it if we bind it or just let it be.
       }
     } catch (err) {
       toast.error(err.response?.data?.message || 'Failed to update UPI Config.');
@@ -265,12 +289,12 @@ const AdminSettingsPage = () => {
     }
   };
 
-  const systemStatusData = [
-    { name: 'Database Service', icon: FiDatabase, desc: 'MongoDB Atlas Connection Pool', status: 'Connected', badge: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-400' },
-    { name: 'Storage Service', icon: FiHardDrive, desc: 'Google Drive API Workspace', status: 'Active (Credentials verified)', badge: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-400' },
-    { name: 'Payment Gateway', icon: FiCreditCard, desc: 'Razorpay API Integration (Test Mode)', status: 'Connected', badge: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-400' },
-    { name: 'SMTP Email Transport', icon: FiMail, desc: 'Nodemailer SMTP Relayer Service', status: 'Active', badge: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-400' },
-  ];
+  const getBadgeClass = (status) => {
+    if (status === 'Connected' || status === 'Active' || status === 'Configured') {
+      return 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-400';
+    }
+    return 'bg-rose-100 text-rose-800 dark:bg-rose-950/30 dark:text-rose-400';
+  };
 
   return (
     <>
@@ -327,22 +351,37 @@ const AdminSettingsPage = () => {
                     <p className="text-xs text-slate-550 dark:text-slate-400 mb-6">Real-time status check for connected server-side cloud resources.</p>
 
                     <div className="divide-y divide-slate-100 dark:divide-slate-850">
-                      {systemStatusData.map((item, idx) => (
-                        <div key={idx} className="flex flex-col sm:flex-row sm:items-center justify-between py-4 gap-4 first:pt-0 last:pb-0">
-                          <div className="flex items-start gap-3.5">
-                            <div className="p-2.5 bg-slate-100 dark:bg-slate-800/80 rounded-xl text-slate-600 dark:text-slate-350 mt-0.5">
-                              <item.icon className="h-5 w-5" />
+                      {systemHealthLoading ? (
+                        <p className="text-sm text-slate-500 py-4">Checking system health...</p>
+                      ) : systemHealth ? (
+                        [
+                          { key: 'database', icon: FiDatabase },
+                          { key: 'storage', icon: FiHardDrive },
+                          { key: 'smtp', icon: FiMail },
+                          { key: 'payment', icon: FiCreditCard },
+                        ].map(({ key, icon: Icon }) => {
+                          const item = systemHealth[key];
+                          if (!item) return null;
+                          return (
+                            <div key={key} className="flex flex-col sm:flex-row sm:items-center justify-between py-4 gap-4 first:pt-0 last:pb-0">
+                              <div className="flex items-start gap-3.5">
+                                <div className="p-2.5 bg-slate-100 dark:bg-slate-800/80 rounded-xl text-slate-600 dark:text-slate-350 mt-0.5">
+                                  <Icon className="h-5 w-5" />
+                                </div>
+                                <div>
+                                  <h3 className="text-xs font-bold text-slate-900 dark:text-slate-100">{item.name}</h3>
+                                  <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">{item.desc}</p>
+                                </div>
+                              </div>
+                              <span className={`text-[10px] font-bold px-3 py-1 rounded-full text-center ${getBadgeClass(item.status)}`}>
+                                {item.status}
+                              </span>
                             </div>
-                            <div>
-                              <h3 className="text-xs font-bold text-slate-900 dark:text-slate-100">{item.name}</h3>
-                              <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">{item.desc}</p>
-                            </div>
-                          </div>
-                          <span className={`text-[10px] font-bold px-3 py-1 rounded-full text-center ${item.badge}`}>
-                            {item.status}
-                          </span>
-                        </div>
-                      ))}
+                          );
+                        })
+                      ) : (
+                        <p className="text-sm text-rose-500 py-4">Failed to load system health.</p>
+                      )}
                     </div>
                   </div>
 
@@ -405,12 +444,24 @@ const AdminSettingsPage = () => {
                       />
                       <Input
                         name="qrCodeUrl"
-                        label="QR Code URL (Cloudinary / Image Link)"
+                        label="QR Code URL (Or upload image below)"
                         type="url"
                         placeholder="https://.../qrcode.png"
                         value={upiConfig.qrCodeUrl}
                         onChange={(e) => setUpiConfig({ ...upiConfig, qrCodeUrl: e.target.value })}
                       />
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
+                          Upload Custom QR Image
+                        </label>
+                        <input
+                          type="file"
+                          accept="image/jpeg, image/png, image/webp"
+                          onChange={(e) => setQrFile(e.target.files[0])}
+                          className="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-accent-50 file:text-accent-700 hover:file:bg-accent-100 dark:file:bg-accent-900/50 dark:file:text-accent-400 dark:text-slate-400 cursor-pointer"
+                        />
+                        {qrFile && <p className="text-[10px] text-emerald-500 mt-1">Image selected: {qrFile.name}</p>}
+                      </div>
                       <Button
                         type="submit"
                         variant="primary"

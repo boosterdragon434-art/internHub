@@ -2,6 +2,8 @@ const Settings = require('../models/Settings');
 const ApiResponse = require('../utils/ApiResponse');
 const ApiError = require('../utils/ApiError');
 const logger = require('../utils/logger');
+const mongoose = require('mongoose');
+const r2Service = require('../services/r2Service');
 
 /**
  * @desc    Get application cooldown setting
@@ -107,6 +109,22 @@ const updatePaymentUpiConfig = async (req, res, next) => {
       return next(ApiError.badRequest('Payee name is required.'));
     }
 
+    let finalQrCodeUrl = qrCodeUrl ? qrCodeUrl.trim() : '';
+
+    if (req.file) {
+      try {
+        const uploadResult = await r2Service.uploadFile(
+          req.file.buffer,
+          'internhub/qr-codes',
+          'image'
+        );
+        finalQrCodeUrl = uploadResult.secureUrl;
+      } catch (uploadErr) {
+        logger.error('QR Code upload failed:', uploadErr);
+        return next(ApiError.internal('Failed to upload QR Code image.'));
+      }
+    }
+
     let setting = await Settings.findOne({ key: 'paymentUpiConfig' });
     if (!setting) {
       setting = new Settings({ key: 'paymentUpiConfig' });
@@ -115,7 +133,7 @@ const updatePaymentUpiConfig = async (req, res, next) => {
     setting.value = {
       upiId: upiId.trim(),
       payeeName: payeeName.trim(),
-      qrCodeUrl: qrCodeUrl ? qrCodeUrl.trim() : '',
+      qrCodeUrl: finalQrCodeUrl,
     };
     await setting.save();
 
@@ -132,9 +150,63 @@ const updatePaymentUpiConfig = async (req, res, next) => {
   }
 };
 
+/**
+ * @desc    Get system health status for admin dashboard
+ * @route   GET /api/settings/health
+ * @access  Admin
+ */
+const getSystemHealth = async (req, res, next) => {
+  try {
+    // 1. Database Check
+    const dbState = mongoose.connection.readyState;
+    const dbStatus = dbState === 1 ? 'Connected' : 'Disconnected';
+    
+    // 2. Storage Check (Cloudflare R2)
+    const hasR2Config = process.env.R2_ACCOUNT_ID && process.env.R2_ACCESS_KEY_ID && process.env.R2_SECRET_ACCESS_KEY && process.env.R2_BUCKET_NAME;
+    const r2Status = hasR2Config ? 'Active' : 'Missing Config';
+    
+    // 3. SMTP Check
+    const hasSmtpConfig = process.env.SMTP_HOST && process.env.SMTP_PORT && process.env.SMTP_USER && process.env.SMTP_PASS;
+    const smtpStatus = hasSmtpConfig ? 'Active' : 'Missing Config';
+
+    // 4. Payment Config Check (UPI)
+    const upiSetting = await Settings.findOne({ key: 'paymentUpiConfig' });
+    const upiStatus = (upiSetting && upiSetting.value && upiSetting.value.upiId) ? 'Configured' : 'Not Configured';
+
+    const healthData = {
+      database: {
+        name: 'Database Service',
+        desc: 'MongoDB Atlas Connection Pool',
+        status: dbStatus,
+      },
+      storage: {
+        name: 'Storage Service',
+        desc: 'Cloudflare R2 Object Storage',
+        status: r2Status,
+      },
+      smtp: {
+        name: 'SMTP Email Transport',
+        desc: 'Nodemailer SMTP Relayer Service',
+        status: smtpStatus,
+      },
+      payment: {
+        name: 'Payment Gateway',
+        desc: 'Manual UPI & UTR Verification',
+        status: upiStatus,
+      }
+    };
+
+    ApiResponse.success(res, 200, 'System health fetched.', healthData);
+  } catch (error) {
+    logger.error('Failed to get system health:', error);
+    next(error);
+  }
+};
+
 module.exports = {
   getCooldownSetting,
   updateCooldownSetting,
   getPaymentUpiConfig,
   updatePaymentUpiConfig,
+  getSystemHealth,
 };
