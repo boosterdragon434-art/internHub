@@ -89,7 +89,11 @@ app.use(
 );
 // Build explicit CORS allowlist from environment
 const corsAllowedOrigins = (() => {
-  const origins = new Set(['http://localhost:5173', 'http://localhost:5174']);
+  const origins = new Set([
+    'http://localhost:5173', 
+    'http://localhost:5174',
+    'https://intern-hub-front.vercel.app'
+  ]);
   const clientUrl = (process.env.CLIENT_URL || '').replace(/\/+$/, '');
   if (clientUrl) origins.add(clientUrl);
   // Add additional allowed origins from comma-separated env var
