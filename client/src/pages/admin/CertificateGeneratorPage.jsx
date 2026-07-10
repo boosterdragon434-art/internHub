@@ -2,11 +2,11 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Helmet } from 'react-helmet-async';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  FiAward, FiSearch, FiPlus, FiX, FiTrash2, FiEdit3, FiStar, FiSliders, FiSave, FiUploadCloud,
+  FiAward, FiSearch, FiPlus, FiX, FiTrash2, FiEdit2, FiStar, FiSliders, FiSave, FiUploadCloud,
   FiLayout, FiUsers, FiLayers, FiZoomIn, FiZoomOut, FiGrid, FiCopy, FiLock, FiUnlock,
   FiRotateCw, FiRotateCcw, FiEye, FiEyeOff, FiRefreshCw, FiCheck, FiDownload,
   FiAlertCircle, FiToggleLeft, FiToggleRight, FiFilter, FiFile, FiHardDrive, FiCheckSquare,
-  FiArrowUp, FiArrowDown,
+  FiArrowUp, FiArrowDown, FiImage, FiDownloadCloud, FiChevronLeft, FiChevronRight,
 } from 'react-icons/fi';
 import { getAllApplications } from '../../api/applicationApi';
 import {

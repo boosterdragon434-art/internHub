@@ -163,33 +163,16 @@ Phase 4 introduces dynamic vector PDF certificate compilation, QR validation tri
 
 ---
 
-## 5. Phase 5: Real-time & Chat System
+## 5. Phase 5: Dashboard Polish & Visual Audits
 
-Phase 5 introduced secure role-scoped Direct Messaging and real-time push alerts equipped with a state-of-the-art fallback architecture for serverless/stateless environments.
-
-### 5.1 Backend Specs & Routing
-- **[Conversation.js](file:///d:/internweb/server/models/Conversation.js)** & **[Message.js](file:///d:/internweb/server/models/Message.js)**: Created secure models mapping private direct conversation channels and chat histories with native timestamps and indexing.
-- **[chatController.js](file:///d:/internweb/server/controllers/chatController.js)**: Enforces RBAC boundaries so students only talk to assigned guides/admins, guides talk to cohort/admins, and admins have root-access. Added `getAvailableRecipients` to fetch authorized contacts.
-- **[socketService.js](file:///d:/internweb/server/services/socketService.js)**: Integrates Socket.IO into **[server.js](file:///d:/internweb/server/server.js)**, manages JWT authorized handshakes, joins users to private rooms, handles typing status events, and drives instant notification alert sweeps.
-
-### 5.2 Frontend Components & Integrations
-- **[SocketContext.jsx](file:///d:/internweb/client/src/context/SocketContext.jsx)**: Established socket connections with an automatic 4.5-second fallback to stateless HTTP polling. Provides active/polling synchronization of discussions lists, online state signals, and typing activities.
-- **[ChatPage.jsx](file:///d:/internweb/client/src/pages/chat/ChatPage.jsx)**: Renders a premium, glassmorphic dark direct messaging workspace. Left pane features recent threads, typing signals, and a visual search discover contacts modal; right pane exposes bubble timelines, avatar stamps, dynamic role badges, mock attachment controls, and read tick receipts.
-- **[Navbar.jsx](file:///d:/internweb/client/src/components/layout/Navbar.jsx)**: Connected to the `useSocket` context. Listens to the socket `notification` event to dynamically append in-app messages and increment bell counts without delay.
-- **[Sidebar.jsx](file:///d:/internweb/client/src/components/layout/Sidebar.jsx)**: Registered the "Discussions" menu item for Admins, Guides, and Students.
-
----
-
-## 6. Phase 6: Dashboard Polish & Visual Audits
-
-Phase 6 finalized analytical displays, resolved responsive bugs, and verified compilation boundaries.
+Phase 5 finalized analytical displays, resolved responsive bugs, and verified compilation boundaries.
 
 - **[AdminDashboard.jsx](file:///d:/internweb/client/src/pages/admin/AdminDashboard.jsx)**: Integrated analytical visual chart components (Recharts) for monthly revenues area mapping and application status pie sectors.
 - **Vite Build Verification**: Ran production bundling within the `client/` workspace, yielding a 100% clean build in **4.71 seconds** with zero errors or warnings, resolving feather icon-specific import limits natively.
 
 ---
 
-## 7. Verification & Compliance
+## 6. Verification & Compliance
 - **Compilation Check**: Syntactical integrity was validated using `node --check app.js` under `server/` with zero warnings.
 - **Client Bundler Validation**: Executed `npm run build` within `client/` workspace to verify correct dependency mapping, routing exports, and clean bundles.
 - **Design System Integration**: Leveraged CSS layout utilities, Framer Motion responsive spring animations, and standard HSL accent colors to create an enterprise-grade, cohesive user experience.

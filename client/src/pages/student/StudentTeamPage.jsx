@@ -19,6 +19,7 @@ import { getMyTeam, updateProjectDetails, updateMyContribution } from '../../api
 import Spinner from '../../components/common/Loader';
 import EmptyState from '../../components/common/EmptyState';
 import Button from '../../components/common/Button';
+import EnrollmentGate from '../../components/common/EnrollmentGate';
 
 const StudentTeamPage = () => {
   const { user } = useAuth();
@@ -126,7 +127,7 @@ const StudentTeamPage = () => {
   const myContrib = team.memberContributions?.find(c => c.student?._id === user.id || c.student === user.id);
 
   return (
-    <>
+    <EnrollmentGate featureName="Team Workspace">
       <Helmet><title>My Team — InternHub</title></Helmet>
 
       {/* ── Header & Project Info ── */}
@@ -443,7 +444,7 @@ const StudentTeamPage = () => {
           </div>
         )}
       </AnimatePresence>
-    </>
+    </EnrollmentGate>
   );
 };
 

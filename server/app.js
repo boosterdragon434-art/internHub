@@ -65,7 +65,7 @@ app.use(async (req, res, next) => {
 // Custom Helmet configuration for premium security headers
 const r2Origin = process.env.R2_PUBLIC_URL ? new URL(process.env.R2_PUBLIC_URL).origin : '';
 const imgSrc = ["'self'", "data:"];
-const connectSrc = ["'self'", "https://api.razorpay.com"];
+const connectSrc = ["'self'"];
 if (r2Origin) {
   imgSrc.push(r2Origin);
   connectSrc.push(r2Origin);
@@ -81,7 +81,7 @@ app.use(
         fontSrc: ["'self'", "https://fonts.gstatic.com"],
         imgSrc,
         connectSrc,
-        frameSrc: ["'self'", "https://api.razorpay.com", "https://checkout.razorpay.com"],
+        frameSrc: ["'self'"],
       },
     },
     crossOriginEmbedderPolicy: false,

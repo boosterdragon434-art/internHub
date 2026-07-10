@@ -1,5 +1,6 @@
 const Notification = require('../models/Notification');
 const ApiResponse = require('../utils/ApiResponse');
+const ApiError = require('../utils/ApiError');
 
 /**
  * @desc    Get user's notifications
