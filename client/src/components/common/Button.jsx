@@ -15,7 +15,7 @@ const Button = ({
   onClick,
   ...props
 }) => {
-  const baseStyles = 'inline-flex items-center justify-center font-semibold rounded-xl transition-all duration-300 ease-out focus:outline-none focus:ring-2 focus:ring-offset-2 active:scale-[0.97] hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none disabled:active:scale-100';
+  const baseStyles = 'inline-flex items-center justify-center whitespace-nowrap font-semibold rounded-xl transition-all duration-300 ease-out focus:outline-none focus:ring-2 focus:ring-offset-2 active:scale-[0.97] hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none disabled:active:scale-100';
 
   const variants = {
     primary: 'bg-accent-600 hover:bg-accent-700 active:bg-accent-800 text-white shadow-lg shadow-accent-600/10 focus:ring-accent-500 border border-transparent',
@@ -41,7 +41,7 @@ const Button = ({
     >
       {loading && (
         <svg
-          className="animate-spin -ml-1 mr-2 h-4 w-4 text-current"
+          className="animate-spin -ml-1 mr-2 h-4 w-4 text-current shrink-0"
           fill="none"
           viewBox="0 0 24 24"
         >
@@ -60,8 +60,8 @@ const Button = ({
           />
         </svg>
       )}
-      {!loading && Icon && <Icon className="mr-2 -ml-0.5 h-4 w-4" />}
-      {children}
+      {!loading && Icon && <Icon className="mr-2 -ml-0.5 h-4 w-4 shrink-0" />}
+      <span className="truncate">{children}</span>
     </button>
   );
 };

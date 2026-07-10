@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
-import { FiFileText } from 'react-icons/fi';
+import { FiFileText, FiClock } from 'react-icons/fi';
 import { getMyApplications } from '../../api/applicationApi';
-import { getMyPaymentRequests } from '../../api/paymentApi';
+import { getMyPaymentRequests, getMyPayments } from '../../api/paymentApi';
 import Badge from '../../components/common/Badge';
 import EmptyState from '../../components/common/EmptyState';
 import Button from '../../components/common/Button';
@@ -16,13 +16,16 @@ const MyApplicationsPage = () => {
   // Map of applicationId -> pending PaymentRequest, so the "Pay" CTA can show
   // the real assigned amount instead of a field that doesn't exist on Application.
   const [pendingPaymentsByApp, setPendingPaymentsByApp] = useState({});
+  // Map of applicationId -> Payment record for UTR submissions pending verification
+  const [pendingVerificationByApp, setPendingVerificationByApp] = useState({});
   const [loading, setLoading] = useState(true);
 
   const fetchData = useCallback(async () => {
     try {
-      const [appsRes, requestsRes] = await Promise.all([
+      const [appsRes, requestsRes, paymentsRes] = await Promise.all([
         getMyApplications(),
         getMyPaymentRequests(),
+        getMyPayments(),
       ]);
       if (appsRes.success) setApplications(appsRes.data);
       if (requestsRes.success) {
@@ -34,6 +37,16 @@ const MyApplicationsPage = () => {
             if (appId) map[appId] = r;
           });
         setPendingPaymentsByApp(map);
+      }
+      if (paymentsRes.success) {
+        const verificationMap = {};
+        paymentsRes.data
+          .filter((p) => p.status === 'pending_verification')
+          .forEach((p) => {
+            const appId = typeof p.application === 'object' ? p.application._id : p.application;
+            if (appId) verificationMap[appId] = p;
+          });
+        setPendingVerificationByApp(verificationMap);
       }
     } catch (err) {
       console.error(err);
@@ -75,6 +88,7 @@ const MyApplicationsPage = () => {
         <div className="space-y-4">
           {applications.map((app) => {
             const pendingRequest = pendingPaymentsByApp[app._id];
+            const hasSubmittedUtr = !!pendingVerificationByApp[app._id];
             return (
               <div
                 key={app._id}
@@ -97,16 +111,21 @@ const MyApplicationsPage = () => {
                     </p>
                   )}
                 </div>
-                <div className="flex items-center gap-3 shrink-0 w-full sm:w-auto">
+                <div className="flex items-center gap-3 shrink-0 w-full sm:w-auto flex-wrap">
                   {app.status === 'Joined' ? (
                     <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/20 text-emerald-600 dark:text-emerald-400 text-xs font-bold border border-emerald-200/60 dark:border-emerald-800/30">
                       <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
                       Enrolled
                     </span>
+                  ) : app.status === 'Payment Verification Pending' || (app.status === 'Payment Pending' && hasSubmittedUtr) ? (
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-50 dark:bg-blue-950/20 text-blue-600 dark:text-blue-400 text-xs font-bold border border-blue-200/60 dark:border-blue-800/30">
+                      <FiClock className="h-3.5 w-3.5" />
+                      Verification Pending
+                    </span>
                   ) : (
                     <Badge status={app.status} />
                   )}
-                  {app.status === 'Payment Pending' && pendingRequest && (
+                  {app.status === 'Payment Pending' && pendingRequest && !hasSubmittedUtr && (
                     <Button
                       size="sm"
                       variant="primary"
