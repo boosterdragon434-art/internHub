@@ -105,7 +105,11 @@ const PaymentPage = () => {
 
     setIsSubmitting(true);
     try {
-      const res = await submitUtr(payingApp._id, utrNumber.trim(), receiptFile);
+      // payingApp is a PaymentRequest — extract the linked Application ID
+      const applicationId = typeof payingApp.application === 'object'
+        ? payingApp.application._id
+        : payingApp.application;
+      const res = await submitUtr(applicationId, utrNumber.trim(), receiptFile);
       if (res.success) {
         toast.success('UTR submitted successfully! Pending admin verification.');
         setPayingApp(null);

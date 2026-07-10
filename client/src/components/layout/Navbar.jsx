@@ -27,7 +27,7 @@ import { formatDate } from '../../utils/formatters';
  * and high-contrast, fully visible dropdown menus.
  */
 const Navbar = () => {
-  const { user, isAuthenticated, logout, isAdmin } = useAuth();
+  const { user, isAuthenticated, loading: authLoading, logout, isAdmin } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -67,18 +67,27 @@ const Navbar = () => {
     setDarkMode(!darkMode);
   };
 
-  // Fetch Notifications
+  // Fetch Notifications — only after auth verification is complete
   useEffect(() => {
     let interval;
-    if (isAuthenticated) {
+    // Wait for auth loading to finish, confirm user is authenticated,
+    // and verify a token is actually present before polling
+    const hasValidSession = !authLoading && isAuthenticated && localStorage.getItem('token');
+
+    if (hasValidSession) {
       const fetchNotis = async () => {
         try {
+          // Double-check token still exists (may be cleared by interceptor mid-poll)
+          if (!localStorage.getItem('token')) return;
           const res = await getNotifications();
           if (res.success) {
             setNotifications(res.data.notifications);
             setUnreadCount(res.data.unreadCount);
           }
         } catch (error) {
+          // Suppress 401 errors — the axios response interceptor already handles
+          // token expiration by clearing credentials and redirecting to login.
+          if (error.response?.status === 401) return;
           console.error('Error fetching notifications:', error);
         }
       };
@@ -88,7 +97,7 @@ const Navbar = () => {
       interval = setInterval(fetchNotis, 45000);
     }
     return () => clearInterval(interval);
-  }, [isAuthenticated, location.pathname]);
+  }, [authLoading, isAuthenticated, location.pathname]);
 
 
   const handleMarkAllRead = async () => {
