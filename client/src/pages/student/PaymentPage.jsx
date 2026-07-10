@@ -23,7 +23,7 @@ const PaymentPage = () => {
   const [receiptFile, setReceiptFile] = useState(null);
   const [receiptPreview, setReceiptPreview] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [upiConfig, setUpiConfig] = useState({ upiId: '', payeeName: '' });
+  const [upiConfig, setUpiConfig] = useState({ upiId: '', payeeName: '', qrCodeUrl: '' });
   const fileInputRef = useRef(null);
 
   /**
@@ -65,7 +65,11 @@ const PaymentPage = () => {
           }
         }
         if (upiRes.success) {
-          setUpiConfig(upiRes.data);
+          setUpiConfig({
+            upiId: upiRes.data.upiId || '',
+            payeeName: upiRes.data.payeeName || '',
+            qrCodeUrl: upiRes.data.qrCodeUrl || '',
+          });
         }
       } catch (err) {
         console.error(err);
@@ -353,13 +357,17 @@ const PaymentPage = () => {
                 <div className="bg-slate-50 dark:bg-slate-800/50 rounded-2xl p-5 flex flex-col items-center justify-center mb-5 border border-slate-100 dark:border-slate-800">
                   <p className="text-sm text-slate-500 mb-4">Scan QR Code using Google Pay</p>
                   {upiConfig.upiId ? (
-                    <div className="w-44 h-44 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-2 bg-white flex items-center justify-center">
-                      <QRCodeSVG
-                        value={upiPayString}
-                        size={168}
-                        level="M"
-                        includeMargin={false}
-                      />
+                    <div className="w-44 h-44 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-2 bg-white flex items-center justify-center overflow-hidden">
+                      {upiConfig.qrCodeUrl ? (
+                        <img src={upiConfig.qrCodeUrl} alt="UPI QR Code" className="w-full h-full object-contain" />
+                      ) : (
+                        <QRCodeSVG
+                          value={upiPayString}
+                          size={168}
+                          level="M"
+                          includeMargin={false}
+                        />
+                      )}
                     </div>
                   ) : (
                     <div className="w-44 h-44 rounded-xl border-2 border-dashed border-slate-300 dark:border-slate-600 flex items-center justify-center">

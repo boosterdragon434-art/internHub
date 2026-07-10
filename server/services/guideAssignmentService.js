@@ -1,4 +1,5 @@
 const User = require('../models/User');
+const EnrollmentInstance = require('../models/EnrollmentInstance');
 const logger = require('../utils/logger');
 
 /**
@@ -48,6 +49,13 @@ const reassignStudentGuide = async (studentId, newGuideId, options = {}) => {
       { session }
     );
   }
+
+  // 5. Sync assignedGuide on all active EnrollmentInstances for this student
+  await EnrollmentInstance.updateMany(
+    { student: studentId, status: 'active' },
+    { $set: { assignedGuide: targetGuideId } },
+    { session }
+  );
 
   logger.info(`Student ${student.email} guide reassigned: ${oldGuideId || 'None'} -> ${targetGuideId || 'None'}`);
 };

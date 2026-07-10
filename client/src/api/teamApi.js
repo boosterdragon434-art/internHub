@@ -26,3 +26,17 @@ export const updateTeamMembers = (id, data) =>
 /** Assign or change guide for a team */
 export const assignTeamGuide = (id, data) =>
   api.put(`/teams/${id}/guide`, data);
+
+// ---- Student / Project Tracking Routes ----
+
+/** Get student's current team */
+export const getMyTeam = () => api.get('/teams/my-team');
+
+/** Update project title and link */
+export const updateProjectDetails = (id, data) => api.put(`/teams/${id}/project`, data);
+
+/** Update own contribution details */
+export const updateMyContribution = (id, data) => api.put(`/teams/${id}/contributions`, data);
+
+/** Verify a student's contribution (Guide/Admin only) */
+export const verifyContribution = (teamId, studentId, data) => api.put(`/teams/${teamId}/contributions/${studentId}/verify`, data);

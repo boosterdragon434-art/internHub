@@ -10,6 +10,7 @@ import {
   FiUserCheck,
   FiChevronDown,
   FiX,
+  FiCheckSquare,
 } from 'react-icons/fi';
 import toast from 'react-hot-toast';
 import StatsCard from '../../components/ui/StatsCard';
@@ -529,6 +530,16 @@ const AdminTeamsPage = () => {
                 {/* Actions */}
                 <div className="px-5 py-3 border-t border-slate-100 dark:border-slate-800 flex items-center gap-2">
                   <button
+                    onClick={() => {
+                      setSelectedTeam(team);
+                      setShowMembersModal(true);
+                    }}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/20 transition-colors"
+                  >
+                    <FiCheckSquare className="h-3.5 w-3.5" />
+                    Verify
+                  </button>
+                  <button
                     onClick={() => openEditModal(team)}
                     className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-accent-600 dark:text-accent-400 hover:bg-accent-50 dark:hover:bg-accent-950/20 transition-colors"
                   >
@@ -615,6 +626,83 @@ const AdminTeamsPage = () => {
             resetForm();
           }}
         />
+      </Modal>
+
+      {/* Contributions Modal */}
+      <Modal
+        isOpen={showMembersModal}
+        onClose={() => {
+          setShowMembersModal(false);
+          setSelectedTeam(null);
+        }}
+        title={`Project & Contributions — ${selectedTeam?.name || ''}`}
+        size="xl"
+      >
+        <div className="space-y-6 max-h-[70vh] overflow-y-auto">
+          {selectedTeam?.projectTitle ? (
+            <div className="bg-slate-50 dark:bg-slate-800/50 p-4 rounded-xl border border-slate-200 dark:border-slate-700">
+              <h4 className="text-sm font-bold text-slate-900 dark:text-slate-100 mb-1">Project: {selectedTeam.projectTitle}</h4>
+              {selectedTeam.projectLink && (
+                <a href={selectedTeam.projectLink} target="_blank" rel="noopener noreferrer" className="text-xs text-accent-600 hover:underline">
+                  {selectedTeam.projectLink}
+                </a>
+              )}
+            </div>
+          ) : (
+            <div className="bg-slate-50 dark:bg-slate-800/50 p-4 rounded-xl border border-slate-200 dark:border-slate-700">
+              <p className="text-sm text-slate-500 italic">No project title set by the team yet.</p>
+            </div>
+          )}
+
+          <div>
+            <h4 className="text-sm font-bold text-slate-900 dark:text-slate-100 mb-3">Member Contributions</h4>
+            {selectedTeam?.members?.length === 0 ? (
+              <p className="text-sm text-slate-500">No members in this team.</p>
+            ) : (
+              <div className="space-y-4">
+                {selectedTeam?.members?.map((member) => {
+                  const contrib = selectedTeam.memberContributions?.find(c => c.student === member._id || c.student?._id === member._id);
+                  
+                  return (
+                    <div key={member._id} className="p-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 flex flex-col sm:flex-row gap-4">
+                      <div className="flex-1">
+                        <p className="text-sm font-bold text-slate-900 dark:text-slate-100">{member.name}</p>
+                        <p className="text-xs text-slate-500 mb-2">{member.email}</p>
+                        <div className="text-xs text-slate-600 dark:text-slate-400 space-y-1">
+                          <p><span className="font-semibold text-slate-700 dark:text-slate-300">Role:</span> {contrib?.role || 'N/A'}</p>
+                          <p><span className="font-semibold text-slate-700 dark:text-slate-300">Responsibilities:</span> {contrib?.responsibilities || 'N/A'}</p>
+                          <p><span className="font-semibold text-slate-700 dark:text-slate-300">Tasks:</span> {contrib?.tasksCompleted || 'N/A'}</p>
+                        </div>
+                      </div>
+                      <div className="shrink-0 flex items-start">
+                        <button
+                          onClick={async () => {
+                            try {
+                              const newStatus = !contrib?.isVerified;
+                              await api.put(`/teams/${selectedTeam._id}/contributions/${member._id}/verify`, { isVerified: newStatus });
+                              toast.success(`Contribution ${newStatus ? 'verified' : 'unverified'}!`);
+                              fetchTeams(page);
+                              setShowMembersModal(false);
+                            } catch (err) {
+                              toast.error('Failed to verify contribution');
+                            }
+                          }}
+                          className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
+                            contrib?.isVerified
+                              ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-400 dark:hover:bg-emerald-900/50'
+                              : 'bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700'
+                          }`}
+                        >
+                          {contrib?.isVerified ? 'Verified' : 'Verify Work'}
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
       </Modal>
 
       {/* Delete Confirmation */}

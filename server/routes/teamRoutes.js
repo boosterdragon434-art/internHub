@@ -13,7 +13,13 @@ const { protect, authorize } = require('../middleware/auth');
 const validate = require('../middleware/validate');
 const teamValidator = require('../validators/teamValidator');
 
-// All team routes are admin-only
+// Student routes
+router.get('/my-team', protect, authorize('student'), require('../controllers/teamController').getMyTeam);
+router.put('/:id/project', protect, authorize('student', 'guide', 'admin'), require('../controllers/teamController').updateProjectDetails);
+router.put('/:id/contributions', protect, authorize('student'), require('../controllers/teamController').updateMyContribution);
+router.put('/:id/contributions/:studentId/verify', protect, authorize('guide', 'admin'), require('../controllers/teamController').verifyContribution);
+
+// Admin routes
 router.post(
   '/',
   protect,
@@ -21,8 +27,8 @@ router.post(
   validate(teamValidator.createTeam),
   createTeam
 );
-router.get('/', protect, authorize('admin'), getTeams);
-router.get('/:id', protect, authorize('admin'), getTeam);
+router.get('/', protect, authorize('admin', 'guide'), getTeams);
+router.get('/:id', protect, authorize('admin', 'guide'), getTeam);
 router.put(
   '/:id',
   protect,

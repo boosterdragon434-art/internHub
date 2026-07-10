@@ -16,7 +16,7 @@ import {
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import { updateProfile, changePassword } from '../../api/userApi';
-import { getCooldownSetting, updateCooldownSetting } from '../../api/settingsApi';
+import { getCooldownSetting, updateCooldownSetting, getPaymentUpiConfig, updatePaymentUpiConfig } from '../../api/settingsApi';
 import Input from '../../components/common/Input';
 import Button from '../../components/common/Button';
 import AdminAttendanceSettingsSection from './AdminAttendanceSettingsSection';
@@ -71,18 +71,7 @@ const emailTemplatesMockData = [
       <p style="margin:0;">If you have any questions, feel free to reach out to our support team.</p>
     `,
   },
-  {
-    id: 'verify',
-    name: 'Email Verification',
-    subject: 'Verify Your Email Address — InternHub',
-    content: `
-      <p style="color:#0F172A; font-size:16px; font-weight:600; margin:0 0 16px;">Hi Alex Johnson,</p>
-      <p style="margin:0 0 16px;">Thank you for signing up! Please verify your email address to activate your account.</p>
-      ${mockActionButton('Verify My Email')}
-      <p style="margin:0 0 16px;">This link will expire in <strong>24 hours</strong>. If you didn't create an account, please ignore this email.</p>
-      <p style="color:#64748B; font-size:12px; margin:0;">If the button doesn't work, copy this link: <br><span style="color:#6366F1; word-break:break-all;">https://internhub.com/verify-email/mock-token-xyz</span></p>
-    `,
-  },
+
   {
     id: 'applied',
     name: 'Application Submitted',
@@ -168,6 +157,10 @@ const AdminSettingsPage = () => {
   const [cooldown, setCooldown] = useState('');
   const [cooldownLoading, setCooldownLoading] = useState(false);
 
+  // UPI Config Settings State
+  const [upiConfig, setUpiConfig] = useState({ upiId: '', payeeName: '', qrCodeUrl: '' });
+  const [upiLoading, setUpiLoading] = useState(false);
+
   const handleProfileSubmit = async (e) => {
     e.preventDefault();
     if (!profileForm.name) {
@@ -217,19 +210,29 @@ const AdminSettingsPage = () => {
     }
   };
 
-  // Fetch application cooldown settings on mount
+  // Fetch application cooldown and UPI settings on mount
   React.useEffect(() => {
-    const fetchCooldown = async () => {
+    const fetchSettings = async () => {
       try {
-        const res = await getCooldownSetting();
-        if (res.success) {
-          setCooldown(res.data.cooldown);
+        const [cooldownRes, upiRes] = await Promise.all([
+          getCooldownSetting(),
+          getPaymentUpiConfig(),
+        ]);
+        if (cooldownRes.success) {
+          setCooldown(cooldownRes.data.cooldown);
+        }
+        if (upiRes.success) {
+          setUpiConfig({
+            upiId: upiRes.data.upiId || '',
+            payeeName: upiRes.data.payeeName || '',
+            qrCodeUrl: upiRes.data.qrCodeUrl || '',
+          });
         }
       } catch (err) {
-        console.error('Error fetching application cooldown:', err);
+        console.error('Error fetching settings:', err);
       }
     };
-    fetchCooldown();
+    fetchSettings();
   }, []);
 
   const handleCooldownSubmit = async (e) => {
@@ -244,6 +247,21 @@ const AdminSettingsPage = () => {
       toast.error(err.response?.data?.message || 'Failed to update cooldown.');
     } finally {
       setCooldownLoading(false);
+    }
+  };
+
+  const handleUpiSubmit = async (e) => {
+    e.preventDefault();
+    setUpiLoading(true);
+    try {
+      const res = await updatePaymentUpiConfig(upiConfig);
+      if (res.success) {
+        toast.success('Payment UPI Configuration updated successfully!');
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to update UPI Config.');
+    } finally {
+      setUpiLoading(false);
     }
   };
 
@@ -354,6 +372,51 @@ const AdminSettingsPage = () => {
                         loading={cooldownLoading}
                       >
                         Update Cooldown
+                      </Button>
+                    </form>
+                  </div>
+                  {/* Payment UPI Configuration */}
+                  <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6">
+                    <h2 className="text-base font-extrabold text-slate-900 dark:text-slate-50 mb-1 flex items-center gap-2">
+                      <FiCreditCard className="text-accent-500" /> Payment UPI Configuration
+                    </h2>
+                    <p className="text-xs text-slate-550 dark:text-slate-400 mb-6">
+                      Configure the UPI ID, Payee Name, and a link to the QR Code image for the students to make payments.
+                    </p>
+                    
+                    <form onSubmit={handleUpiSubmit} className="space-y-4 max-w-sm">
+                      <Input
+                        name="upiId"
+                        label="UPI ID (handle@bank)"
+                        type="text"
+                        placeholder="e.g. business@okicici"
+                        value={upiConfig.upiId}
+                        onChange={(e) => setUpiConfig({ ...upiConfig, upiId: e.target.value })}
+                        required
+                      />
+                      <Input
+                        name="payeeName"
+                        label="Payee Name"
+                        type="text"
+                        placeholder="e.g. FWT-iZON"
+                        value={upiConfig.payeeName}
+                        onChange={(e) => setUpiConfig({ ...upiConfig, payeeName: e.target.value })}
+                        required
+                      />
+                      <Input
+                        name="qrCodeUrl"
+                        label="QR Code URL (Cloudinary / Image Link)"
+                        type="url"
+                        placeholder="https://.../qrcode.png"
+                        value={upiConfig.qrCodeUrl}
+                        onChange={(e) => setUpiConfig({ ...upiConfig, qrCodeUrl: e.target.value })}
+                      />
+                      <Button
+                        type="submit"
+                        variant="primary"
+                        loading={upiLoading}
+                      >
+                        Update UPI Config
                       </Button>
                     </form>
                   </div>

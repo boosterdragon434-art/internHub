@@ -39,6 +39,7 @@ const StudentTasksPage = lazy(() => import('../pages/student/StudentTasksPage'))
 const StudentCalendarPage = lazy(() => import('../pages/student/StudentCalendarPage'));
 const StudentAttendancePage = lazy(() => import('../pages/student/StudentAttendancePage'));
 const MyCertificatesPage = lazy(() => import('../pages/student/MyCertificatesPage'));
+const StudentTeamPage = lazy(() => import('../pages/student/StudentTeamPage'));
 
 // Lazy loaded admin pages
 const AdminDashboard = lazy(() => import('../pages/admin/AdminDashboard'));
@@ -161,6 +162,7 @@ const AppRoutes = () => {
           <Route path="profile" element={<ProfilePage />} />
           <Route path="attendance" element={<StudentAttendancePage />} />
           <Route path="certificates" element={<MyCertificatesPage />} />
+          <Route path="team" element={<StudentTeamPage />} />
 
         </Route>
 

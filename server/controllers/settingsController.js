@@ -69,13 +69,14 @@ const getPaymentUpiConfig = async (req, res, next) => {
       // Return sensible defaults — admin must configure before students can pay
       setting = await Settings.create({
         key: 'paymentUpiConfig',
-        value: { upiId: '', payeeName: 'FWT-iZON' },
+        value: { upiId: '', payeeName: 'FWT-iZON', qrCodeUrl: '' },
       });
     }
 
     ApiResponse.success(res, 200, 'Payment UPI config fetched.', {
       upiId: setting.value.upiId || '',
       payeeName: setting.value.payeeName || '',
+      qrCodeUrl: setting.value.qrCodeUrl || '',
     });
   } catch (error) {
     logger.error('Failed to get payment UPI config:', error);
@@ -90,7 +91,7 @@ const getPaymentUpiConfig = async (req, res, next) => {
  */
 const updatePaymentUpiConfig = async (req, res, next) => {
   try {
-    const { upiId, payeeName } = req.body;
+    const { upiId, payeeName, qrCodeUrl } = req.body;
 
     if (!upiId || typeof upiId !== 'string') {
       return next(ApiError.badRequest('A valid UPI ID is required.'));
@@ -114,6 +115,7 @@ const updatePaymentUpiConfig = async (req, res, next) => {
     setting.value = {
       upiId: upiId.trim(),
       payeeName: payeeName.trim(),
+      qrCodeUrl: qrCodeUrl ? qrCodeUrl.trim() : '',
     };
     await setting.save();
 
@@ -122,6 +124,7 @@ const updatePaymentUpiConfig = async (req, res, next) => {
     ApiResponse.success(res, 200, 'Payment UPI config updated successfully.', {
       upiId: setting.value.upiId,
       payeeName: setting.value.payeeName,
+      qrCodeUrl: setting.value.qrCodeUrl,
     });
   } catch (error) {
     logger.error('Failed to update payment UPI config:', error);

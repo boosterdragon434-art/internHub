@@ -29,16 +29,11 @@ const register = async (req, res, next) => {
       role: 'student',
     });
 
-    // Generate email verification token
-    const verificationToken = user.getEmailVerificationToken();
     await user.save({ validateBeforeSave: false });
-
-    // Send verification email (non-blocking)
-    emailService.sendEmailVerification(user, verificationToken).catch(() => {});
 
     const token = user.getSignedJwtToken();
 
-    ApiResponse.success(res, 201, 'Registration successful. Please verify your email.', {
+    ApiResponse.success(res, 201, 'Registration successful.', {
       token,
       user: {
         id: user._id,

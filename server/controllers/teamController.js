@@ -358,6 +358,152 @@ const assignTeamGuide = async (req, res, next) => {
   }
 };
 
+/**
+ * @desc    Get current student's team
+ * @route   GET /api/teams/my-team
+ * @access  Student
+ */
+const getMyTeam = async (req, res, next) => {
+  try {
+    const team = await InternGroup.findOne({ members: req.user.id, isActive: true })
+      .populate('guide', 'name email avatar expertise bio')
+      .populate({
+        path: 'members',
+        select: 'name email avatar college department yearOfStudy skills',
+      })
+      .populate('memberContributions.student', 'name email avatar college')
+      .lean();
+
+    if (!team) {
+      return ApiResponse.success(res, 200, 'Not assigned to any team.', { team: null });
+    }
+
+    ApiResponse.success(res, 200, 'Team fetched successfully.', { team });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * @desc    Update project details (title and link)
+ * @route   PUT /api/teams/:id/project
+ * @access  Student (if member), Guide (if assigned), Admin
+ */
+const updateProjectDetails = async (req, res, next) => {
+  try {
+    const { projectTitle, projectLink } = req.body;
+    const team = await InternGroup.findById(req.params.id);
+
+    if (!team) {
+      return next(ApiError.notFound('Team not found.'));
+    }
+
+    // Authorization
+    if (req.user.role === 'student' && !team.members.includes(req.user.id)) {
+      return next(ApiError.forbidden('You are not a member of this team.'));
+    }
+    if (req.user.role === 'guide' && team.guide?.toString() !== req.user.id) {
+      return next(ApiError.forbidden('You are not the guide for this team.'));
+    }
+
+    if (projectTitle !== undefined) team.projectTitle = projectTitle;
+    if (projectLink !== undefined) team.projectLink = projectLink;
+
+    await team.save();
+    
+    logger.info(`Team ${team._id} project updated by ${req.user.id}`);
+    ApiResponse.success(res, 200, 'Project details updated.', { team });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * @desc    Update a student's own contribution details
+ * @route   PUT /api/teams/:id/contributions
+ * @access  Student
+ */
+const updateMyContribution = async (req, res, next) => {
+  try {
+    const { role, responsibilities, tasksCompleted } = req.body;
+    const team = await InternGroup.findById(req.params.id);
+
+    if (!team) {
+      return next(ApiError.notFound('Team not found.'));
+    }
+
+    if (!team.members.includes(req.user.id)) {
+      return next(ApiError.forbidden('You are not a member of this team.'));
+    }
+
+    // Find contribution or create if it doesn't exist
+    const contribIndex = team.memberContributions.findIndex(
+      (c) => c.student.toString() === req.user.id
+    );
+
+    if (contribIndex > -1) {
+      if (role !== undefined) team.memberContributions[contribIndex].role = role;
+      if (responsibilities !== undefined) team.memberContributions[contribIndex].responsibilities = responsibilities;
+      if (tasksCompleted !== undefined) team.memberContributions[contribIndex].tasksCompleted = tasksCompleted;
+      // Changing contribution resets verification
+      team.memberContributions[contribIndex].isVerified = false;
+      team.memberContributions[contribIndex].verifiedAt = null;
+      team.memberContributions[contribIndex].verifiedBy = null;
+    } else {
+      team.memberContributions.push({
+        student: req.user.id,
+        role: role || '',
+        responsibilities: responsibilities || '',
+        tasksCompleted: tasksCompleted || '',
+        isVerified: false,
+      });
+    }
+
+    await team.save();
+    ApiResponse.success(res, 200, 'Contribution updated.', { team });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * @desc    Verify a student's contribution
+ * @route   PUT /api/teams/:id/contributions/:studentId/verify
+ * @access  Guide (if assigned), Admin
+ */
+const verifyContribution = async (req, res, next) => {
+  try {
+    const { isVerified } = req.body;
+    const team = await InternGroup.findById(req.params.id);
+
+    if (!team) {
+      return next(ApiError.notFound('Team not found.'));
+    }
+
+    // Authorization
+    if (req.user.role === 'guide' && team.guide?.toString() !== req.user.id) {
+      return next(ApiError.forbidden('You are not the guide for this team.'));
+    }
+
+    const contribIndex = team.memberContributions.findIndex(
+      (c) => c.student.toString() === req.params.studentId
+    );
+
+    if (contribIndex === -1) {
+      return next(ApiError.notFound('Contribution record not found for this student.'));
+    }
+
+    team.memberContributions[contribIndex].isVerified = isVerified;
+    team.memberContributions[contribIndex].verifiedBy = isVerified ? req.user.id : null;
+    team.memberContributions[contribIndex].verifiedAt = isVerified ? new Date() : null;
+
+    await team.save();
+    ApiResponse.success(res, 200, `Contribution ${isVerified ? 'verified' : 'unverified'}.`, { team });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   createTeam,
   getTeams,
@@ -366,4 +512,8 @@ module.exports = {
   deleteTeam,
   updateTeamMembers,
   assignTeamGuide,
+  getMyTeam,
+  updateProjectDetails,
+  updateMyContribution,
+  verifyContribution,
 };
