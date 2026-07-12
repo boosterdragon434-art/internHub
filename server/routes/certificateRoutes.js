@@ -15,6 +15,7 @@ const {
   previewCertificate,
   getMyCertificates,
   getAllCertificates,
+  getCertificateStats,
   verifyCertificatePublic,
   revokeCertificate,
   downloadCertificate,
@@ -87,7 +88,8 @@ router.post(
   validate(certificateValidator.generateCertificate),
   previewCertificate
 );
+router.get('/admin/stats', protect, authorize('admin'), getCertificateStats);
 router.get('/admin/all', protect, authorize('admin'), getAllCertificates);
-router.put('/:id/revoke', protect, authorize('admin'), revokeCertificate);
+router.put('/:id/revoke', protect, authorize('admin'), validate(certificateValidator.revokeCertificate), revokeCertificate);
 
 module.exports = router;

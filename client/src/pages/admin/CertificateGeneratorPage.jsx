@@ -14,6 +14,8 @@ import {
   toggleTemplateStatus, getTemplateStats, bulkGenerate, previewCertificate, downloadTemplateFile, duplicateTemplate, testRenderTemplate
 } from '../../api/certificateApi';
 import { toast } from 'react-hot-toast';
+import CertificateRegistryTab from '../../components/certificates/CertificateRegistryTab';
+import ConfirmDialog from '../../components/common/ConfirmDialog';
 
 // ─────────────────────────────────────────────────────────────
 // Constants & Helpers
@@ -64,6 +66,7 @@ const ALLOWED_TYPES = ['image/png', 'image/jpeg', 'image/webp', 'application/pdf
 const TABS = [
   { id: 'students', label: 'Student Applications', icon: FiUsers },
   { id: 'templates', label: 'Templates Workspace', icon: FiLayout },
+  { id: 'registry', label: 'Certificate Registry', icon: FiAward },
 ];
 
 const getOverlayBoxX = (anchorX, width, align = 'left') => {
@@ -143,6 +146,9 @@ const CertificateGeneratorPage = () => {
   // ── Preview State ──
   const [previewData, setPreviewData] = useState(null);
   const [previewing, setPreviewing] = useState(false);
+
+  // ── ConfirmDialog State (replaces raw window.confirm) ──
+  const [confirmDialog, setConfirmDialog] = useState({ open: false, title: '', description: '', confirmText: '', onConfirm: null, variant: 'danger' });
 
   // ── Data Fetch ──
   const fetchApplications = useCallback(async (currentPage = page, search = debouncedSearch, internship = internshipFilter) => {
@@ -280,26 +286,35 @@ const CertificateGeneratorPage = () => {
 
   const handleBulkGenerate = async (forceOverwrite = false) => {
     if (bulkSelected.size === 0) return;
-    if (!window.confirm(`Generate certificates for ${bulkSelected.size} students? Each will receive an email automatically.`)) return;
-    setBulkGenerating(true);
-    try {
-      const payload = { applicationIds: Array.from(bulkSelected), grade, skillsAcquired: [], performance, overwrite: forceOverwrite };
-      if (selectedTemplateId) payload.templateId = selectedTemplateId;
-      const response = await bulkGenerate(payload);
-      if (response.data?.success) {
-        const data = response.data.data;
-        toast.success(`${data.succeeded}/${data.total} certificates generated!`);
-        if (data.failed > 0) {
-          toast(`${data.failed} failed. Check details.`, { icon: '⚠️' });
+    setConfirmDialog({
+      open: true,
+      title: `Generate ${bulkSelected.size} Certificate${bulkSelected.size !== 1 ? 's' : ''}?`,
+      description: `This will generate certificates for ${bulkSelected.size} selected student${bulkSelected.size !== 1 ? 's' : ''}. Each student will receive an email notification automatically.`,
+      confirmText: 'Generate Certificates',
+      variant: 'primary',
+      onConfirm: async () => {
+        setConfirmDialog((prev) => ({ ...prev, open: false }));
+        setBulkGenerating(true);
+        try {
+          const payload = { applicationIds: Array.from(bulkSelected), grade, skillsAcquired: [], performance, overwrite: forceOverwrite };
+          if (selectedTemplateId) payload.templateId = selectedTemplateId;
+          const response = await bulkGenerate(payload);
+          if (response.data?.success) {
+            const data = response.data.data;
+            toast.success(`${data.succeeded}/${data.total} certificates generated!`);
+            if (data.failed > 0) {
+              toast(`${data.failed} failed. Check details.`, { icon: '⚠️' });
+            }
+            setBulkSelected(new Set());
+            fetchApplications();
+          }
+        } catch (err) {
+          toast.error(err.response?.data?.message || 'Bulk generation failed');
+        } finally {
+          setBulkGenerating(false);
         }
-        setBulkSelected(new Set());
-        fetchApplications();
-      }
-    } catch (err) {
-      toast.error(err.response?.data?.message || 'Bulk generation failed');
-    } finally {
-      setBulkGenerating(false);
-    }
+      },
+    });
   };
 
   const handlePreview = async (app) => {
@@ -345,17 +360,26 @@ const CertificateGeneratorPage = () => {
   };
 
   const handleDeleteTemplate = async (id) => {
-    if (!window.confirm('Delete this template? Any issued certificates remain valid but you cannot use this template again.')) return;
-    setActionLoading(id);
-    try {
-      await deleteTemplate(id);
-      toast.success('Template deleted');
-      fetchTemplates();
-    } catch (err) {
-      toast.error(err.response?.data?.message || 'Failed to delete template');
-    } finally {
-      setActionLoading(null);
-    }
+    setConfirmDialog({
+      open: true,
+      title: 'Delete Template?',
+      description: 'Delete this template? Any issued certificates remain valid but you cannot use this template again.',
+      confirmText: 'Delete Template',
+      variant: 'danger',
+      onConfirm: async () => {
+        setConfirmDialog((prev) => ({ ...prev, open: false }));
+        setActionLoading(id);
+        try {
+          await deleteTemplate(id);
+          toast.success('Template deleted');
+          fetchTemplates();
+        } catch (err) {
+          toast.error(err.response?.data?.message || 'Failed to delete template');
+        } finally {
+          setActionLoading(null);
+        }
+      },
+    });
   };
 
   const handleToggleStatus = async (id, currentStatus) => {
@@ -512,6 +536,11 @@ const CertificateGeneratorPage = () => {
             />
           </motion.div>
         )}
+        {activeTab === 'registry' && (
+          <motion.div key="registry" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="space-y-5">
+            <CertificateRegistryTab />
+          </motion.div>
+        )}
       </AnimatePresence>
 
       {/* Issuance Modal */}
@@ -559,6 +588,17 @@ const CertificateGeneratorPage = () => {
           />
         )}
       </AnimatePresence>
+
+      {/* Generic ConfirmDialog (replaces window.confirm) */}
+      <ConfirmDialog
+        isOpen={confirmDialog.open}
+        onClose={() => setConfirmDialog((prev) => ({ ...prev, open: false }))}
+        onConfirm={confirmDialog.onConfirm}
+        title={confirmDialog.title}
+        description={confirmDialog.description}
+        confirmText={confirmDialog.confirmText}
+        variant={confirmDialog.variant}
+      />
     </div>
   );
 };

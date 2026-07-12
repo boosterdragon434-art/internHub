@@ -159,6 +159,10 @@ const certificateValidator = {
       'any.only': 'Status must be either active or inactive',
     }),
   }),
+
+  revokeCertificate: Joi.object({
+    reason: Joi.string().trim().max(500).allow('').optional(),
+  }),
 };
 
 module.exports = certificateValidator;

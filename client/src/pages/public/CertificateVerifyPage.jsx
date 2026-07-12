@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
 import { motion } from 'framer-motion';
-import { FiCheckCircle, FiAlertOctagon, FiAward, FiArrowLeft, FiShield, FiFileText } from 'react-icons/fi';
+import { FiCheckCircle, FiAlertOctagon, FiAward, FiArrowLeft, FiShield, FiFileText, FiExternalLink } from 'react-icons/fi';
 import { verifyCertificate } from '../../api/certificateApi';
 
 /**
@@ -118,7 +118,7 @@ const CertificateVerifyPage = () => {
             </div>
 
             {/* Credential Data Metadata */}
-            <div className="space-y-4 bg-slate-950/40 p-5 border border-slate-850 rounded-2xl text-xs select-text">
+            <div className="space-y-4 bg-slate-950/40 p-5 border border-slate-800 rounded-2xl text-xs select-text">
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <span className="block text-slate-500 font-semibold mb-0.5">STUDENT NAME</span>
@@ -130,7 +130,7 @@ const CertificateVerifyPage = () => {
                 </div>
               </div>
 
-              <div className="h-px bg-slate-850" />
+              <div className="h-px bg-slate-800" />
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
@@ -143,7 +143,7 @@ const CertificateVerifyPage = () => {
                 </div>
               </div>
 
-              <div className="h-px bg-slate-850" />
+              <div className="h-px bg-slate-800" />
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
@@ -160,7 +160,7 @@ const CertificateVerifyPage = () => {
 
               {data.verificationHash && (
                 <>
-                  <div className="h-px bg-slate-850" />
+                  <div className="h-px bg-slate-800" />
                   <div>
                     <span className="block text-slate-500 font-semibold mb-0.5 flex items-center gap-1"><FiShield className="w-3 h-3"/> SHA-256 SIGNATURE</span>
                     <span className="block font-mono text-slate-400 text-[9px] break-all">
@@ -172,7 +172,7 @@ const CertificateVerifyPage = () => {
 
               {data.skillsAcquired && data.skillsAcquired.length > 0 && (
                 <>
-                  <div className="h-px bg-slate-850" />
+                  <div className="h-px bg-slate-800" />
                   <div>
                     <span className="block text-slate-500 font-semibold mb-1.5">SKILLS VERIFIED</span>
                     <div className="flex flex-wrap gap-1.5">
@@ -186,6 +186,36 @@ const CertificateVerifyPage = () => {
                 </>
               )}
             </div>
+
+            {/* Document Type Label */}
+            {data.documentType && (
+              <div className="text-center">
+                <span className="inline-block px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-violet-500/10 text-violet-400 border border-violet-500/20">
+                  {{
+                    certificate: 'Internship Certificate',
+                    offer_letter: 'Offer Letter',
+                    joining_letter: 'Joining Letter',
+                    completion_letter: 'Completion Letter',
+                    appreciation_letter: 'Appreciation Letter',
+                    custom: 'Document',
+                  }[data.documentType] || 'Certificate'}
+                </span>
+              </div>
+            )}
+
+            {/* View / Download Certificate PDF */}
+            {data.pdfUrl && data.status !== 'revoked' && (
+              <div className="flex justify-center">
+                <a
+                  href={data.pdfUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white text-sm font-bold rounded-xl shadow-lg shadow-indigo-600/20 transition"
+                >
+                  <FiExternalLink className="w-4 h-4" /> View Certificate PDF
+                </a>
+              </div>
+            )}
 
             {/* Verification Seal Info */}
             <p className="text-[10px] text-slate-500 text-center leading-relaxed max-w-xs mx-auto">

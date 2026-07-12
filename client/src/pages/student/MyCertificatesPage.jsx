@@ -8,6 +8,18 @@ import EmptyState from '../../components/common/EmptyState';
 import EnrollmentGate from '../../components/common/EnrollmentGate';
 
 /**
+ * Human-readable document type labels for certificate cards.
+ */
+const DOCUMENT_TYPE_LABELS = {
+  certificate: 'Internship Certificate',
+  offer_letter: 'Offer Letter',
+  joining_letter: 'Joining Letter',
+  completion_letter: 'Completion Letter',
+  appreciation_letter: 'Appreciation Letter',
+  custom: 'Document',
+};
+
+/**
  * MyCertificatesPage Component — Grid of certificates for students to view or download.
  * Gated behind active enrollment.
  */
@@ -85,7 +97,7 @@ const MyCertificatesPage = () => {
                     {cert.internshipTitle}
                   </h3>
                   <span className="block text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wider mt-1">
-                    Internship Certificate
+                    {DOCUMENT_TYPE_LABELS[cert.documentType] || 'Internship Certificate'}
                   </span>
                 </div>
 

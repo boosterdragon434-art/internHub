@@ -24,8 +24,11 @@ export const previewCertificate = (data) => api.post('/certificates/preview', da
 /** Get all certificates for admin listing */
 export const getAllCertificates = (params) => api.get('/certificates/admin/all', { params });
 
-/** Revoke an issued certificate (admin only) */
-export const revokeCertificate = (id) => api.put(`/certificates/${id}/revoke`);
+/** Get certificate issuance statistics (admin only) */
+export const getCertificateStats = () => api.get('/certificates/admin/stats');
+
+/** Revoke an issued certificate (admin only, with optional reason) */
+export const revokeCertificate = (id, reason = '') => api.put(`/certificates/${id}/revoke`, { reason });
 
 /** Download a certificate PDF as blob */
 export const downloadCertificate = (id) =>

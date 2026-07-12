@@ -512,6 +512,9 @@ const _generateSingleCertificate = async ({ application, grade, skillsAcquired, 
   if (existingCert && (!template.documentCategory || template.documentCategory === 'certificate')) {
     if (overwrite) {
       existingCert.status = 'revoked';
+      existingCert.revokedAt = new Date();
+      existingCert.revokedBy = issuerId;
+      existingCert.revokeReason = 'Superseded by re-issuance';
       await existingCert.save();
     } else {
       // Only block if it's a 'certificate' to allow multiple letters (offer, joining) for the same internship.
@@ -909,11 +912,17 @@ const getMyCertificates = async (req, res, next) => {
  */
 const getAllCertificates = async (req, res, next) => {
   try {
-    const { search, status, page = 1, limit = 20 } = req.query;
+    const { search, status, documentType, internship, page = 1, limit = 20 } = req.query;
 
     const filter = {};
     if (status && ['draft', 'issued', 'revoked'].includes(status)) {
       filter.status = status;
+    }
+    if (documentType) {
+      filter.documentType = documentType;
+    }
+    if (internship) {
+      filter.internship = internship;
     }
     if (search) {
       const escapedSearch = escapeRegex(search);
@@ -933,11 +942,48 @@ const getAllCertificates = async (req, res, next) => {
       .limit(Math.min(100, parseInt(limit)))
       .populate('student', 'name email')
       .populate('internship', 'title')
-      .populate('issuedBy', 'name email');
+      .populate('issuedBy', 'name email')
+      .populate('guide', 'name')
+      .populate('template', 'name')
+      .populate('revokedBy', 'name');
 
     ApiResponse.success(res, 200, 'Certificates fetched successfully.', certificates, ApiResponse.paginate(
       parseInt(page), Math.min(100, parseInt(limit)), total
     ));
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * @desc    Get certificate issuance statistics (counts, breakdown by document type, monthly trend)
+ * @route   GET /api/certificates/admin/stats
+ * @access  Admin
+ */
+const getCertificateStats = async (req, res, next) => {
+  try {
+    const startOfMonth = new Date();
+    startOfMonth.setDate(1);
+    startOfMonth.setHours(0, 0, 0, 0);
+
+    const [total, issued, revoked, issuedThisMonth, byDocumentType] = await Promise.all([
+      Certificate.countDocuments(),
+      Certificate.countDocuments({ status: 'issued' }),
+      Certificate.countDocuments({ status: 'revoked' }),
+      Certificate.countDocuments({ issuedAt: { $gte: startOfMonth } }),
+      Certificate.aggregate([
+        { $group: { _id: '$documentType', count: { $sum: 1 } } },
+        { $sort: { count: -1 } },
+      ]),
+    ]);
+
+    ApiResponse.success(res, 200, 'Certificate stats fetched.', {
+      total,
+      issued,
+      revoked,
+      issuedThisMonth,
+      byDocumentType,
+    });
   } catch (error) {
     next(error);
   }
@@ -969,7 +1015,9 @@ const verifyCertificatePublic = async (req, res, next) => {
       grade: certificate.grade,
       skillsAcquired: certificate.skillsAcquired,
       status: certificate.status,
+      documentType: certificate.documentType,
       issuedAt: certificate.issuedAt,
+      revokedAt: certificate.revokedAt,
       pdfUrl: certificate.pdfUrl,
       verificationHash: certificate.verificationHash,
     });
@@ -985,6 +1033,7 @@ const verifyCertificatePublic = async (req, res, next) => {
  */
 const revokeCertificate = async (req, res, next) => {
   try {
+    const { reason = '' } = req.body;
     const certificate = await Certificate.findById(req.params.id);
 
     if (!certificate) {
@@ -996,6 +1045,9 @@ const revokeCertificate = async (req, res, next) => {
     }
 
     certificate.status = 'revoked';
+    certificate.revokedAt = new Date();
+    certificate.revokedBy = req.user.id;
+    certificate.revokeReason = reason;
     await certificate.save();
 
     await AuditLog.create({
@@ -1003,10 +1055,10 @@ const revokeCertificate = async (req, res, next) => {
       action: 'revoke_certificate',
       targetModel: 'Certificate',
       targetId: certificate._id,
-      changes: { status: 'revoked', certificateId: certificate.certificateId },
+      changes: { status: 'revoked', certificateId: certificate.certificateId, reason: reason || undefined },
     });
 
-    logger.warn(`Admin ${req.user.email} revoked certificate: ${certificate.certificateId}`);
+    logger.warn(`Admin ${req.user.email} revoked certificate: ${certificate.certificateId}${reason ? ` — reason: ${reason}` : ''}`);
 
     ApiResponse.success(res, 200, 'Certificate revoked successfully.', certificate);
   } catch (error) {
@@ -1152,6 +1204,7 @@ module.exports = {
   previewCertificate,
   getMyCertificates,
   getAllCertificates,
+  getCertificateStats,
   verifyCertificatePublic,
   revokeCertificate,
   downloadCertificate,

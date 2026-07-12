@@ -106,6 +106,20 @@ const certificateSchema = new mongoose.Schema(
       ref: 'User',
       required: [true, 'Issuer admin is required'],
     },
+    revokedAt: {
+      type: Date,
+      default: null,
+    },
+    revokedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      default: null,
+    },
+    revokeReason: {
+      type: String,
+      default: '',
+      trim: true,
+    },
   },
   {
     timestamps: true,

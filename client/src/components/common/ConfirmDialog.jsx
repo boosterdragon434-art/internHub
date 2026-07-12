@@ -16,6 +16,7 @@ const ConfirmDialog = ({
   cancelText = 'Cancel',
   loading = false,
   variant = 'danger', // danger, primary
+  children,
 }) => {
   return (
     <Modal isOpen={isOpen} onClose={onClose} title={title} size="sm">
@@ -30,6 +31,7 @@ const ConfirmDialog = ({
         <p className="text-sm text-slate-500 dark:text-slate-400">
           {description}
         </p>
+        {children}
         <div className="flex items-center gap-3 mt-6 w-full">
           <Button
             variant="outline"
