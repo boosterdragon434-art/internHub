@@ -1212,15 +1212,39 @@ const AdvancedEditor = ({ template, onSaved, onClose }) => {
     reader.readAsDataURL(file);
   };
 
-  // Load template background image
+  // Load template background image via API proxy to avoid CORS
   useEffect(() => {
     if (!template.backgroundImageUrl) return;
-    const img = new Image();
-    img.crossOrigin = 'anonymous';
-    img.onload = () => setTemplateImg(img);
-    img.onerror = () => toast.error('Failed to load template background');
-    img.src = template.backgroundImageUrl;
-  }, [template.backgroundImageUrl]);
+    let objectUrl = null;
+    let isMounted = true;
+
+    const loadImg = async () => {
+      try {
+        const response = await downloadTemplateFile(template._id);
+        if (!isMounted) return;
+        const blob = new Blob([response.data]);
+        objectUrl = URL.createObjectURL(blob);
+        
+        const img = new Image();
+        img.onload = () => {
+          if (isMounted) setTemplateImg(img);
+        };
+        img.onerror = () => {
+          if (isMounted) toast.error('Failed to load template background');
+        };
+        img.src = objectUrl;
+      } catch (err) {
+        if (isMounted) toast.error('Failed to download template background');
+      }
+    };
+
+    loadImg();
+
+    return () => {
+      isMounted = false;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [template.backgroundImageUrl, template._id]);
 
   // Close field dropdown on outside click
   useEffect(() => {
