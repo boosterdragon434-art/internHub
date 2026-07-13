@@ -359,12 +359,17 @@ const _buildOverlayPDF = (doc, certData, pdfW, pdfH) => {
       doc.fontSize(finalFontSize);
     }
 
-    // Render text with proper alignment and wrapping
-    doc.text(text, textX, y - heightPt / 2 + (heightPt - finalFontSize) / 2, {
+    // Render text with proper alignment, wrapping, and characterSpacing
+    // characterSpacing mirrors the canvas preview's ctx.letterSpacing for WYSIWYG consistency
+    const textOptions = {
       width: maxWidthPt,
       align: align,
       lineGap: finalFontSize * ((overlay.lineHeight || 1.2) - 1),
-    });
+    };
+    if (overlay.letterSpacing && overlay.letterSpacing !== 0) {
+      textOptions.characterSpacing = overlay.letterSpacing * (pdfW / (certData.canvasWidth || 842));
+    }
+    doc.text(text, textX, y - heightPt / 2 + (heightPt - finalFontSize) / 2, textOptions);
 
     doc.restore();
   }

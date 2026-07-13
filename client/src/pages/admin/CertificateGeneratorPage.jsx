@@ -840,7 +840,14 @@ const TemplatesTab = ({ loading, templates, stats, searchQuery, setSearchQuery, 
                   {tpl.status}
                 </span>
               </div>
-              <p className="text-[11px] text-slate-500 dark:text-slate-400 line-clamp-2 mb-4 flex-1">{tpl.description || 'No description provided'}</p>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 line-clamp-2 mb-2 flex-1">{tpl.description || 'No description provided'}</p>
+              {/* QR Code warning for overlay templates missing a qrCode field */}
+              {tpl.overlays && tpl.overlays.length > 0 && !tpl.overlays.some(o => o.field === 'qrCode') && (
+                <div className="flex items-start gap-1.5 px-2 py-1.5 mb-2 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg">
+                  <FiAlertCircle className="w-3 h-3 text-amber-500 shrink-0 mt-0.5" />
+                  <span className="text-[9px] text-amber-700 dark:text-amber-400 leading-tight">No QR Code overlay — verification codes will not appear on generated certificates</span>
+                </div>
+              )}
               
               <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex gap-2">
                 <div className="flex-1 flex gap-1 border border-slate-200 dark:border-slate-700 rounded-lg overflow-hidden bg-slate-50 dark:bg-slate-800/50">
@@ -1009,7 +1016,7 @@ const UploadTemplateModal = ({ form, setForm, uploading, uploadProgress, isDragO
           <textarea value={form.customTextTemplate} onChange={(e) => setForm((p) => ({ ...p, customTextTemplate: e.target.value }))} placeholder="Write the letter body content here... Use {{variables}} for dynamic fields." rows={5}
             className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:border-violet-500 rounded-xl px-3 py-2.5 text-sm text-slate-800 dark:text-slate-200 outline-none transition resize-none font-mono" />
           <div className="flex flex-wrap gap-1 mt-2">
-            {['{{student_name}}', '{{internship_role}}', '{{start_date}}', '{{end_date}}', '{{company_name}}', '{{college_name}}', '{{guide_name}}'].map((v) => (
+            {['{{student_name}}', '{{internship_role}}', '{{department}}', '{{college_name}}', '{{company_name}}', '{{start_date}}', '{{end_date}}', '{{duration}}', '{{guide_name}}', '{{skills}}', '{{performance}}', '{{certificate_id}}', '{{issue_date}}', '{{verification_url}}'].map((v) => (
               <button key={v} type="button" onClick={() => setForm((p) => ({ ...p, customTextTemplate: (p.customTextTemplate || '') + ' ' + v }))}
                 className="px-2 py-0.5 bg-violet-50 dark:bg-violet-950/30 text-violet-600 dark:text-violet-400 rounded text-[9px] font-mono font-bold hover:bg-violet-100 dark:hover:bg-violet-900/40 transition border border-violet-200 dark:border-violet-800">
                 {v}
@@ -1257,6 +1264,18 @@ const AdvancedEditor = ({ template, onSaved, onClose }) => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  // Prevent accidental navigation when editor has unsaved changes
+  useEffect(() => {
+    const handler = (e) => {
+      if (hasUnsavedChanges) {
+        e.preventDefault();
+        e.returnValue = '';
+      }
+    };
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+  }, [hasUnsavedChanges]);
+
   // Keyboard shortcuts — proper dependency array prevents stacking listeners
   useEffect(() => {
     const handler = (e) => {
@@ -1355,6 +1374,40 @@ const AdvancedEditor = ({ template, onSaved, onClose }) => {
         return;
       }
 
+      // Render image-type overlays (qrCode, logo, signature) as visual placeholders
+      if (['qrCode', 'logo', 'signature'].includes(overlay.field)) {
+        ctx.save();
+        if (overlay.rotation) { ctx.translate(x, y); ctx.rotate((overlay.rotation * Math.PI) / 180); ctx.translate(-x, -y); }
+        ctx.globalAlpha = overlay.opacity ?? 1;
+        const boxX = x - maxWidth / 2;
+        const boxY = y - height / 2;
+        // Draw placeholder box with field-specific styling
+        const colors = { qrCode: { bg: '#E0F2FE', border: '#0EA5E9', text: '#0284C7' }, logo: { bg: '#EDE9FE', border: '#8B5CF6', text: '#7C3AED' }, signature: { bg: '#ECFDF5', border: '#10B981', text: '#059669' } };
+        const c = colors[overlay.field];
+        ctx.fillStyle = c.bg;
+        ctx.fillRect(boxX, boxY, maxWidth, height);
+        ctx.strokeStyle = isSelected ? '#6366f1' : c.border;
+        ctx.lineWidth = isSelected ? 2 : 1;
+        ctx.setLineDash(isSelected ? [5, 5] : [3, 3]);
+        ctx.strokeRect(boxX, boxY, maxWidth, height);
+        ctx.setLineDash([]);
+        // Draw icon/label
+        ctx.fillStyle = c.text;
+        const iconSize = Math.min(maxWidth, height) * 0.4;
+        ctx.font = `bold ${Math.max(8, iconSize)}px Arial`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        const label = overlay.field === 'qrCode' ? '▣ QR' : overlay.field === 'logo' ? '◆ Logo' : '✎ Sign';
+        ctx.fillText(label, x, y);
+        // Draw field indicator dot when selected
+        if (isSelected) {
+          const fi = FIELD_OPTIONS.find((f) => f.value === overlay.field);
+          if (fi) { ctx.fillStyle = fi.color; ctx.beginPath(); ctx.arc(boxX - 6, boxY, 4, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = '#6366f1'; ctx.fillRect(boxX + maxWidth - 4, boxY - 4, 8, 8); }
+        }
+        ctx.restore();
+        return;
+      }
+
       const textValue = overlay.field === 'date'
         ? formatPreviewDate(PREVIEW_DATE, overlay.dateFormat)
         : overlay.field === 'customText' ? (overlay.customText || 'Custom Text') : MOCK_DATA[overlay.field] || overlay.field;
@@ -1417,7 +1470,8 @@ const AdvancedEditor = ({ template, onSaved, onClose }) => {
     return lines;
   };
 
-  const saveToHistory = (state) => { setHistory((h) => [...h.slice(0, historyIndex + 1), state]); setHistoryIndex((i) => i + 1); };
+  const MAX_HISTORY = 50;
+  const saveToHistory = (state) => { setHistory((h) => { const trimmed = [...h.slice(0, historyIndex + 1), state]; return trimmed.length > MAX_HISTORY ? trimmed.slice(trimmed.length - MAX_HISTORY) : trimmed; }); setHistoryIndex((i) => Math.min(i + 1, MAX_HISTORY - 1)); };
   const undo = () => { if (historyIndex > 0) { setHistoryIndex((i) => i - 1); setOverlays(history[historyIndex - 1]); } };
   const redo = () => { if (historyIndex < history.length - 1) { setHistoryIndex((i) => i + 1); setOverlays(history[historyIndex + 1]); } };
 
@@ -1428,10 +1482,12 @@ const AdvancedEditor = ({ template, onSaved, onClose }) => {
 
   const addOverlay = (forcedField = null) => {
     const field = forcedField || 'studentName';
+    const isImageField = ['qrCode', 'logo', 'signature'].includes(field);
     const newOv = {
       id: `ov_${Date.now()}_${Math.random().toString(36).slice(9)}`, field, x: 50, y: 50, fontSize: 24, fontWeight: 'normal', letterSpacing: 0, lineHeight: 1.2,
       fontFamily: 'Helvetica-Bold', color: field === 'wipe' ? '#ffffff' : '#000000', align: 'center',
-      maxWidth: field === 'wipe' ? 20 : 60, uppercase: false, rotation: 0, opacity: 1, visible: true, customText: '', dateFormat: 'DD/MM/YYYY', height: 5,
+      maxWidth: isImageField ? 12 : (field === 'wipe' ? 20 : 60), uppercase: false, rotation: 0, opacity: 1, visible: true, customText: '', dateFormat: 'DD/MM/YYYY',
+      height: isImageField ? 12 : 5,
     };
     const updated = [...overlays, newOv];
     setOverlays(updated); setSelected(newOv); saveToHistory(updated);
@@ -1714,8 +1770,43 @@ const AdvancedEditor = ({ template, onSaved, onClose }) => {
                   {selected.field === 'customText' && (
                     <div>
                       <label className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase block mb-1">Text Content (Supports {'{{variables}}'})</label>
-                      <textarea value={selected.customText} onChange={(e) => updateOverlay(selected.id, { customText: e.target.value })} placeholder="Your static text or {{student_name}}..." rows={4} className="w-full text-[11px] bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-2.5 py-1.5 text-slate-700 dark:text-slate-300 outline-none resize-none focus:ring-1 focus:ring-violet-500" />
-                      <p className="mt-1 text-[9px] text-slate-500 font-mono">Available: {'{{student_name}}, {{internship_role}}, {{start_date}}, {{end_date}}, {{company_name}}'}</p>
+                      <textarea id="customTextArea" value={selected.customText} onChange={(e) => updateOverlay(selected.id, { customText: e.target.value })} placeholder="Your static text or {{student_name}}..." rows={4} className="w-full text-[11px] bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-2.5 py-1.5 text-slate-700 dark:text-slate-300 outline-none resize-none focus:ring-1 focus:ring-violet-500" />
+                      <div className="mt-1.5 flex flex-wrap gap-1">
+                        {[
+                          { key: 'student_name', label: 'Student' },
+                          { key: 'internship_role', label: 'Role' },
+                          { key: 'department', label: 'Dept' },
+                          { key: 'college_name', label: 'College' },
+                          { key: 'company_name', label: 'Company' },
+                          { key: 'start_date', label: 'Start' },
+                          { key: 'end_date', label: 'End' },
+                          { key: 'duration', label: 'Duration' },
+                          { key: 'guide_name', label: 'Guide' },
+                          { key: 'skills', label: 'Skills' },
+                          { key: 'performance', label: 'Perf' },
+                          { key: 'certificate_id', label: 'Cert ID' },
+                          { key: 'issue_date', label: 'Issue Date' },
+                          { key: 'verification_url', label: 'Verify URL' },
+                        ].map((v) => (
+                          <button key={v.key} type="button" onClick={() => {
+                            const ta = document.getElementById('customTextArea');
+                            const insertText = `{{${v.key}}}`;
+                            if (ta) {
+                              const start = ta.selectionStart || (selected.customText || '').length;
+                              const before = (selected.customText || '').slice(0, start);
+                              const after = (selected.customText || '').slice(start);
+                              updateOverlay(selected.id, { customText: before + insertText + after });
+                            } else {
+                              updateOverlay(selected.id, { customText: (selected.customText || '') + ' ' + insertText });
+                            }
+                          }}
+                            className="px-1.5 py-0.5 bg-violet-50 dark:bg-violet-950/30 text-violet-600 dark:text-violet-400 rounded text-[8px] font-mono font-bold hover:bg-violet-100 dark:hover:bg-violet-900/40 transition border border-violet-200 dark:border-violet-800"
+                            title={`Insert {{${v.key}}}`}>
+                            {v.label}
+                          </button>
+                        ))}
+                      </div>
+                      <p className="mt-1 text-[8px] text-slate-400">Click a variable above to insert it at cursor position</p>
                     </div>
                   )}
                   {selected.field === 'date' && (
@@ -1730,22 +1821,22 @@ const AdvancedEditor = ({ template, onSaved, onClose }) => {
                     <div><label className="text-[9px] font-bold text-slate-400 uppercase block mb-1">Y (%)</label><input type="number" min="0" max="100" step="0.1" value={selected.y} onChange={(e) => updateOverlay(selected.id, { y: parseFloat(e.target.value) || 0 })} className="w-full text-[11px] bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1.5 text-slate-700 dark:text-slate-300 outline-none" /></div>
                   </div>
                   <div className="grid grid-cols-2 gap-2">
-                    {selected.field !== 'wipe' && (
+                    {!['wipe', 'qrCode', 'logo', 'signature'].includes(selected.field) && (
                       <div><label className="text-[9px] font-bold text-slate-400 uppercase block mb-1">Font Size</label><input type="number" min="4" max="120" value={selected.fontSize} onChange={(e) => updateOverlay(selected.id, { fontSize: parseInt(e.target.value) || 24 })} className="w-full text-[11px] bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1.5 text-slate-700 dark:text-slate-300 outline-none" /></div>
                     )}
-                    <div className={selected.field === 'wipe' ? 'col-span-2' : ''}>
+                    <div className={['wipe', 'qrCode', 'logo', 'signature'].includes(selected.field) ? 'col-span-2' : ''}>
                       <label className="text-[9px] font-bold text-slate-400 uppercase block mb-1">{selected.field === 'wipe' ? 'Width (%)' : 'Max Width (%)'}</label>
                       <input type="number" min="1" max="100" value={selected.maxWidth} onChange={(e) => updateOverlay(selected.id, { maxWidth: parseInt(e.target.value) || 10 })} className="w-full text-[11px] bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1.5 text-slate-700 dark:text-slate-300 outline-none" />
                     </div>
                   </div>
                   <div><label className="text-[9px] font-bold text-slate-400 uppercase block mb-1">Height (%)</label><input type="number" min="0.1" max="100" step="0.1" value={selected.height || 5} onChange={(e) => updateOverlay(selected.id, { height: parseFloat(e.target.value) || 5 })} className="w-full text-[11px] bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1.5 text-slate-700 dark:text-slate-300 outline-none" /></div>
-                  {selected.field !== 'wipe' && (
+                  {!['wipe', 'qrCode', 'logo', 'signature'].includes(selected.field) && (
                     <div><label className="text-[9px] font-bold text-slate-400 uppercase block mb-1">Font Family</label>
                       <select value={selected.fontFamily} onChange={(e) => updateOverlay(selected.id, { fontFamily: e.target.value })} className="w-full text-[11px] bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-2.5 py-1.5 text-slate-700 dark:text-slate-300 outline-none focus:ring-1 focus:ring-violet-500">
                         {FONT_OPTIONS.map((f) => <option key={f} value={f}>{f}</option>)}
                       </select></div>
                   )}
-                  {selected.field !== 'wipe' && (
+                  {!['wipe', 'qrCode', 'logo', 'signature'].includes(selected.field) && (
                     <div className="grid grid-cols-2 gap-2">
                       <div><label className="text-[9px] font-bold text-slate-400 uppercase block mb-1">Weight</label><select value={selected.fontWeight} onChange={(e) => updateOverlay(selected.id, { fontWeight: e.target.value })} className="w-full text-[11px] bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1.5 text-slate-700 dark:text-slate-300 outline-none"><option value="normal">Normal</option><option value="bold">Bold</option></select></div>
                       <div><label className="text-[9px] font-bold text-slate-400 uppercase block mb-1">Align</label><select value={selected.align} onChange={(e) => updateOverlay(selected.id, { align: e.target.value })} className="w-full text-[11px] bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1.5 text-slate-700 dark:text-slate-300 outline-none"><option value="left">Left</option><option value="center">Center</option><option value="right">Right</option></select></div>
@@ -1755,7 +1846,7 @@ const AdvancedEditor = ({ template, onSaved, onClose }) => {
                     <div><label className="text-[9px] font-bold text-slate-400 uppercase block mb-1">{selected.field === 'wipe' ? 'Box Color' : 'Color'}</label><div className="flex items-center gap-2"><input type="color" value={selected.color} onChange={(e) => updateOverlay(selected.id, { color: e.target.value })} className="w-8 h-7 rounded border border-slate-200 dark:border-slate-700 cursor-pointer" /><span className="text-[9px] text-slate-500 font-mono">{selected.color}</span></div></div>
                     <div><label className="text-[9px] font-bold text-slate-400 uppercase block mb-1">Opacity ({(selected.opacity * 100).toFixed(0)}%)</label><input type="range" min="0" max="1" step="0.05" value={selected.opacity} onChange={(e) => updateOverlay(selected.id, { opacity: parseFloat(e.target.value) })} className="w-full accent-violet-600" /></div>
                   </div>
-                  {selected.field !== 'wipe' && (
+                  {!['wipe', 'qrCode', 'logo', 'signature'].includes(selected.field) && (
                     <>
                       <div className="grid grid-cols-2 gap-2">
                         <div><label className="text-[9px] font-bold text-slate-400 uppercase block mb-1">Line Height ({selected.lineHeight}x)</label><input type="range" min="0.8" max="2.5" step="0.1" value={selected.lineHeight} onChange={(e) => updateOverlay(selected.id, { lineHeight: parseFloat(e.target.value) })} className="w-full accent-violet-600" /></div>
@@ -1766,7 +1857,7 @@ const AdvancedEditor = ({ template, onSaved, onClose }) => {
                       </div>
                     </>
                   )}
-                  {selected.field !== 'wipe' && (
+                  {!['wipe', 'qrCode', 'logo', 'signature'].includes(selected.field) && (
                     <label className="flex items-center gap-2 cursor-pointer"><input type="checkbox" checked={selected.uppercase} onChange={(e) => updateOverlay(selected.id, { uppercase: e.target.checked })} className="w-3.5 h-3.5 rounded accent-violet-600" /><span className="text-[10px] font-medium text-slate-600 dark:text-slate-400">UPPERCASE text</span></label>
                   )}
                   <div className="pt-2 border-t border-slate-200 dark:border-slate-700 grid grid-cols-2 gap-2">
