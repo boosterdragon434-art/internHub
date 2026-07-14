@@ -43,8 +43,8 @@ const StudentTeamPage = () => {
   const fetchTeam = async () => {
     try {
       const res = await getMyTeam();
-      if (res.success && res.data.team) {
-        setTeam(res.data.team);
+      if (res.data?.success && res.data?.data?.team) {
+        setTeam(res.data.data.team);
       }
     } catch (error) {
       console.error(error);
@@ -76,9 +76,9 @@ const StudentTeamPage = () => {
     setIsSubmitting(true);
     try {
       const res = await updateProjectDetails(team._id, projectData);
-      if (res.success) {
+      if (res.data?.success) {
         toast.success('Project details updated!');
-        setTeam(res.data.team);
+        setTeam(res.data.data.team);
         setIsProjectModalOpen(false);
       }
     } catch (err) {
@@ -93,9 +93,9 @@ const StudentTeamPage = () => {
     setIsSubmitting(true);
     try {
       const res = await updateMyContribution(team._id, contribData);
-      if (res.success) {
+      if (res.data?.success) {
         toast.success('Your contribution has been updated!');
-        setTeam(res.data.team);
+        setTeam(res.data.data.team);
         setIsContribModalOpen(false);
       }
     } catch (err) {

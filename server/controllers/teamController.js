@@ -365,7 +365,7 @@ const assignTeamGuide = async (req, res, next) => {
  */
 const getMyTeam = async (req, res, next) => {
   try {
-    const team = await InternGroup.findOne({ members: req.user.id, isActive: true })
+    const team = await InternGroup.findOne({ members: req.user._id, isActive: true })
       .populate('guide', 'name email avatar expertise bio')
       .populate({
         path: 'members',
@@ -399,7 +399,7 @@ const updateProjectDetails = async (req, res, next) => {
     }
 
     // Authorization
-    if (req.user.role === 'student' && !team.members.includes(req.user.id)) {
+    if (req.user.role === 'student' && !team.members.some(m => m.toString() === req.user.id)) {
       return next(ApiError.forbidden('You are not a member of this team.'));
     }
     if (req.user.role === 'guide' && team.guide?.toString() !== req.user.id) {
@@ -432,7 +432,7 @@ const updateMyContribution = async (req, res, next) => {
       return next(ApiError.notFound('Team not found.'));
     }
 
-    if (!team.members.includes(req.user.id)) {
+    if (!team.members.some(m => m.toString() === req.user.id)) {
       return next(ApiError.forbidden('You are not a member of this team.'));
     }
 
