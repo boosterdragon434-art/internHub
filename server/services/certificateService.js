@@ -166,6 +166,43 @@ const parsePlaceholders = (text, certData, dataMap) => {
 };
 
 /**
+ * Strips **bold** markup to get the plain rendered text, for accurate
+ * width/height measurement when a customText overlay uses inline emphasis.
+ */
+const stripBoldMarkup = (text) => text.replace(/\*\*([^*]+)\*\*/g, '$1');
+
+/**
+ * Renders a line of text that may contain **bold** segments as a single
+ * flowing run, using PDFKit's continued-text chaining so each segment's
+ * width is computed exactly by PDFKit itself — this is what makes
+ * "Subject: ... for **{{internship_role}}**" render correctly regardless
+ * of how long the resolved value is, instead of relying on two
+ * separately-positioned overlays that only line up for one specific
+ * piece of test data.
+ * Left-aligned text only for now — center/right alignment with mixed
+ * runs has more PDFKit edge cases and should be verified before trusting it.
+ */
+const renderMixedFormatText = (doc, text, x, y, options, regularFont, boldFont) => {
+  const parts = text.split(/(\*\*[^*]+\*\*)/g).filter((p) => p.length > 0);
+  if (parts.length <= 1) {
+    doc.font(regularFont);
+    doc.text(stripBoldMarkup(text), x, y, options);
+    return;
+  }
+  parts.forEach((part, i) => {
+    const isBold = part.startsWith('**') && part.endsWith('**');
+    const content = isBold ? part.slice(2, -2) : part;
+    doc.font(isBold ? boldFont : regularFont);
+    const callOptions = { ...options, continued: i < parts.length - 1 };
+    if (i === 0) {
+      doc.text(content, x, y, callOptions);
+    } else {
+      doc.text(content, callOptions);
+    }
+  });
+};
+
+/**
  * Compiles a premium PDF Certificate or Letter.
  * Supports multiple formats (A4, Letter) and orientations (Portrait, Landscape).
  *
@@ -521,6 +558,9 @@ const _buildOverlayPDF = (doc, certData, pdfW, pdfH) => {
 
     // Resolve PDF-compatible font
     const fontName = resolvePDFFont(overlay.fontFamily, overlay.fontWeight);
+    const boldFontName = resolvePDFFont(overlay.fontFamily, 'bold');
+    const hasMixedFormatting = text.includes('**');
+    const plainText = hasMixedFormatting ? stripBoldMarkup(text) : text;
 
     doc.save();
     doc.font(fontName);
@@ -544,9 +584,9 @@ const _buildOverlayPDF = (doc, certData, pdfW, pdfH) => {
     }
 
     // Auto-scale long text that would overflow the box
+    // (measured against the plain/marker-stripped text so ** characters never skew this)
     let finalFontSize = fontSize;
-    const textWidth = doc.widthOfString(text, { width: maxWidthPt });
-    const textHeight = doc.heightOfString(text, { width: maxWidthPt });
+    const textHeight = doc.heightOfString(plainText, { width: maxWidthPt });
     if (textHeight > heightPt && finalFontSize > 6) {
       const scaleFactor = Math.max(0.5, heightPt / textHeight);
       finalFontSize = Math.max(6, finalFontSize * scaleFactor);
@@ -563,7 +603,13 @@ const _buildOverlayPDF = (doc, certData, pdfW, pdfH) => {
     if (overlay.letterSpacing && overlay.letterSpacing !== 0) {
       textOptions.characterSpacing = overlay.letterSpacing * (pdfW / (certData.canvasWidth || 842));
     }
-    doc.text(text, textX, y - heightPt / 2 + (heightPt - finalFontSize) / 2, textOptions);
+
+    const drawY = y - heightPt / 2 + (heightPt - finalFontSize) / 2;
+    if (hasMixedFormatting && align === 'left') {
+      renderMixedFormatText(doc, text, textX, drawY, textOptions, fontName, boldFontName);
+    } else {
+      doc.text(plainText, textX, drawY, textOptions);
+    }
 
     doc.restore();
   }
@@ -654,13 +700,21 @@ const _buildOverlayPDFOverlaysOnly = (doc, certData, pdfW, pdfH) => {
     if (overlay.uppercase) text = text.toUpperCase();
 
     const fontName = resolvePDFFont(overlay.fontFamily, overlay.fontWeight);
+    const boldFontName = resolvePDFFont(overlay.fontFamily, 'bold');
+    const hasMixedFormatting = text.includes('**');
+    const plainText = hasMixedFormatting ? stripBoldMarkup(text) : text;
     doc.save();
     doc.font(fontName).fontSize(ovFontSize).fillColor(overlay.color || '#000000').opacity(overlay.opacity ?? 1);
     const align = overlay.align || 'center';
     let textX = ovX;
     if (align === 'center') textX = ovX - ovMaxW / 2;
     else if (align === 'right') textX = ovX - ovMaxW;
-    doc.text(text, textX, ovY - ovH / 2 + (ovH - ovFontSize) / 2, { width: ovMaxW, align });
+    const drawY = ovY - ovH / 2 + (ovH - ovFontSize) / 2;
+    if (hasMixedFormatting && align === 'left') {
+      renderMixedFormatText(doc, text, textX, drawY, { width: ovMaxW, align }, fontName, boldFontName);
+    } else {
+      doc.text(plainText, textX, drawY, { width: ovMaxW, align });
+    }
     doc.restore();
   }
 };
