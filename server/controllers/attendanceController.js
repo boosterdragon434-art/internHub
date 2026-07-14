@@ -81,20 +81,21 @@ const autoCheckoutActiveSessions = async () => {
       });
 
       for (const session of activeSessions) {
-        // Close open breaks
-        for (const brk of session.breaks) {
-          if (!brk.breakEnd) {
-            brk.breakEnd = session.checkInTime;
-            brk.duration = 0;
-          }
-        }
-
-        const sessionDate = new Date(session.checkInTime);
-        const autoCheckout = new Date(sessionDate);
-        autoCheckout.setHours(settings.autoCheckoutHour, 0, 0, 0);
+        const [year, month, day] = session.date.split('-').map(Number);
+        const utcMidnight = Date.UTC(year, month - 1, day);
+        const istMidnightUTC = utcMidnight - (330 * 60 * 1000);
+        const autoCheckout = new Date(istMidnightUTC + (settings.autoCheckoutHour * 60 * 60 * 1000));
 
         const checkOutTime =
           autoCheckout > session.checkInTime ? autoCheckout : session.checkInTime;
+
+        // Close open breaks
+        for (const brk of session.breaks) {
+          if (!brk.breakEnd) {
+            brk.breakEnd = checkOutTime;
+            brk.duration = Math.max(0, Math.round((brk.breakEnd - brk.breakStart) / 60000));
+          }
+        }
 
         const totalBreakDuration = session.breaks.reduce(
           (sum, b) => sum + (b.duration || 0),
@@ -152,20 +153,21 @@ const handleMissedCheckouts = async (userId) => {
   const settings = await AttendanceSettings.getSettings();
 
   for (const session of openSessions) {
-    // Close any open breaks
-    for (const brk of session.breaks) {
-      if (!brk.breakEnd) {
-        brk.breakEnd = session.checkInTime;
-        brk.duration = 0;
-      }
-    }
-
-    const sessionDate = new Date(session.checkInTime);
-    const autoCheckout = new Date(sessionDate);
-    autoCheckout.setHours(settings.autoCheckoutHour, 0, 0, 0);
+    const [year, month, day] = session.date.split('-').map(Number);
+    const utcMidnight = Date.UTC(year, month - 1, day);
+    const istMidnightUTC = utcMidnight - (330 * 60 * 1000);
+    const autoCheckout = new Date(istMidnightUTC + (settings.autoCheckoutHour * 60 * 60 * 1000));
 
     const checkOutTime =
       autoCheckout > session.checkInTime ? autoCheckout : session.checkInTime;
+
+    // Close any open breaks
+    for (const brk of session.breaks) {
+      if (!brk.breakEnd) {
+        brk.breakEnd = checkOutTime;
+        brk.duration = Math.max(0, Math.round((brk.breakEnd - brk.breakStart) / 60000));
+      }
+    }
 
     const totalBreakDuration = session.breaks.reduce(
       (sum, b) => sum + (b.duration || 0),
