@@ -39,6 +39,11 @@ export const assignPaymentAmount = async (id, amount, currency, deadline, notes)
   return response.data;
 };
 
+export const sendOfferLetter = async (id, templateId) => {
+  const response = await api.post(`/applications/${id}/send-offer-letter`, { templateId });
+  return response.data;
+};
+
 export const performBulkAction = async (applicationIds, action) => {
   const response = await api.post('/applications/bulk', { applicationIds, action });
   return response.data;

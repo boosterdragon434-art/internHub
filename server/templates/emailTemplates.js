@@ -287,6 +287,29 @@ const certificateDeliveryTemplate = (name, internshipTitle, certificateId) =>
     ${paragraph('Thank you for your dedication and hard work. We wish you the very best in your career! 🚀')}
   `);
 
+/**
+ * Template D — Offer Letter Delivery
+ * Triggered by admin action
+ * PDF offer letter is attached via nodemailer attachments
+ */
+const offerLetterDeliveryTemplate = (name, internshipTitle) =>
+  baseTemplate(`
+    ${greeting(name)}
+    ${paragraph(`<span style="font-size:20px;">🎉</span> We are thrilled to offer you a position for the <strong>${internshipTitle}</strong> internship at FWT internHub!`)}
+    ${paragraph('Your official Offer Letter is attached to this email. Please review it carefully. It contains important details regarding your internship.')}
+    ${infoCard('Internship', internshipTitle)}
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin:20px 0;background:linear-gradient(135deg,${brandColor},${brandDark});border-radius:12px;overflow:hidden;">
+      <tr>
+        <td style="padding:28px 24px;text-align:center;">
+          <p style="color:rgba(255,255,255,0.8);font-size:13px;margin:0;letter-spacing:0.5px;">OFFER LETTER ATTACHED</p>
+          <p style="color:#ffffff;font-size:22px;font-weight:700;margin:8px 0 0;">Please review the attached PDF</p>
+        </td>
+      </tr>
+    </table>
+    ${actionButton('Go to Dashboard', process.env.CLIENT_URL + '/student/dashboard')}
+    ${paragraph('We are excited to welcome you to the team. If you have any questions, please do not hesitate to contact us. 🚀')}
+  `);
+
 // ==================== PLAIN TEXT GENERATORS ====================
 
 /**
@@ -315,5 +338,6 @@ module.exports = {
   internshipApplicationConfirmationTemplate,
   internshipApprovalTemplate,
   certificateDeliveryTemplate,
+  offerLetterDeliveryTemplate,
   plainText,
 };

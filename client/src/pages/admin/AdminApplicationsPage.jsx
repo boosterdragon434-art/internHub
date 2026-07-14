@@ -8,7 +8,9 @@ import {
   assignPaymentAmount,
   performBulkAction,
   exportApplicationsCsv,
+  sendOfferLetter,
 } from '../../api/applicationApi';
+import { getTemplates } from '../../api/certificateApi';
 import { useToast } from '../../context/ToastContext';
 import DataTable from '../../components/ui/DataTable';
 import Badge from '../../components/common/Badge';
@@ -39,6 +41,11 @@ const AdminApplicationsPage = () => {
   const [saving, setSaving] = useState(false);
   const [completing, setCompleting] = useState(false);
 
+  // Offer Letter State
+  const [offerTemplates, setOfferTemplates] = useState([]);
+  const [selectedOfferTemplate, setSelectedOfferTemplate] = useState('');
+  const [sendingOfferLetter, setSendingOfferLetter] = useState(false);
+
   const statusOptions = [
     'Applied', 'Under Review', 'Approved', 'Rejected',
     'Payment Pending', 'Payment Verification Pending', 'Payment Completed',
@@ -64,6 +71,20 @@ const AdminApplicationsPage = () => {
   };
 
   useEffect(() => { fetchData(); }, [debouncedSearch, statusFilter, pagination.page]);
+
+  useEffect(() => {
+    const fetchOfferTemplates = async () => {
+      try {
+        const res = await getTemplates({ documentCategory: 'offer_letter' });
+        if (res.success) {
+          setOfferTemplates(res.data);
+        }
+      } catch (err) {
+        console.error('Failed to fetch offer templates', err);
+      }
+    };
+    fetchOfferTemplates();
+  }, []);
 
   const handleStatusUpdate = async () => {
     if (!statusForm.status) { toast.error('Select a status.'); return; }
@@ -119,6 +140,23 @@ const AdminApplicationsPage = () => {
       toast.error(err.response?.data?.message || 'Failed to complete application.');
     } finally {
       setCompleting(false);
+    }
+  };
+
+  const handleSendOfferLetter = async () => {
+    if (!selectedOfferTemplate) {
+      toast.error('Please select an offer letter template.');
+      return;
+    }
+    setSendingOfferLetter(true);
+    try {
+      await sendOfferLetter(detailModal._id, selectedOfferTemplate);
+      toast.success('Offer letter generated and sent to the student!');
+      fetchData();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to send offer letter.');
+    } finally {
+      setSendingOfferLetter(false);
     }
   };
 
@@ -303,6 +341,35 @@ const AdminApplicationsPage = () => {
             {/* ── Status Update & Action Area ── */}
             <div className="border-t border-slate-200 dark:border-slate-800 pt-5 space-y-4">
               
+              {/* Offer Letter Area */}
+              {(detailModal.status === 'Joined' || detailModal.status === 'Payment Completed') && (
+                <div className="bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800/50 rounded-2xl p-5 mb-4">
+                  <h3 className="text-sm font-bold text-emerald-900 dark:text-emerald-300 flex items-center gap-2 mb-3">
+                    <FiCheckCircle className="w-4 h-4" /> Issue Offer Letter
+                  </h3>
+                  <div className="flex flex-col sm:flex-row gap-3 items-end">
+                    <div className="flex-1 w-full">
+                      <Input
+                        name="offerTemplate"
+                        type="select"
+                        label="Select Offer Letter Template"
+                        options={[{ value: '', label: 'Select Template' }, ...offerTemplates.map(t => ({ value: t._id, label: t.name }))]}
+                        value={selectedOfferTemplate}
+                        onChange={(e) => setSelectedOfferTemplate(e.target.value)}
+                      />
+                    </div>
+                    <Button
+                      variant="primary"
+                      className="shrink-0 bg-emerald-600 hover:bg-emerald-700 text-white border-none"
+                      onClick={handleSendOfferLetter}
+                      loading={sendingOfferLetter}
+                    >
+                      Send Offer Letter
+                    </Button>
+                  </div>
+                </div>
+              )}
+
               {/* Finalization Area (Mark Complete) */}
               {detailModal.status === 'Joined' ? (
                 <div className="bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-800/50 rounded-2xl p-5">

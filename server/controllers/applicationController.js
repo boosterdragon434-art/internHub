@@ -349,6 +349,61 @@ const completeApplication = async (req, res, next) => {
 };
 
 /**
+ * @desc    Send Offer Letter
+ * @route   POST /api/applications/:id/send-offer-letter
+ * @access  Admin
+ */
+const sendOfferLetter = async (req, res, next) => {
+  try {
+    const { templateId } = req.body;
+    if (!templateId) {
+      return next(ApiError.badRequest('Template ID is required to send an offer letter.'));
+    }
+
+    const application = await Application.findById(req.params.id)
+      .populate('user')
+      .populate('internship');
+
+    if (!application) {
+      return next(ApiError.notFound('Application not found.'));
+    }
+
+    if (![APPLICATION_STATUS.PAYMENT_COMPLETED, APPLICATION_STATUS.JOINED].includes(application.status)) {
+      return next(ApiError.badRequest('Offer letters can only be sent after payment verification (status must be Joined).'));
+    }
+
+    // Generate the offer letter using the certificate pipeline
+    const result = await _generateSingleCertificate({
+      application,
+      templateId,
+      issuerId: req.user.id,
+      overwrite: false,
+    });
+
+    if (!result.success) {
+      return next(ApiError.conflict(result.error || 'Offer Letter generation failed.'));
+    }
+
+    // Ensure we set the document type in the generated Certificate record
+    const Certificate = mongoose.model('Certificate');
+    await Certificate.findByIdAndUpdate(result.certificate._id, {
+      documentType: 'offer_letter'
+    });
+
+    // Send the email with the generated PDF
+    await emailService.sendOfferLetter(application.user, application.internship.title, result.certificate.pdfUrl);
+
+    logger.info(`Offer letter ${result.certificate.certificateId} sent to ${application.user.email}`);
+
+    ApiResponse.success(res, 200, 'Offer letter generated and sent successfully.', {
+      certificate: result.certificate,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
  * @desc    Assign payment amount to application and create PaymentRequest.
  *          Atomically approves the application if it is still in a pre-approved
  *          state (Applied / Under Review), so the admin can approve + assign
@@ -725,4 +780,5 @@ module.exports = {
   bulkAction,
   exportCsv,
   getApplicationStats,
+  sendOfferLetter,
 };

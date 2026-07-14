@@ -12,6 +12,7 @@ const {
   bulkAction,
   exportCsv,
   getApplicationStats,
+  sendOfferLetter,
 } = require('../controllers/applicationController');
 const { protect, authorize } = require('../middleware/auth');
 const validate = require('../middleware/validate');
@@ -31,6 +32,7 @@ router.get('/', protect, authorize('admin'), getAllApplications);
 router.get('/:id', protect, authorize('admin'), getApplication);
 router.put('/:id/status', protect, authorize('admin'), validate(applicationValidator.updateStatus), updateApplicationStatus);
 router.put('/:id/complete', protect, authorize('admin'), completeApplication);
+router.post('/:id/send-offer-letter', protect, authorize('admin'), sendOfferLetter);
 router.put('/:id/assign-payment', protect, authorize('admin'), validate(applicationValidator.assignPayment), assignPayment);
 
 module.exports = router;

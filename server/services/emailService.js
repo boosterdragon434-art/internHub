@@ -15,6 +15,7 @@ const {
   internshipApplicationConfirmationTemplate,
   internshipApprovalTemplate,
   certificateDeliveryTemplate,
+  offerLetterDeliveryTemplate,
   plainText,
 } = require('../templates/emailTemplates');
 
@@ -282,6 +283,37 @@ class EmailService {
       `Your Certificate is Ready — ${internshipTitle} 🎓`,
       html,
       'certificate_delivery',
+      { text, attachments }
+    );
+  }
+
+  /**
+   * Send offer letter email with PDF attachment.
+   * @param {Object} user - User object with name and email
+   * @param {string} internshipTitle - Title of the internship
+   * @param {string} pdfUrl - Cloudinary/R2 URL of the PDF offer letter
+   */
+  async sendOfferLetter(user, internshipTitle, pdfUrl) {
+    const html = offerLetterDeliveryTemplate(user.name, internshipTitle);
+    const text = plainText(
+      'Offer Letter',
+      user.name,
+      `Congratulations! Your offer letter for ${internshipTitle} is attached. Please review it.`
+    );
+
+    const attachments = [];
+    if (pdfUrl) {
+      attachments.push({
+        filename: `Offer_Letter_${internshipTitle.replace(/\s+/g, '_')}.pdf`,
+        path: pdfUrl,
+      });
+    }
+
+    await this._sendEmail(
+      user.email,
+      `Your Offer Letter — ${internshipTitle} 🎉`,
+      html,
+      'offer_letter_delivery',
       { text, attachments }
     );
   }
