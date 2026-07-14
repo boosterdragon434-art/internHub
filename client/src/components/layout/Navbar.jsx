@@ -256,46 +256,54 @@ const Navbar = () => {
                         animate={{ opacity: 1, y: 0, scale: 1 }}
                         exit={{ opacity: 0, y: 12, scale: 0.96 }}
                         transition={{ type: 'spring', stiffness: 200, damping: 18 }}
-                        className="absolute right-0 mt-3.5 w-80 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-xl z-50 overflow-hidden"
+                        className="absolute right-0 mt-3.5 w-80 sm:w-96 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl z-50 overflow-hidden"
                       >
-                        <div className="flex items-center justify-between px-4.5 py-3 border-b border-slate-100 dark:border-slate-800">
+                        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 dark:border-slate-800/60">
                           <span className="text-xs font-black uppercase tracking-widest text-slate-800 dark:text-slate-200">
                             Notifications
                           </span>
                           {unreadCount > 0 && (
                             <button
                               onClick={handleMarkAllRead}
-                              className="text-[10px] font-black uppercase tracking-widest text-amber-600 dark:text-amber-400 hover:text-amber-500"
+                              className="text-[10px] font-black uppercase tracking-widest text-amber-600 dark:text-amber-400 hover:text-amber-500 transition-colors"
                             >
                               Mark all read
                             </button>
                           )}
                         </div>
-                        <div className="max-h-64 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800/80 scrollbar-thin">
+                        <div className="max-h-80 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800/60 scrollbar-thin scrollbar-thumb-slate-200 dark:scrollbar-thumb-slate-700">
                           {notifications.length === 0 ? (
-                            <div className="py-8 px-4 text-center text-xs text-slate-400 font-bold">
-                              No notifications yet.
+                            <div className="py-10 px-4 flex flex-col items-center justify-center text-center">
+                              <div className="w-12 h-12 rounded-full bg-slate-50 dark:bg-slate-800 flex items-center justify-center mb-3">
+                                <FiBell className="w-5 h-5 text-slate-400" />
+                              </div>
+                              <p className="text-sm text-slate-500 dark:text-slate-300 font-semibold">
+                                You're all caught up!
+                              </p>
+                              <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">
+                                No new notifications at the moment.
+                              </p>
                             </div>
                           ) : (
                             notifications.map((noti) => (
                               <div
                                 key={noti._id}
                                 onClick={() => handleNotificationClick(noti)}
-                                className={`p-4 text-left hover:bg-slate-50 dark:hover:bg-slate-850/60 cursor-pointer transition-colors relative flex items-start gap-3 ${
-                                  !noti.isRead ? 'bg-slate-50 dark:bg-slate-950/20' : ''
+                                className={`p-4 sm:p-5 text-left hover:bg-slate-50/80 dark:hover:bg-slate-800/40 cursor-pointer transition-all relative flex items-start gap-4 ${
+                                  !noti.isRead ? 'bg-slate-50/50 dark:bg-slate-800/20' : ''
                                 }`}
                               >
                                 {!noti.isRead && (
-                                  <span className="w-2 h-2 rounded-full bg-amber-500 mt-1 shrink-0 shadow-md" />
+                                  <span className="w-2 h-2 rounded-full bg-amber-500 mt-1.5 shrink-0 shadow-sm shadow-amber-500/30" />
                                 )}
                                 <div className="min-w-0 flex-1">
-                                  <h4 className="text-xs font-extrabold text-slate-800 dark:text-slate-100 truncate">
+                                  <h4 className="text-sm font-bold text-slate-800 dark:text-slate-100 truncate pr-2">
                                     {noti.title}
                                   </h4>
-                                  <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5 line-clamp-2 leading-relaxed font-semibold">
+                                  <p className="text-xs text-slate-600 dark:text-slate-400 mt-1 line-clamp-2 leading-relaxed">
                                     {noti.message}
                                   </p>
-                                  <span className="text-[8px] text-slate-400 dark:text-slate-500 mt-1.5 block font-black uppercase">
+                                  <span className="text-[10px] text-slate-400 dark:text-slate-500 mt-2 block font-semibold uppercase tracking-wider">
                                     {formatDate(noti.createdAt)}
                                   </span>
                                 </div>
@@ -303,6 +311,16 @@ const Navbar = () => {
                             ))
                           )}
                         </div>
+                        {notifications.length > 0 && (
+                          <div className="p-3 border-t border-slate-100 dark:border-slate-800/60 bg-slate-50/50 dark:bg-slate-900/50 text-center">
+                            <button
+                              onClick={() => setNotiDropdownOpen(false)}
+                              className="text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 transition-colors"
+                            >
+                              Close
+                            </button>
+                          </div>
+                        )}
                       </motion.div>
                     )}
                   </AnimatePresence>
