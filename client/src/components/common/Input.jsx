@@ -71,9 +71,9 @@ const Input = forwardRef(({
             required={required}
             {...props}
           >
-            {placeholder && <option value="">{placeholder}</option>}
+            {placeholder && <option value="" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">{placeholder}</option>}
             {options.map((opt) => (
-              <option key={opt.value} value={opt.value}>
+              <option key={opt.value} value={opt.value} className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">
                 {opt.label}
               </option>
             ))}

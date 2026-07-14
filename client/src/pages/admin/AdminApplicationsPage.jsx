@@ -76,8 +76,8 @@ const AdminApplicationsPage = () => {
     const fetchOfferTemplates = async () => {
       try {
         const res = await getTemplates({ status: 'active' });
-        if (res.success) {
-          setOfferTemplates(res.data);
+        if (res.data && res.data.success) {
+          setOfferTemplates(res.data.data);
         }
       } catch (err) {
         console.error('Failed to fetch offer templates', err);
@@ -353,16 +353,21 @@ const AdminApplicationsPage = () => {
                         name="offerTemplate"
                         type="select"
                         label="Select Offer Letter Template"
-                        options={[{ value: '', label: 'Select Template' }, ...offerTemplates.map(t => ({ value: t._id, label: t.name }))]}
+                        required={true}
+                        disabled={offerTemplates.length === 0}
+                        options={offerTemplates.length === 0 
+                          ? [{ value: '', label: 'No templates available. Please create one.' }] 
+                          : [{ value: '', label: 'Select Template' }, ...offerTemplates.map(t => ({ value: t._id, label: t.name }))]}
                         value={selectedOfferTemplate}
                         onChange={(e) => setSelectedOfferTemplate(e.target.value)}
                       />
                     </div>
                     <Button
                       variant="primary"
-                      className="shrink-0 bg-emerald-600 hover:bg-emerald-700 text-white border-none"
+                      className="shrink-0 bg-emerald-600 hover:bg-emerald-700 text-white border-none h-[46px] mb-0.5"
                       onClick={handleSendOfferLetter}
                       loading={sendingOfferLetter}
+                      disabled={offerTemplates.length === 0 || !selectedOfferTemplate}
                     >
                       Send Offer Letter
                     </Button>
