@@ -75,7 +75,7 @@ const AdminApplicationsPage = () => {
   useEffect(() => {
     const fetchOfferTemplates = async () => {
       try {
-        const res = await getTemplates({ documentCategory: 'offer_letter' });
+        const res = await getTemplates({ status: 'active' });
         if (res.success) {
           setOfferTemplates(res.data);
         }
