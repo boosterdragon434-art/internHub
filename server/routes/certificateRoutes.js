@@ -10,6 +10,13 @@ const {
   deleteTemplate,
   toggleTemplateStatus,
   downloadTemplate,
+  getTemplateVersions,
+  restoreTemplateVersion,
+  exportTemplate,
+  importTemplate,
+  getBrandAssets,
+  createBrandAsset,
+  deleteBrandAsset,
   generateCertificate,
   bulkGenerate,
   previewCertificate,
@@ -63,6 +70,19 @@ router.get('/templates/:id/download', protect, authorize('admin'), downloadTempl
 router.post('/templates/:id/duplicate', protect, authorize('admin'), duplicateTemplate);
 router.get('/templates/:id/test-render', protect, authorize('admin'), testRenderTemplate);
 router.delete('/templates/:id', protect, authorize('admin'), deleteTemplate);
+
+// ─── Phase 10: Template Versions ─────────────────────────────
+router.get('/templates/:id/versions', protect, authorize('admin'), getTemplateVersions);
+router.post('/templates/:id/versions/:versionId/restore', protect, authorize('admin'), restoreTemplateVersion);
+
+// ─── Phase 8: Import/Export JSON ─────────────────────────────
+router.get('/templates/:id/export', protect, authorize('admin'), exportTemplate);
+router.post('/templates/import', protect, authorize('admin'), validate(certificateValidator.importTemplate), importTemplate);
+
+// ─── Phase 8: Brand Assets ───────────────────────────────────
+router.get('/brand-assets', protect, authorize('admin'), getBrandAssets);
+router.post('/brand-assets', protect, authorize('admin'), validate(certificateValidator.createBrandAsset), createBrandAsset);
+router.delete('/brand-assets/:id', protect, authorize('admin'), deleteBrandAsset);
 
 // ─── Admin Certificate Generation & Management ──────────────
 router.post(

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo, lazy, Suspense } from 'react';
 import { Helmet } from 'react-helmet-async';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -16,6 +16,9 @@ import {
 import { toast } from 'react-hot-toast';
 import CertificateRegistryTab from '../../components/certificates/CertificateRegistryTab';
 import ConfirmDialog from '../../components/common/ConfirmDialog';
+
+// Lazy-load the Konva-based Document Studio editor (only loaded when ?editor=v2)
+const DocumentStudioEditor = lazy(() => import('../../features/document-studio/DocumentStudioEditor'));
 
 // ─────────────────────────────────────────────────────────────
 // Constants & Helpers
@@ -578,14 +581,34 @@ const CertificateGeneratorPage = () => {
         )}
       </AnimatePresence>
 
-      {/* Advanced Template Editor (Full Screen) */}
+      {/* Advanced Template Editor (Full Screen) — v1 legacy or v2 Document Studio */}
       <AnimatePresence>
         {editorTemplate && (
-          <AdvancedEditor
-            template={editorTemplate}
-            onSaved={() => { setEditorTemplate(null); fetchTemplates(); }}
-            onClose={() => setEditorTemplate(null)}
-          />
+          (() => {
+            const useV2 = new URLSearchParams(window.location.search).get('editor') === 'v2';
+            if (useV2) {
+              return (
+                <Suspense fallback={
+                  <div className="fixed inset-0 z-50 bg-slate-950/90 flex items-center justify-center">
+                    <div className="text-white text-sm font-bold flex items-center gap-2"><FiRefreshCw className="animate-spin" /> Loading Document Studio...</div>
+                  </div>
+                }>
+                  <DocumentStudioEditor
+                    template={editorTemplate}
+                    onSaved={() => { setEditorTemplate(null); fetchTemplates(); }}
+                    onClose={() => setEditorTemplate(null)}
+                  />
+                </Suspense>
+              );
+            }
+            return (
+              <AdvancedEditor
+                template={editorTemplate}
+                onSaved={() => { setEditorTemplate(null); fetchTemplates(); }}
+                onClose={() => setEditorTemplate(null)}
+              />
+            );
+          })()
         )}
       </AnimatePresence>
 

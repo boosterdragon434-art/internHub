@@ -4,6 +4,8 @@ const Application = require('../models/Application');
 const User = require('../models/User');
 const Notification = require('../models/Notification');
 const AuditLog = require('../models/AuditLog');
+const TemplateVersion = require('../models/TemplateVersion');
+const BrandAsset = require('../models/BrandAsset');
 const r2Service = require('../services/r2Service');
 const {
   generateQRCode,
@@ -12,7 +14,7 @@ const {
   generateVerificationHash,
   computeFileHash,
 } = require('../services/certificateService');
-const { BULK_GENERATION_LIMIT } = require('../config/constants');
+const { BULK_GENERATION_LIMIT, MAX_TEMPLATE_VERSIONS } = require('../config/constants');
 const { validateBase64MagicBytes } = require('../middleware/upload');
 const ApiError = require('../utils/ApiError');
 const ApiResponse = require('../utils/ApiResponse');
@@ -213,7 +215,7 @@ const updateTemplate = async (req, res, next) => {
       return next(ApiError.notFound('Template not found.'));
     }
 
-    const { name, description, layout, typography, isDefault, backgroundImage, overlays, metadata, width, height, documentCategory, customTextTemplate, pageFormat, orientation } = req.body;
+    const { name, description, layout, typography, isDefault, backgroundImage, overlays, metadata, width, height, documentCategory, customTextTemplate, pageFormat, orientation, pages, headerOverlays, footerOverlays, firstPageDifferent, lastPageDifferent } = req.body;
 
     if (name) template.name = name.trim();
     if (description !== undefined) template.description = description.trim();
@@ -236,6 +238,13 @@ const updateTemplate = async (req, res, next) => {
         ...metadata,
       };
     }
+
+    // Update Phase 7 Multi-page fields
+    if (pages !== undefined) template.pages = pages;
+    if (headerOverlays !== undefined) template.headerOverlays = headerOverlays;
+    if (footerOverlays !== undefined) template.footerOverlays = footerOverlays;
+    if (firstPageDifferent !== undefined) template.firstPageDifferent = firstPageDifferent;
+    if (lastPageDifferent !== undefined) template.lastPageDifferent = lastPageDifferent;
 
     // Update layout coordinates (legacy support)
     if (layout) {
@@ -315,6 +324,28 @@ const updateTemplate = async (req, res, next) => {
     }
 
     await template.save();
+
+    // ── Phase 10: Create a version snapshot ──
+    try {
+      await TemplateVersion.create({
+        template: template._id,
+        overlays: template.overlays,
+        pages: template.pages,
+        overlayCount: template.overlays?.length || 0,
+        pageCount: template.pages?.length || 0,
+        typography: template.typography,
+        savedBy: req.user._id,
+      });
+
+      // Prune old versions to keep only MAX_TEMPLATE_VERSIONS
+      const versions = await TemplateVersion.find({ template: template._id }).sort({ createdAt: -1 });
+      if (versions.length > MAX_TEMPLATE_VERSIONS) {
+        const toDelete = versions.slice(MAX_TEMPLATE_VERSIONS).map((v) => v._id);
+        await TemplateVersion.deleteMany({ _id: { $in: toDelete } });
+      }
+    } catch (versionErr) {
+      logger.error('Failed to create template version snapshot:', versionErr);
+    }
 
     logger.info(`Certificate template updated: ${template.name} by ${req.user.email}`);
     ApiResponse.success(res, 200, 'Template updated successfully.', template);
@@ -1189,6 +1220,152 @@ const testRenderTemplate = async (req, res, next) => {
   }
 };
 
+// ─────────────────────────────────────────────────────────────
+// Phase 10: Version History
+// ─────────────────────────────────────────────────────────────
+
+const getTemplateVersions = async (req, res, next) => {
+  try {
+    const versions = await TemplateVersion.find({ template: req.params.id })
+      .sort({ createdAt: -1 })
+      .populate('savedBy', 'name email');
+    ApiResponse.success(res, 200, 'Versions retrieved successfully', versions);
+  } catch (error) {
+    next(error);
+  }
+};
+
+const restoreTemplateVersion = async (req, res, next) => {
+  try {
+    const version = await TemplateVersion.findById(req.params.versionId);
+    if (!version || String(version.template) !== req.params.id) {
+      return next(ApiError.notFound('Version not found.'));
+    }
+    const template = await CertificateTemplate.findById(req.params.id);
+    if (!template) {
+      return next(ApiError.notFound('Template not found.'));
+    }
+
+    template.overlays = version.overlays || [];
+    template.pages = version.pages || [];
+    template.typography = version.typography || template.typography;
+    await template.save();
+
+    // Create a new snapshot of this restoration
+    await TemplateVersion.create({
+      template: template._id,
+      overlays: template.overlays,
+      pages: template.pages,
+      overlayCount: template.overlays.length,
+      pageCount: template.pages.length,
+      typography: template.typography,
+      savedBy: req.user._id,
+    });
+
+    ApiResponse.success(res, 200, 'Template version restored successfully', template);
+  } catch (error) {
+    next(error);
+  }
+};
+
+// ─────────────────────────────────────────────────────────────
+// Phase 8: Import / Export JSON
+// ─────────────────────────────────────────────────────────────
+
+const exportTemplate = async (req, res, next) => {
+  try {
+    const template = await CertificateTemplate.findById(req.params.id).lean();
+    if (!template) return next(ApiError.notFound('Template not found.'));
+    
+    // Strip sensitive/system fields
+    const { _id, createdAt, updatedAt, createdBy, fileHash, cloudinaryPublicId, __v, ...exportData } = template;
+    
+    res.set({
+      'Content-Type': 'application/json',
+      'Content-Disposition': `attachment; filename="${template.name.replace(/\s+/g, '_')}_export.json"`,
+    });
+    res.send(JSON.stringify(exportData, null, 2));
+  } catch (error) {
+    next(error);
+  }
+};
+
+const importTemplate = async (req, res, next) => {
+  try {
+    const importData = req.body;
+    
+    // Basic validation
+    if (!importData.name || !importData.overlays) {
+      return next(ApiError.badRequest('Invalid template JSON format.'));
+    }
+
+    const newTemplate = await CertificateTemplate.create({
+      ...importData,
+      name: `${importData.name} (Imported)`,
+      createdBy: req.user._id,
+      isDefault: false,
+    });
+
+    ApiResponse.success(res, 201, 'Template imported successfully', newTemplate);
+  } catch (error) {
+    next(error);
+  }
+};
+
+// ─────────────────────────────────────────────────────────────
+// Phase 8: Brand Assets (Logos, Signatures, Icons)
+// ─────────────────────────────────────────────────────────────
+
+const getBrandAssets = async (req, res, next) => {
+  try {
+    const { type } = req.query;
+    const filter = {};
+    if (type) filter.type = type;
+    const assets = await BrandAsset.find(filter).sort({ createdAt: -1 });
+    ApiResponse.success(res, 200, 'Assets retrieved successfully', assets);
+  } catch (error) {
+    next(error);
+  }
+};
+
+const createBrandAsset = async (req, res, next) => {
+  try {
+    const { name, type, assetData } = req.body;
+    const { valid, buffer } = validateBase64MagicBytes(assetData);
+    if (!valid || !buffer) return next(ApiError.badRequest('Invalid image data.'));
+
+    const { publicId, secureUrl } = await r2Service.uploadFile(buffer, 'internhub/brand_assets', 'image');
+
+    const asset = await BrandAsset.create({
+      name,
+      type,
+      url: secureUrl,
+      r2Key: publicId,
+      fileSize: buffer.length,
+      uploadedBy: req.user._id,
+    });
+
+    ApiResponse.success(res, 201, 'Asset created successfully', asset);
+  } catch (error) {
+    next(error);
+  }
+};
+
+const deleteBrandAsset = async (req, res, next) => {
+  try {
+    const asset = await BrandAsset.findById(req.params.id);
+    if (!asset) return next(ApiError.notFound('Asset not found.'));
+    
+    if (asset.r2Key) {
+      await r2Service.deleteFile(asset.r2Key, 'image').catch(() => {});
+    }
+    await BrandAsset.findByIdAndDelete(req.params.id);
+    ApiResponse.success(res, 200, 'Asset deleted successfully');
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   getTemplates,
   getTemplateStats,
@@ -1199,6 +1376,13 @@ module.exports = {
   deleteTemplate,
   toggleTemplateStatus,
   downloadTemplate,
+  getTemplateVersions,
+  restoreTemplateVersion,
+  exportTemplate,
+  importTemplate,
+  getBrandAssets,
+  createBrandAsset,
+  deleteBrandAsset,
   generateCertificate,
   bulkGenerate,
   previewCertificate,

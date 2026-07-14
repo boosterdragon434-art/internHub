@@ -12,7 +12,7 @@ const overlaySchema = new mongoose.Schema(
     },
     field: {
       type: String,
-      enum: ['studentName', 'courseName', 'date', 'certificateId', 'serialNumber', 'instructorName', 'startDate', 'endDate', 'collegeName', 'companyName', 'grade', 'skills', 'performance', 'customText', 'wipe', 'qrCode', 'logo', 'signature'],
+      enum: ['studentName', 'courseName', 'date', 'certificateId', 'serialNumber', 'instructorName', 'startDate', 'endDate', 'collegeName', 'companyName', 'grade', 'skills', 'performance', 'customText', 'wipe', 'qrCode', 'logo', 'signature', 'shape', 'table', 'image', 'barcode'],
       required: true,
     },
     x: {
@@ -105,6 +105,48 @@ const overlaySchema = new mongoose.Schema(
       default: 'DD/MM/YYYY',
       trim: true,
     },
+
+    // ── Phase 5: Layer management ──
+    locked: { type: Boolean, default: false },
+    groupId: { type: String, default: null },
+
+    // ── Phase 6: Shape fields ──
+    shapeType: {
+      type: String,
+      enum: ['rectangle', 'roundedRectangle', 'circle', 'ellipse', 'triangle', 'line', 'star'],
+      default: 'rectangle',
+    },
+    fill: { type: String, default: '#3B82F6', trim: true },
+    stroke: { type: String, default: '#1E40AF', trim: true },
+    strokeWidth: { type: Number, default: 2, min: 0, max: 20 },
+    cornerRadius: { type: Number, default: 0, min: 0, max: 100 },
+
+    // ── Phase 6: Table fields ──
+    rows: { type: Number, default: 3, min: 1, max: 50 },
+    columns: { type: Number, default: 3, min: 1, max: 20 },
+    cellData: { type: [[String]], default: [] },
+    columnWidths: { type: [Number], default: [] },
+    rowHeights: { type: [Number], default: [] },
+    tableBorderColor: { type: String, default: '#CBD5E1', trim: true },
+    tableHeaderBg: { type: String, default: '#F1F5F9', trim: true },
+
+    // ── Phase 6: Image fields ──
+    imageUrl: { type: String, default: '' },
+    cropX: { type: Number, default: 0 },
+    cropY: { type: Number, default: 0 },
+    cropWidth: { type: Number, default: 100 },
+    cropHeight: { type: Number, default: 100 },
+    borderRadius: { type: Number, default: 0 },
+    brightness: { type: Number, default: 0, min: -1, max: 1 },
+    contrast: { type: Number, default: 0, min: -1, max: 1 },
+
+    // ── Phase 6: Barcode fields ──
+    barcodeFormat: {
+      type: String,
+      enum: ['CODE128', 'CODE39', 'EAN13', 'UPC'],
+      default: 'CODE128',
+    },
+    barcodeValue: { type: String, default: '' },
   },
   { _id: false }
 );
@@ -123,7 +165,7 @@ const certificateTemplateSchema = new mongoose.Schema(
     },
     documentCategory: {
       type: String,
-      enum: ['certificate', 'offer_letter', 'joining_letter', 'completion_letter', 'appreciation_letter', 'custom'],
+      enum: ['certificate', 'offer_letter', 'joining_letter', 'completion_letter', 'appreciation_letter', 'custom', 'recommendation_letter', 'experience_letter', 'appointment_letter', 'id_card'],
       default: 'certificate',
     },
     customTextTemplate: {
@@ -234,6 +276,19 @@ const certificateTemplateSchema = new mongoose.Schema(
       color: { type: String, default: '#1E293B' },
     },
     // Editor state metadata (zoom, grid settings)
+    // ── Phase 7: Multi-page support ──
+    pages: [{
+      backgroundImageUrl: { type: String, default: '' },
+      cloudinaryPublicId: { type: String, default: '' },
+      overlays: [overlaySchema],
+      pageFormat: { type: String, enum: ['A4', 'Letter', 'Custom'], default: 'A4' },
+      orientation: { type: String, enum: ['portrait', 'landscape'], default: 'landscape' },
+    }],
+    headerOverlays: [overlaySchema],
+    footerOverlays: [overlaySchema],
+    firstPageDifferent: { type: Boolean, default: false },
+    lastPageDifferent: { type: Boolean, default: false },
+
     metadata: {
       editorZoom: { type: Number, default: 100 },
       showGrid: { type: Boolean, default: false },
