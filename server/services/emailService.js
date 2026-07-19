@@ -1,6 +1,18 @@
 const nodemailer = require('nodemailer');
 const EmailLog = require('../models/EmailLog');
 const logger = require('../utils/logger');
+
+const retryPromise = async (fn, retries = 3, backoff = 500) => {
+  try {
+    return await fn();
+  } catch (error) {
+    if (retries <= 0) throw error;
+    logger.warn(`Retrying email after error: ${error.message}. Retries left: ${retries}`);
+    await new Promise((res) => setTimeout(res, backoff));
+    return retryPromise(fn, retries - 1, backoff * 2);
+  }
+};
+
 const {
   registrationTemplate,
   emailVerificationTemplate,
@@ -78,7 +90,7 @@ class EmailService {
         mailOptions.attachments = options.attachments;
       }
 
-      await transporter.sendMail(mailOptions);
+      await retryPromise(() => transporter.sendMail(mailOptions));
 
       await EmailLog.create({ to, subject, type, status: 'sent' });
       logger.info(`Email sent: [${type}] to ${to}`);

@@ -9,7 +9,7 @@ import TableObject from './TableObject';
  * DocumentCanvas — Konva Stage/Layer wrapper rendering one node per overlay.
  * Replaces the raw Canvas 2D imperative code from the existing AdvancedEditor.
  */
-const DocumentCanvas = ({
+const DocumentCanvas = React.memo(({
   overlays,
   templateWidth = 842,
   templateHeight = 595,
@@ -303,6 +303,6 @@ const DocumentCanvas = ({
       </Layer>
     </Stage>
   );
-};
+});
 
 export default DocumentCanvas;

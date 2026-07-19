@@ -5,7 +5,7 @@ import { Group, Rect, Line, Text } from 'react-konva';
  * TableObject — Konva renderer for table-type overlays.
  * Fixed row/column counts set at design time. Renders grid lines + per-cell text.
  */
-const TableObject = ({ overlay, renderW, renderH, isSelected, onSelect, onDragStart, onDragEnd, onDragMove, onTransformEnd }) => {
+const TableObject = React.memo(({ overlay, renderW, renderH, isSelected, onSelect, onDragStart, onDragEnd, onDragMove, onTransformEnd }) => {
   if (!overlay.visible) return null;
 
   const cx = (overlay.x / 100) * renderW;
@@ -120,6 +120,6 @@ const TableObject = ({ overlay, renderW, renderH, isSelected, onSelect, onDragSt
       )}
     </Group>
   );
-};
+});
 
 export default TableObject;

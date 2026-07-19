@@ -9,14 +9,16 @@ import {
   FiCheckCircle,
   FiArrowRight,
   FiChevronDown,
-  FiChevronUp,
   FiBriefcase,
   FiUsers,
   FiTrendingUp,
-  FiActivity,
   FiAward,
-  FiCalendar,
   FiFolder,
+  FiCode,
+  FiCpu,
+  FiTerminal,
+  FiMonitor,
+  FiClock
 } from 'react-icons/fi';
 import { getInternshipsList } from '../../api/internshipApi';
 import { formatDisplayAmount } from '../../utils/formatters';
@@ -34,262 +36,76 @@ const fadeUp = {
   visible: { opacity: 1, y: 0, transition: { type: 'spring', stiffness: 85, damping: 15 } },
 };
 
-const scaleIn = {
-  hidden: { opacity: 0, scale: 0.97 },
-  visible: { opacity: 1, scale: 1, transition: { duration: 0.5, type: 'spring', stiffness: 60 } },
-};
-
 // ─────────────────────────────────────────────────────────────
-// Ambient Technical Background Component
+// Ambient Technical Background Component (OLED Dark Mode)
 // ─────────────────────────────────────────────────────────────
-/**
- * Renders a highly clean background based on gold and slate tones.
- * Features an absolute solid-friendly layout to protect readability.
- */
 const AmbientBackground = () => (
-  <div className="absolute inset-0 overflow-hidden pointer-events-none z-0 select-none">
-    {/* Technical dotted blueprint coordinates grid */}
-    <div className="absolute inset-0 bg-[radial-gradient(#e2e8f0_1.5px,transparent_1.5px)] dark:bg-[radial-gradient(#1e293b_1.5px,transparent_1.5px)] bg-[size:36px_36px] opacity-80" />
+  <div className="absolute inset-0 overflow-hidden pointer-events-none z-0 select-none bg-brand-950">
+    {/* Minimalist grid for tech vibe */}
+    <div className="absolute inset-0 bg-[linear-gradient(to_right,#1e1e32_1px,transparent_1px),linear-gradient(to_bottom,#1e1e32_1px,transparent_1px)] bg-[size:40px_40px] opacity-20" />
     
-    {/* Soft subtle glowing gold mesh in corners for dark/light ambiance */}
-    <div className="absolute top-[-10%] right-[-10%] w-[50vw] h-[50vw] max-w-[600px] bg-amber-500/5 rounded-full blur-[120px]" />
-    <div className="absolute bottom-[-10%] left-[-10%] w-[50vw] h-[50vw] max-w-[600px] bg-yellow-600/5 rounded-full blur-[120px]" />
+    {/* Subtle Purple & Gold OLED glow patches */}
+    <div className="absolute top-[-20%] right-[-10%] w-[50vw] h-[50vw] max-w-[800px] bg-primary-600/10 rounded-full blur-[140px]" />
+    <div className="absolute bottom-[20%] left-[-10%] w-[40vw] h-[40vw] max-w-[600px] bg-accent-500/5 rounded-full blur-[120px]" />
+    <div className="absolute top-[40%] left-[20%] w-[30vw] h-[30vw] max-w-[400px] bg-primary-500/5 rounded-full blur-[100px]" />
 
-    {/* Dynamic bottom section cover gradient */}
-    <div className="absolute inset-0 bg-[linear-gradient(to_bottom,transparent_60%,#ffffff_98%)] dark:bg-[linear-gradient(to_bottom,transparent_60%,#020617_98%)]" />
+    {/* Vignette fade at the bottom */}
+    <div className="absolute inset-0 bg-[linear-gradient(to_bottom,transparent_60%,#0f0f23_98%)]" />
   </div>
+);
+
+// ─────────────────────────────────────────────────────────────
+// Bento Grid Feature Cell Component
+// ─────────────────────────────────────────────────────────────
+const BentoCell = ({ colSpan, rowSpan, title, desc, icon: Icon, color, delay, children, image }) => (
+  <motion.div
+    initial={{ opacity: 0, y: 20 }}
+    whileInView={{ opacity: 1, y: 0 }}
+    viewport={{ once: true, margin: "-50px" }}
+    transition={{ delay, duration: 0.5, type: 'spring' }}
+    className={`relative overflow-hidden group bg-brand-900 border border-brand-800 rounded-3xl p-6 hover:border-primary-500/40 transition-colors duration-500 flex flex-col ${colSpan} ${rowSpan}`}
+  >
+    {image && (
+      <div className="absolute inset-0 opacity-20 group-hover:opacity-30 transition-opacity duration-500 mix-blend-overlay">
+        <img src={image} alt="" className="w-full h-full object-cover grayscale" />
+      </div>
+    )}
+    
+    {/* Subtle top-left glow */}
+    <div className="absolute -top-12 -left-12 w-32 h-32 bg-primary-500/10 rounded-full blur-2xl group-hover:bg-primary-500/20 transition-all duration-500" />
+    
+    <div className="relative z-10 flex-1 flex flex-col">
+      {Icon && (
+        <div className={`w-12 h-12 rounded-2xl flex items-center justify-center mb-6 bg-${color}-500/10 border border-${color}-500/20 text-${color}-400 group-hover:scale-110 transition-transform duration-500`}>
+          <Icon className="w-6 h-6" />
+        </div>
+      )}
+      <h3 className="font-display text-xl sm:text-2xl font-bold text-white mb-2">{title}</h3>
+      {desc && <p className="text-sm font-sans text-brand-300 leading-relaxed max-w-sm">{desc}</p>}
+      
+      <div className="mt-auto pt-6 flex-1 flex flex-col">
+        {children}
+      </div>
+    </div>
+  </motion.div>
 );
 
 // ─────────────────────────────────────────────────────────────
 // Generative Abstract SVG Placeholder Component
 // ─────────────────────────────────────────────────────────────
-/**
- * Generates an elegant vector illustration with gold/amber gradient tones.
- */
 const GenerativePlaceholder = ({ category }) => {
-  const cat = (category || 'general').toLowerCase();
-  let line = 'text-amber-500/20';
-  if (cat.includes('web') || cat.includes('eng')) {
-    line = 'text-amber-500/25';
-  } else if (cat.includes('design') || cat.includes('art')) {
-    line = 'text-yellow-600/20';
-  }
-
   return (
-    <div className="w-full h-full bg-gradient-to-br from-amber-500/10 to-yellow-500/10 relative flex items-center justify-center overflow-hidden transition-transform duration-500 group-hover:scale-105">
-      <svg className={`absolute inset-0 w-full h-full ${line} pointer-events-none`} xmlns="http://www.w3.org/2000/svg">
+    <div className="w-full h-full bg-gradient-to-br from-brand-800 to-brand-900 relative flex items-center justify-center overflow-hidden transition-transform duration-500 group-hover:scale-105">
+      <svg className="absolute inset-0 w-full h-full text-primary-500/10 pointer-events-none" xmlns="http://www.w3.org/2000/svg">
         <defs>
-          <pattern id="card-gold-grid" width="16" height="16" patternUnits="userSpaceOnUse">
-            <path d="M 16 0 L 0 0 0 16" fill="none" stroke="currentColor" strokeWidth="0.8" />
+          <pattern id="card-purple-grid" width="20" height="20" patternUnits="userSpaceOnUse">
+            <path d="M 20 0 L 0 0 0 20" fill="none" stroke="currentColor" strokeWidth="0.5" />
           </pattern>
         </defs>
-        <rect width="100%" height="100%" fill="url(#card-gold-grid)" />
-        <circle cx="50%" cy="50%" r="36" fill="none" stroke="currentColor" strokeWidth="1.2" strokeDasharray="3 3" />
-        <path d="M 0 0 L 100 100" stroke="currentColor" strokeWidth="0.5" className="opacity-10" />
+        <rect width="100%" height="100%" fill="url(#card-purple-grid)" />
       </svg>
-      <FiBriefcase className="h-10 w-10 text-amber-600 dark:text-amber-400 drop-shadow-md z-10" />
+      <FiCode className="h-10 w-10 text-primary-400 drop-shadow-[0_0_15px_rgba(139,92,246,0.5)] z-10" />
     </div>
-  );
-};
-
-// ─────────────────────────────────────────────────────────────
-// Interactive Mock Workspace Widget (Gold/White/Midnight)
-// ─────────────────────────────────────────────────────────────
-const MockWorkspaceWidget = () => {
-  const [activeTab, setActiveTab] = useState('overview');
-  const [taskProgress, setTaskProgress] = useState(65);
-
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setTaskProgress((p) => (p >= 95 ? 60 : p + 5));
-    }, 4000);
-    return () => clearInterval(timer);
-  }, []);
-
-  const mockTasks = [
-    { title: 'Redesign Landing Page Grid', priority: 'urgent', status: 'In Review' },
-    { title: 'Set Up CI Pipeline Checks', priority: 'high', status: 'In Progress' },
-    { title: 'Write Form Validation Rules', priority: 'medium', status: 'Completed' },
-  ];
-
-  return (
-    <motion.div
-      whileHover={{ y: -4, transition: { duration: 0.3 } }}
-      className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-[2rem] p-6 shadow-[0_8px_30px_rgba(0,0,0,0.03)] dark:shadow-[0_20px_50px_rgba(0,0,0,0.25)] relative overflow-hidden select-none text-left"
-    >
-      {/* Header controls bar */}
-      <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800/80 pb-4 mb-4">
-        <div className="flex items-center gap-3">
-          <div className="flex gap-1.5">
-            <span className="w-3 h-3 rounded-full bg-rose-500/90" />
-            <span className="w-3 h-3 rounded-full bg-amber-500/90" />
-            <span className="w-3 h-3 rounded-full bg-emerald-500/90" />
-          </div>
-          <span className="text-[10px] font-mono font-bold tracking-widest text-slate-400 dark:text-slate-500 uppercase">
-            InternHub Workspace v2.4
-          </span>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
-          <span className="px-2 py-0.5 rounded bg-amber-500/10 text-amber-700 dark:text-amber-400 text-[9px] font-black uppercase tracking-widest border border-amber-500/20">
-            System Online
-          </span>
-        </div>
-      </div>
-
-      {/* Tabs list using solid gold gradient */}
-      <div className="flex gap-1 p-1 bg-slate-100 dark:bg-slate-950 rounded-2xl mb-4 border border-slate-200/40 dark:border-slate-800/60">
-        {['overview', 'tasks', 'metrics'].map((t) => (
-          <button
-            key={t}
-            onClick={() => setActiveTab(t)}
-            className={`flex-1 py-2 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all duration-300 ${
-              activeTab === t
-                ? 'bg-gradient-to-r from-amber-500 to-yellow-600 text-slate-950 font-black shadow-md'
-                : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
-            }`}
-          >
-            {t}
-          </button>
-        ))}
-      </div>
-
-      {/* Tab panel contents */}
-      <div className="min-h-[145px] flex flex-col justify-center">
-        <AnimatePresence mode="wait">
-          {activeTab === 'overview' && (
-            <motion.div
-              key="overview"
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -8 }}
-              className="space-y-4"
-            >
-              {/* Quick metrics grid */}
-              <div className="grid grid-cols-3 gap-3">
-                <div className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 p-3 rounded-2xl flex flex-col justify-between hover:border-amber-500/20 transition-colors">
-                  <span className="text-[9px] font-black tracking-wider uppercase text-slate-400 dark:text-slate-500">
-                    Total Hours
-                  </span>
-                  <span className="text-lg font-black text-slate-800 dark:text-white mt-1">124.5h</span>
-                </div>
-                <div className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 p-3 rounded-2xl flex flex-col justify-between hover:border-amber-500/20 transition-colors">
-                  <span className="text-[9px] font-black tracking-wider uppercase text-slate-400 dark:text-slate-500">
-                    Active Tasks
-                  </span>
-                  <span className="text-lg font-black text-amber-600 dark:text-amber-400 mt-1">08/12</span>
-                </div>
-                <div className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 p-3 rounded-2xl flex flex-col justify-between hover:border-amber-500/20 transition-colors">
-                  <span className="text-[9px] font-black tracking-wider uppercase text-slate-400 dark:text-slate-500">
-                    Grade Est.
-                  </span>
-                  <span className="text-lg font-black text-emerald-600 dark:text-emerald-400 mt-1">A+</span>
-                </div>
-              </div>
-
-              {/* Active Cohort card */}
-              <div className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 p-4 rounded-2xl flex justify-between items-center gap-3">
-                <div className="min-w-0 flex-1">
-                  <span className="text-[8px] font-black uppercase tracking-widest text-amber-600 dark:text-amber-400">
-                    Active Cohort
-                  </span>
-                  <h4 className="text-xs font-bold text-slate-800 dark:text-white truncate mt-0.5">
-                    Full Stack Web Engineering
-                  </h4>
-                  <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate mt-0.5">Under guidance of your assigned mentor</p>
-                </div>
-                <div className="flex flex-col items-end shrink-0">
-                  <span className="text-[10px] font-black text-slate-700 dark:text-slate-300">{taskProgress}% Done</span>
-                  <div className="w-20 h-1.5 bg-slate-200 dark:bg-slate-800 rounded-full overflow-hidden mt-1.5">
-                    <motion.div
-                      className="h-full bg-gradient-to-r from-amber-500 to-yellow-500 rounded-full"
-                      animate={{ width: `${taskProgress}%` }}
-                      transition={{ type: 'spring', stiffness: 55 }}
-                    />
-                  </div>
-                </div>
-              </div>
-            </motion.div>
-          )}
-
-          {activeTab === 'tasks' && (
-            <motion.div
-              key="tasks"
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -8 }}
-              className="space-y-2.5"
-            >
-              {mockTasks.map((tk, i) => (
-                <div
-                  key={i}
-                  className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl hover:border-amber-500/25 transition-colors"
-                >
-                  <div className="flex items-center gap-3 min-w-0">
-                    <span className={`w-2.5 h-2.5 rounded-full shrink-0 shadow-md ${
-                      tk.priority === 'urgent'
-                        ? 'bg-rose-500'
-                        : tk.priority === 'high'
-                          ? 'bg-amber-500'
-                          : 'bg-emerald-500'
-                    }`} />
-                    <span className="text-[11px] font-extrabold text-slate-700 dark:text-slate-200 truncate">{tk.title}</span>
-                  </div>
-                  <span className={`px-2.5 py-0.5 rounded-lg text-[8px] font-black uppercase tracking-widest shrink-0 ${
-                    tk.status === 'Completed'
-                      ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/15'
-                      : tk.status === 'In Progress'
-                        ? 'bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/15'
-                        : 'bg-amber-600/10 text-amber-700 dark:text-amber-400 border border-amber-600/15'
-                  }`}>
-                    {tk.status}
-                  </span>
-                </div>
-              ))}
-            </motion.div>
-          )}
-
-          {activeTab === 'metrics' && (
-            <motion.div
-              key="metrics"
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -8 }}
-              className="space-y-3.5"
-            >
-              <div className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 p-3.5 rounded-2xl space-y-2">
-                <div className="flex justify-between items-center text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                  <span>Code Standards</span>
-                  <span className="text-emerald-600 dark:text-emerald-400 font-bold">98% Match</span>
-                </div>
-                <div className="w-full h-2 bg-slate-200 dark:bg-slate-800 rounded-full overflow-hidden">
-                  <motion.div
-                    initial={{ width: 0 }}
-                    animate={{ width: '98%' }}
-                    transition={{ duration: 0.8, ease: 'easeOut' }}
-                    className="h-full bg-gradient-to-r from-emerald-500 to-teal-500 rounded-full"
-                  />
-                </div>
-              </div>
-              <div className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 p-3.5 rounded-2xl space-y-2">
-                <div className="flex justify-between items-center text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                  <span>Milestone Compliance</span>
-                  <span className="text-amber-600 dark:text-amber-400 font-bold">88% Compliance</span>
-                </div>
-                <div className="w-full h-2 bg-slate-200 dark:bg-slate-800 rounded-full overflow-hidden">
-                  <motion.div
-                    initial={{ width: 0 }}
-                    animate={{ width: '88%' }}
-                    transition={{ duration: 0.8, ease: 'easeOut' }}
-                    className="h-full bg-gradient-to-r from-amber-500 to-yellow-500 rounded-full"
-                  />
-                </div>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </div>
-    </motion.div>
   );
 };
 
@@ -312,279 +128,248 @@ const HomePage = () => {
     fetchFeatured();
   }, []);
 
-  const howItWorks = [
-    { icon: FiSearch, title: 'Browse domain', desc: 'Explore curated internship roles across top modern tech sectors.' },
-    { icon: FiFileText, title: 'Apply resume', desc: 'Submit details and resume profile. Our process takes minutes.' },
-    { icon: FiCreditCard, title: 'Confirm fee', desc: 'Scan a QR code to pay via UPI/Google Pay, then confirm your transaction ID.' },
-    { icon: FiCheckCircle, title: 'Start learning', desc: 'Unlock workspace boards, calendar reminders, and advisor chats.' },
-  ];
-
   const faqs = [
     { q: 'How do I apply for an internship?', a: 'Create a free student profile, navigate to the internships catalog, select your preferred internship track, and click "Apply" to submit your application details and resume.' },
     { q: 'Is there a program joining fee?', a: 'Some specialized cohorts have an optional or nominal fee assigned by sponsoring guides. We support fully free options too.' },
     { q: 'What payment modes are supported?', a: 'Once accepted and a fee is assigned, you\'ll pay securely via UPI — scan the QR code with Google Pay (or any UPI app), then submit your transaction ID along with a screenshot for verification. Our team confirms it and activates your enrollment.' },
     { q: 'Will I receive a verifiable certificate?', a: 'Yes! Upon successful completion of your internship tasks and milestone reviews, you will receive a secure credential complete with a dynamic QR validation signature code.' },
-    { q: 'Can I apply to multiple cohorts?', a: 'Absolutely. You are encouraged to explore multiple tracks. Each request is evaluated independently by program coordinators.' },
-  ];
-
-  const stats = [
-    { value: '100+', label: 'Students Completed' },
-    { value: '10+', label: 'Sought Programs' },
-    { value: '100+', label: 'Certificates Issued' },
-    { value: '97%', label: 'Satisfaction Rate' },
   ];
 
   return (
-    <div className="min-h-screen bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100 relative overflow-hidden select-none transition-colors duration-500">
+    <div className="min-h-screen bg-brand-950 text-slate-100 relative overflow-hidden select-none font-sans selection:bg-primary-500/30 selection:text-white">
       <Helmet>
-        <title>InternHub — Next-Gen Student Internships & Careers Hub</title>
-        <meta name="description" content="Discover professional internships. Collaborate with mentors, build portfolios, track sprint deliverables, and verify dynamic landscape credentials end-to-end." />
+        <title>InternHub — Next-Gen Tech Internships</title>
+        <meta name="description" content="Discover professional tech internships. Collaborate with mentors, build portfolios, track sprint deliverables, and verify dynamic landscape credentials end-to-end." />
       </Helmet>
 
-      {/* Embedded Ambient dotted coordinates background */}
       <AmbientBackground />
 
-      {/* ==================== HERO SECTION ==================== */}
-      <section className="relative overflow-hidden pb-20 pt-28 lg:pt-36 z-10">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative">
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-16 lg:gap-20 items-center">
-            {/* Left Content Info Column */}
+      {/* ==================== HERO SECTION (OLED High Contrast) ==================== */}
+      <section className="relative overflow-hidden pb-24 pt-32 lg:pt-40 z-10 flex flex-col items-center text-center">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+          <motion.div
+            initial="hidden"
+            animate="visible"
+            variants={staggerContainer}
+            className="space-y-8 flex flex-col items-center"
+          >
+            {/* Dark Mode Glowing Badge */}
             <motion.div
-              initial="hidden"
-              animate="visible"
-              variants={staggerContainer}
-              className="lg:col-span-7 text-left space-y-6 md:space-y-8"
+              variants={fadeUp}
+              className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-primary-900/30 border border-primary-500/30 text-[10px] sm:text-xs font-bold uppercase tracking-widest text-primary-400 shadow-[0_0_15px_rgba(139,92,246,0.15)] backdrop-blur-sm"
             >
-              {/* Opaque Gold Badge */}
-              <motion.div
-                variants={fadeUp}
-                className="w-fit inline-flex items-center justify-center gap-2 px-4 py-2 rounded-full bg-amber-500/10 border border-amber-500/20 text-[9px] sm:text-[10px] font-black uppercase tracking-widest text-amber-700 dark:text-amber-400 shadow-sm leading-none"
-              >
-                <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />
-                <span>🚀 Next-Generation Career Launcher</span>
-              </motion.div>
-
-              {/* Master Headline */}
-              <motion.h1
-                variants={fadeUp}
-                className="text-4xl sm:text-5xl md:text-6xl font-black tracking-tight leading-[1.05] text-slate-900 dark:text-white"
-              >
-                Launch Your Career with{' '}
-                <span className="text-amber-600 dark:text-amber-400 font-extrabold">
-                  Top Internships
-                </span>
-              </motion.h1>
-
-              {/* Description body */}
-              <motion.p
-                variants={fadeUp}
-                className="text-sm sm:text-base text-slate-600 dark:text-slate-300 leading-relaxed max-w-2xl font-semibold"
-              >
-                Collaborate in ClickUp-style workspaces, solve cohort task challenges under advisor guides, and earn highly polished, dynamic credentials with embedded validation signatures.
-              </motion.p>
-
-              {/* Action Buttons (Solid Opaque, no transparency) */}
-              <motion.div
-                variants={fadeUp}
-                className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4 pt-2"
-              >
-                <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} className="flex-1 sm:flex-initial">
-                  <Link
-                    to="/internships"
-                    className="w-full sm:w-auto px-8 py-4 bg-gradient-to-r from-amber-500 via-yellow-500 to-amber-500 hover:from-amber-600 hover:to-yellow-600 text-slate-950 text-xs font-black uppercase tracking-widest rounded-2xl shadow-md shadow-amber-500/15 hover:shadow-lg transition-all duration-300 flex items-center justify-center gap-2.5 border border-amber-400/20"
-                  >
-                    Explore Catalog <FiArrowRight className="w-4 h-4" />
-                  </Link>
-                </motion.div>
-                <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} className="flex-1 sm:flex-initial">
-                  <Link
-                    to="/register"
-                    className="w-full sm:w-auto px-8 py-4 bg-slate-100 hover:bg-slate-200 text-slate-800 dark:bg-slate-900 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-200 text-xs font-black uppercase tracking-widest rounded-2xl text-center block transition-colors duration-300"
-                  >
-                    Create Student Account
-                  </Link>
-                </motion.div>
-              </motion.div>
+              <span className="w-1.5 h-1.5 rounded-full bg-primary-400 animate-pulse" />
+              <span>Next-Gen Tech Internships</span>
             </motion.div>
 
-            {/* Right Widget Showcase Column */}
-            <motion.div
-              initial="hidden"
-              animate="visible"
-              variants={scaleIn}
-              className="lg:col-span-5 w-full flex justify-center z-10"
+            {/* Master Headline */}
+            <motion.h1
+              variants={fadeUp}
+              className="text-5xl sm:text-6xl md:text-7xl lg:text-[5rem] font-display font-bold tracking-tight leading-[1.05] text-white"
             >
-              <div className="relative w-full max-w-md">
-                <div className="absolute -inset-1 rounded-[2.2rem] bg-gradient-to-r from-amber-500 to-yellow-600 opacity-15 blur-xl pointer-events-none" />
-                <MockWorkspaceWidget />
-              </div>
+              Accelerate your <br className="hidden md:block" />
+              <span className="bg-gradient-to-r from-primary-400 via-primary-500 to-accent-400 bg-clip-text text-transparent drop-shadow-sm">
+                Engineering Career
+              </span>
+            </motion.h1>
+
+            {/* Description body */}
+            <motion.p
+              variants={fadeUp}
+              className="text-base sm:text-lg text-brand-300 leading-relaxed max-w-2xl font-medium"
+            >
+              Immerse yourself in real-world tech stacks. Build portfolios under expert mentorship, conquer agile sprint challenges, and earn dynamic, cryptographically-secure credentials.
+            </motion.p>
+
+            {/* CTA Buttons */}
+            <motion.div
+              variants={fadeUp}
+              className="flex flex-col sm:flex-row items-center gap-5 pt-4 w-full sm:w-auto"
+            >
+              <Link
+                to="/internships"
+                className="w-full sm:w-auto px-8 py-4 bg-primary-600 hover:bg-primary-500 text-white text-sm font-bold tracking-wide rounded-2xl shadow-[0_0_20px_rgba(139,92,246,0.4)] hover:shadow-[0_0_30px_rgba(139,92,246,0.6)] transition-all duration-300 flex items-center justify-center gap-2 border border-primary-400/50"
+              >
+                Explore Active Cohorts <FiArrowRight className="w-4 h-4" />
+              </Link>
+              <Link
+                to="/register"
+                className="w-full sm:w-auto px-8 py-4 bg-brand-800 hover:bg-brand-700 border border-brand-700 text-white text-sm font-bold tracking-wide rounded-2xl transition-all duration-300 flex items-center justify-center"
+              >
+                Join as Student
+              </Link>
             </motion.div>
-          </div>
+          </motion.div>
         </div>
       </section>
 
-      {/* ==================== STATS SECTION (Opaque Bento) ==================== */}
-      <section className="py-16 z-10 relative">
+      {/* ==================== BENTO GRID SHOWCASE ==================== */}
+      <section className="py-20 z-10 relative">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 md:gap-8">
-            {stats.map((stat, idx) => {
-              const icons = [FiUsers, FiFolder, FiAward, FiTrendingUp];
-              const Icon = icons[idx];
-              return (
-                <motion.div
-                  key={idx}
-                  initial={{ opacity: 0, y: 25 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{ once: true }}
-                  transition={{ delay: idx * 0.08, type: 'spring', stiffness: 70 }}
-                  whileHover={{ y: -4, transition: { duration: 0.2 } }}
-                  className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 md:p-8 rounded-[2rem] text-left relative overflow-hidden group shadow-md hover:border-amber-500/30 dark:hover:border-amber-500/30 transition-all duration-300"
-                >
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="p-3 bg-amber-500/10 rounded-2xl w-fit text-amber-600 dark:text-amber-400 group-hover:scale-105 transition-transform duration-300 border border-amber-500/10">
-                      <Icon className="h-6 w-6" />
-                    </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6 auto-rows-[250px] sm:auto-rows-[300px]">
+            
+            {/* Large Hero Cell */}
+            <BentoCell
+              colSpan="md:col-span-2 lg:col-span-2"
+              rowSpan="row-span-2"
+              title="Real-World Engineering Workspaces"
+              desc="Experience what it's like to work in a high-velocity startup environment. Clone repos, push code, manage tasks in our Kanban boards, and integrate directly with your workflow."
+              icon={FiTerminal}
+              color="primary"
+              delay={0.1}
+            >
+              <div className="w-full flex-1 bg-[#151525] rounded-xl border border-brand-700 p-4 font-mono text-xs sm:text-sm overflow-hidden relative shadow-inner">
+                <div className="flex gap-2 mb-3 border-b border-brand-700 pb-2">
+                  <div className="w-3 h-3 rounded-full bg-red-500/80" />
+                  <div className="w-3 h-3 rounded-full bg-accent-500/80" />
+                  <div className="w-3 h-3 rounded-full bg-emerald-500/80" />
+                </div>
+                <div className="text-primary-400">$ intern-cli init workspace</div>
+                <div className="text-brand-400 mt-1">&gt; Bootstrapping environment...</div>
+                <div className="text-brand-400">&gt; Fetching repository...</div>
+                <div className="text-accent-400 mt-2 font-bold">[Success] Workspace ready.</div>
+                <div className="text-emerald-400 mt-4 animate-pulse">Waiting for your first commit... _</div>
+                
+                {/* Fade out bottom */}
+                <div className="absolute bottom-0 left-0 right-0 h-16 bg-gradient-to-t from-[#151525] to-transparent" />
+              </div>
+            </BentoCell>
+
+            {/* Medium Cell 1 */}
+            <BentoCell
+              colSpan="md:col-span-1 lg:col-span-2"
+              rowSpan="row-span-1"
+              title="Dynamic Verification"
+              desc="Every certificate is cryptographically signed and hosted live for employers to verify."
+              icon={FiAward}
+              color="accent"
+              delay={0.2}
+            >
+              <div className="flex items-center gap-4 bg-brand-800 p-4 rounded-xl border border-brand-700 w-full mt-auto">
+                <div className="w-12 h-12 rounded-lg bg-accent-500/20 flex items-center justify-center shrink-0">
+                  <FiCheckCircle className="w-6 h-6 text-accent-400" />
+                </div>
+                <div>
+                  <div className="text-white font-bold font-display">Verified Credential</div>
+                  <div className="text-xs text-brand-400 font-mono mt-1">ID: INH-2026-X9F2A</div>
+                </div>
+              </div>
+            </BentoCell>
+
+            {/* Medium Cell 2 */}
+            <BentoCell
+              colSpan="md:col-span-1 lg:col-span-1"
+              rowSpan="row-span-1"
+              title="Global Mentorship"
+              desc="Learn directly from industry veterans."
+              icon={FiUsers}
+              color="secondary"
+              delay={0.3}
+            >
+              <div className="flex -space-x-3 mt-auto">
+                {[1,2,3,4].map((i) => (
+                  <div key={i} className={`w-10 h-10 rounded-full border-2 border-brand-900 bg-brand-700 flex items-center justify-center text-xs font-bold ${i===4 ? 'bg-primary-600 text-white' : 'text-brand-300'}`}>
+                    {i===4 ? '+50' : `M${i}`}
                   </div>
-                  <h3 className="text-3xl md:text-4xl font-black bg-gradient-to-r from-amber-500 to-yellow-600 dark:from-amber-400 dark:to-yellow-400 bg-clip-text text-transparent tracking-tight">
-                    {stat.value}
-                  </h3>
-                  <p className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest mt-2.5">
-                    {stat.label}
-                  </p>
-                </motion.div>
-              );
-            })}
-          </div>
-        </div>
-      </section>
-
-      {/* ==================== HOW IT WORKS (ROADMAP BLUEPRINT) ==================== */}
-      <section id="how-it-works" className="py-24 relative z-10 overflow-hidden">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-16 items-start">
-            {/* Sticky Left block */}
-            <div className="lg:col-span-4 lg:sticky lg:top-32 space-y-5 text-left z-10">
-              <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-2xl bg-amber-500/10 dark:bg-amber-950/45 border border-amber-200/80 dark:border-slate-800/80 text-[10px] font-black uppercase tracking-widest text-amber-700 dark:text-amber-400">
-                ⚡ Path To Success
-              </div>
-              <h2 className="text-3xl sm:text-4xl lg:text-5xl font-black tracking-tight text-slate-900 dark:text-white leading-tight">
-                Process Blueprint
-              </h2>
-              <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed font-semibold">
-                InternHub streamlines your learning path into four distinct, trackable segments. Explore active cohorts, submit your profile, confirm your fee via UPI/Google Pay, and unlock advisor guides.
-              </p>
-            </div>
-
-            {/* Right Stepped Timeline Stack (Opaque Cards) */}
-            <div className="lg:col-span-8 relative text-left z-10">
-              {/* Gold roadmap rail line */}
-              <div className="absolute left-[31px] top-6 bottom-6 w-0.5 bg-gradient-to-b from-amber-500 via-yellow-500 to-slate-200 dark:to-slate-800" />
-
-              <div className="space-y-8">
-                {howItWorks.map((step, idx) => (
-                  <motion.div
-                    key={idx}
-                    initial={{ opacity: 0, x: 25 }}
-                    whileInView={{ opacity: 1, x: 0 }}
-                    viewport={{ once: true }}
-                    transition={{ delay: idx * 0.08, type: 'spring', stiffness: 80 }}
-                    className="relative pl-16 group"
-                  >
-                    {/* Stepped Opaque Bubble counter */}
-                    <div className="absolute left-4 top-1 w-9 h-9 rounded-2xl bg-white dark:bg-slate-900 border-2 border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 text-xs font-black flex items-center justify-center group-hover:bg-gradient-to-r group-hover:from-amber-500 group-hover:to-yellow-600 group-hover:text-slate-950 group-hover:border-transparent group-hover:shadow-[0_0_12px_rgba(245,158,11,0.3)] transition-all duration-300 z-10">
-                      {idx + 1}
-                    </div>
-
-                    <div className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-[2rem] shadow-sm hover:shadow-md transition-all duration-300">
-                      <div className="flex items-center gap-4 mb-3">
-                        <div className="p-2.5 bg-amber-500/10 text-amber-600 dark:text-amber-400 rounded-xl group-hover:scale-105 transition-transform duration-300 border border-amber-500/10">
-                          <step.icon className="h-5 w-5" />
-                        </div>
-                        <h3 className="text-base font-extrabold text-slate-800 dark:text-slate-100">{step.title}</h3>
-                      </div>
-                      <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed font-semibold pl-1">
-                        {step.desc}
-                      </p>
-                    </div>
-                  </motion.div>
                 ))}
               </div>
-            </div>
+            </BentoCell>
+            
+            {/* Small Cell */}
+            <BentoCell
+              colSpan="md:col-span-3 lg:col-span-1"
+              rowSpan="row-span-1"
+              title="Tech Stacks"
+              desc="React, Node, Python, and more."
+              icon={FiCpu}
+              color="emerald"
+              delay={0.4}
+            >
+              <div className="flex flex-wrap gap-2 mt-auto">
+                {['React', 'Next.js', 'Node', 'MongoDB', 'Docker'].map(tech => (
+                  <span key={tech} className="px-3 py-1 bg-brand-800 text-brand-200 text-[10px] font-bold uppercase rounded-lg border border-brand-700">
+                    {tech}
+                  </span>
+                ))}
+              </div>
+            </BentoCell>
+
           </div>
         </div>
       </section>
 
-      {/* ==================== FEATURED INTERNSHIPS (ACTIVE TRACKS - OPAQUE CARDS) ==================== */}
+      {/* ==================== ACTIVE COHORTS (OLED Glass Cards) ==================== */}
       {featuredInternships.length > 0 && (
         <section className="py-24 relative z-10">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="flex items-end justify-between mb-12">
-              <div className="text-left space-y-2">
-                <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-2xl bg-amber-500/10 dark:bg-amber-950/45 border border-amber-200/80 dark:border-slate-800/80 text-[10px] font-black uppercase tracking-widest text-amber-700 dark:text-amber-400">
-                  📁 Current Cohorts
-                </div>
-                <h2 className="text-3xl sm:text-4xl font-black tracking-tight text-slate-900 dark:text-white">
-                  Active Tracks
+            <div className="flex flex-col sm:flex-row items-start sm:items-end justify-between mb-12 gap-4">
+              <div className="text-left space-y-3">
+                <h2 className="text-3xl sm:text-4xl font-display font-bold tracking-tight text-white">
+                  Active Engineering Tracks
                 </h2>
-                <p className="text-xs text-slate-500 dark:text-slate-400 font-semibold">
-                  Handpicked professional training cohorts launching soon.
+                <p className="text-sm text-brand-300 font-medium max-w-xl">
+                  Handpicked professional training cohorts launching soon. Apply now to secure your spot in our high-velocity learning environment.
                 </p>
               </div>
               <Link
                 to="/internships"
-                className="hidden sm:flex items-center gap-2 text-xs font-black uppercase tracking-widest text-amber-600 dark:text-amber-400 hover:text-amber-500 transition-colors"
+                className="hidden sm:flex items-center gap-2 text-sm font-bold text-primary-400 hover:text-primary-300 transition-colors"
               >
                 View Catalog <FiArrowRight className="w-4 h-4" />
               </Link>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
               {featuredInternships.map((internship, idx) => (
                 <motion.div
                   key={internship._id}
                   initial={{ opacity: 0, y: 25 }}
                   whileInView={{ opacity: 1, y: 0 }}
                   viewport={{ once: true }}
-                  transition={{ delay: idx * 0.05, type: 'spring', stiffness: 75 }}
+                  transition={{ delay: idx * 0.1, type: 'spring', stiffness: 75 }}
                 >
                   <Link
                     to={`/internships/${internship._id}`}
-                    className="block bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-[2rem] overflow-hidden shadow-md hover:shadow-lg hover:border-amber-500/25 dark:hover:border-amber-500/20 transition-all duration-300 group"
+                    className="block h-full bg-brand-900/50 backdrop-blur-sm border border-brand-700/50 rounded-[2rem] overflow-hidden shadow-lg hover:shadow-[0_0_30px_rgba(139,92,246,0.15)] hover:border-primary-500/50 transition-all duration-500 group flex flex-col"
                   >
                     {/* Image Cover */}
-                    <div className="h-48 bg-slate-100 dark:bg-slate-950 flex items-center justify-center overflow-hidden relative">
+                    <div className="h-48 bg-brand-950 flex items-center justify-center overflow-hidden relative">
                       {internship.imageUrl ? (
                         <img
                           src={internship.imageUrl}
                           alt={internship.title}
-                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                          className="w-full h-full object-cover group-hover:scale-105 group-hover:brightness-110 transition-all duration-500 opacity-80"
                         />
                       ) : (
                         <GenerativePlaceholder category={internship.category} />
                       )}
-                      <span className="absolute top-4 left-4 text-[9px] font-black uppercase px-3 py-1 rounded-xl bg-white dark:bg-slate-950 text-slate-800 dark:text-slate-300 shadow-md border border-slate-200/10">
+                      
+                      <div className="absolute inset-0 bg-gradient-to-t from-brand-900 to-transparent opacity-80" />
+                      
+                      <span className="absolute top-4 left-4 text-[10px] font-bold uppercase px-3 py-1.5 rounded-full bg-brand-900/80 backdrop-blur-md text-white border border-brand-700 shadow-md">
                         {internship.mode}
                       </span>
                     </div>
 
                     {/* Body container */}
-                    <div className="p-6 text-left">
-                      <span className="inline-block text-[9px] font-black px-3 py-1 rounded-xl bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/15 uppercase mb-3.5">
+                    <div className="p-6 text-left flex-1 flex flex-col">
+                      <span className="inline-block text-[10px] font-bold px-3 py-1 rounded-full bg-primary-900/40 text-primary-400 border border-primary-500/20 uppercase mb-4 w-fit">
                         {internship.category}
                       </span>
-                      <h3 className="text-base font-extrabold text-slate-900 dark:text-white group-hover:text-amber-600 dark:group-hover:text-amber-400 transition-colors truncate">
+                      <h3 className="text-xl font-display font-bold text-white group-hover:text-primary-400 transition-colors line-clamp-2">
                         {internship.title}
                       </h3>
-                      <p className="mt-2 text-xs text-slate-600 dark:text-slate-300 line-clamp-2 leading-relaxed font-semibold min-h-[32px]">
+                      <p className="mt-3 text-sm text-brand-300 line-clamp-2 leading-relaxed font-medium">
                         {internship.shortDescription || internship.description}
                       </p>
 
                       {/* Footer Info */}
-                      <div className="flex items-center justify-between mt-6 pt-5 border-t border-slate-200 dark:border-slate-800/80">
-                        <span className="text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wider">
-                          ⏱️ {internship.duration}
+                      <div className="mt-auto pt-6 flex items-center justify-between">
+                        <span className="text-xs text-brand-400 font-bold uppercase tracking-wider flex items-center gap-1.5">
+                          <FiClock className="w-4 h-4" /> {internship.duration}
                         </span>
-                        <span className="text-sm font-black text-amber-600 dark:text-amber-400">
+                        <span className="text-base font-bold text-accent-400">
                           {formatDisplayAmount(internship.fees, 'Free')}
                         </span>
                       </div>
@@ -593,11 +378,11 @@ const HomePage = () => {
                 </motion.div>
               ))}
             </div>
-
-            <div className="mt-8 text-center sm:hidden">
+            
+            <div className="mt-10 text-center sm:hidden">
               <Link
                 to="/internships"
-                className="inline-flex items-center gap-1.5 text-xs font-black uppercase tracking-widest text-amber-600 dark:text-amber-400"
+                className="inline-flex items-center justify-center w-full px-6 py-4 bg-brand-800 rounded-xl text-sm font-bold text-white gap-2 border border-brand-700"
               >
                 View Catalog <FiArrowRight className="w-4 h-4" />
               </Link>
@@ -606,18 +391,15 @@ const HomePage = () => {
         </section>
       )}
 
-      {/* ==================== FAQ SECTION (OPAQUE ACCORDIONS) ==================== */}
+      {/* ==================== FAQ SECTION ==================== */}
       <section className="py-24 relative z-10">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-16 space-y-3">
-            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-2xl bg-amber-500/10 dark:bg-amber-950/40 border border-amber-200/80 dark:border-slate-800/80 text-[10px] font-black uppercase tracking-widest text-amber-700 dark:text-amber-400">
-              ❓ Support Desk
-            </div>
-            <h2 className="text-3xl sm:text-4xl font-black tracking-tight text-slate-900 dark:text-white">
-              Curriculum FAQs
+          <div className="text-center mb-16 space-y-4">
+            <h2 className="text-3xl sm:text-4xl font-display font-bold tracking-tight text-white">
+              System Operations
             </h2>
-            <p className="text-xs text-slate-500 dark:text-slate-400 font-semibold">
-              Clear queries regarding program schedules, payments, and credential policies.
+            <p className="text-sm text-brand-300 font-medium">
+              Clear queries regarding program architecture, authentication, and pipelines.
             </p>
           </div>
 
@@ -628,23 +410,23 @@ const HomePage = () => {
                 initial={{ opacity: 0, y: 12 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
-                transition={{ delay: idx * 0.05 }}
-                className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl overflow-hidden shadow-sm hover:border-amber-500/20 transition-all duration-300"
+                transition={{ delay: idx * 0.1 }}
+                className="bg-brand-900 border border-brand-800 rounded-2xl overflow-hidden shadow-sm hover:border-primary-500/30 transition-all duration-300"
               >
                 <button
                   onClick={() => setOpenFaq(openFaq === idx ? null : idx)}
                   className="w-full flex items-center justify-between px-6 py-5 text-left focus:outline-none transition group"
                 >
-                  <span className="text-xs sm:text-sm font-extrabold text-slate-800 dark:text-slate-100 group-hover:text-amber-600 dark:group-hover:text-amber-400 transition-colors">
+                  <span className="text-sm sm:text-base font-bold text-white group-hover:text-primary-400 transition-colors">
                     {faq.q}
                   </span>
                   <motion.div
                     animate={{ rotate: openFaq === idx ? 180 : 0 }}
                     transition={{ type: 'spring', stiffness: 200, damping: 15 }}
-                    className={`p-1.5 rounded-full shrink-0 ml-4 border ${
+                    className={`p-2 rounded-xl shrink-0 ml-4 border transition-colors ${
                       openFaq === idx
-                        ? 'bg-amber-500/10 text-amber-600 border-amber-500/20'
-                        : 'bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 border-slate-200/10'
+                        ? 'bg-primary-900/40 text-primary-400 border-primary-500/30'
+                        : 'bg-brand-800 text-brand-400 border-brand-700 group-hover:bg-brand-700'
                     }`}
                   >
                     <FiChevronDown className="h-4 w-4" />
@@ -657,9 +439,9 @@ const HomePage = () => {
                       animate={{ height: 'auto', opacity: 1 }}
                       exit={{ height: 0, opacity: 0 }}
                       transition={{ duration: 0.22, ease: 'easeInOut' }}
-                      className="border-t border-slate-200 dark:border-slate-800/80 bg-slate-50 dark:bg-slate-950/40"
+                      className="border-t border-brand-800 bg-brand-950/40"
                     >
-                      <div className="px-6 py-5 text-xs sm:text-sm text-slate-600 dark:text-slate-300 leading-relaxed font-semibold select-text">
+                      <div className="px-6 py-5 text-sm text-brand-300 leading-relaxed font-medium">
                         {faq.a}
                       </div>
                     </motion.div>
@@ -671,36 +453,35 @@ const HomePage = () => {
         </div>
       </section>
 
-      {/* ==================== CTA SECTION (OPAQUE SOLID DARK OVERLAY) ==================== */}
+      {/* ==================== CTA SECTION ==================== */}
       <section className="py-24 relative z-10">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="relative overflow-hidden bg-gradient-to-br from-slate-900 via-slate-950 to-slate-900 py-16 px-8 sm:px-12 md:py-20 rounded-[2.5rem] text-white shadow-2xl border border-slate-800">
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(245,158,11,0.08),transparent_50%)] pointer-events-none" />
-
-            <div className="relative max-w-4xl mx-auto text-center space-y-6 sm:space-y-8">
-              <h2 className="text-3xl sm:text-4xl md:text-5xl font-black text-white leading-tight tracking-tight">
-                Ready to Accelerate Your Career?
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="relative overflow-hidden bg-brand-900 border border-brand-800 py-16 px-8 sm:px-12 md:py-24 rounded-[3rem] text-center shadow-2xl">
+            {/* Accent Glowing Orb */}
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-lg h-64 bg-primary-600/20 blur-[100px] pointer-events-none rounded-full" />
+            
+            <div className="relative z-10 max-w-2xl mx-auto space-y-8">
+              <h2 className="text-3xl sm:text-4xl md:text-5xl font-display font-bold text-white leading-tight tracking-tight">
+                Ready to initialize your <br/>
+                <span className="text-primary-400">Next Sprint?</span>
               </h2>
-              <p className="text-sm text-slate-200 max-w-lg mx-auto leading-relaxed font-semibold">
-                Gain practical developer experience, work on milestones under guidance, and secure dynamic portfolio credentials.
+              <p className="text-base text-brand-300 font-medium">
+                Connect to our robust educational infrastructure and compile your career trajectory today.
               </p>
+              
               <div className="pt-4 flex flex-col sm:flex-row items-center justify-center gap-4">
-                <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} className="w-full sm:w-auto">
-                  <Link
-                    to="/register"
-                    className="w-full sm:w-auto px-8 py-4 bg-gradient-to-r from-amber-500 to-yellow-600 hover:from-amber-600 hover:to-yellow-700 text-slate-950 text-xs font-black uppercase tracking-widest rounded-2xl shadow-md shadow-amber-500/15 hover:shadow-lg transition-all duration-300 text-center block"
-                  >
-                    Sign Up Free
-                  </Link>
-                </motion.div>
-                <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} className="w-full sm:w-auto">
-                  <Link
-                    to="/internships"
-                    className="w-full sm:w-auto px-8 py-4 bg-transparent border border-white/20 hover:bg-white/10 text-white text-xs font-black uppercase tracking-widest rounded-2xl transition-all duration-300 text-center block"
-                  >
-                    Browse Internships
-                  </Link>
-                </motion.div>
+                <Link
+                  to="/register"
+                  className="w-full sm:w-auto px-10 py-4 bg-primary-600 hover:bg-primary-500 text-white text-sm font-bold tracking-wide rounded-2xl shadow-[0_0_20px_rgba(139,92,246,0.3)] hover:shadow-[0_0_30px_rgba(139,92,246,0.5)] transition-all duration-300 border border-primary-400/50"
+                >
+                  Sign Up Free
+                </Link>
+                <Link
+                  to="/internships"
+                  className="w-full sm:w-auto px-10 py-4 bg-brand-800 hover:bg-brand-700 border border-brand-700 text-white text-sm font-bold tracking-wide rounded-2xl transition-all duration-300"
+                >
+                  Browse Catalog
+                </Link>
               </div>
             </div>
           </div>

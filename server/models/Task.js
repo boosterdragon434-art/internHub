@@ -149,5 +149,6 @@ taskSchema.index({ parentTask: 1 });
 taskSchema.index({ internship: 1 });
 taskSchema.index({ order: 1 });
 taskSchema.index({ createdBy: 1 });
+taskSchema.index({ createdAt: -1 });
 
 module.exports = mongoose.model('Task', taskSchema);

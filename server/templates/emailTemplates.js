@@ -23,80 +23,79 @@ const normalLogoUrl = `${process.env.CLIENT_URL || 'https://frontierwox.in'}/log
 /**
  * Base email wrapper with ultra-premium FrontierWox branding.
  */
-const baseTemplate = (content) => `
-  < !DOCTYPE html >
-    <html lang="en">
-      <head>
-        <meta charset="UTF-8">
-          <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <!--[if mso]>
-            <style>
-              table, td, div, p {font - family: Arial, sans-serif !important;}
-            </style>
-            <![endif]-->
-          </head>
-          <body style="margin:0;padding:0;background-color:${bgLight};font-family: system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol';-webkit-font-smoothing:antialiased;word-break:break-word;">
-            <!-- Preheader text for email clients -->
-            <div style="display:none;font-size:1px;color:${bgLight};line-height:1px;max-height:0px;max-width:0px;opacity:0;overflow:hidden;">
-              FrontierWox Internship Management Platform Update
-            </div>
+const baseTemplate = (content) => `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <!--[if mso]>
+  <style>
+    table, td, div, p { font-family: Arial, sans-serif !important; }
+  </style>
+  <![endif]-->
+</head>
+<body style="margin:0;padding:0;background-color:${bgLight};font-family: system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol';-webkit-font-smoothing:antialiased;word-break:break-word;">
+  <!-- Preheader text for email clients -->
+  <div style="display:none;font-size:1px;color:${bgLight};line-height:1px;max-height:0px;max-width:0px;opacity:0;overflow:hidden;">
+    FrontierWox Internship Management Platform Update
+  </div>
 
-            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color:${bgLight};width:100%;table-layout:fixed;">
-              <tr>
-                <td align="center" style="padding:40px 20px;">
-                  <!-- Main Email Container -->
-                  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:600px;margin:0 auto;background-color:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 10px 25px -5px rgba(0,0,0,0.05), 0 8px 10px -6px rgba(0,0,0,0.01);">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color:${bgLight};width:100%;table-layout:fixed;">
+    <tr>
+      <td align="center" style="padding:40px 20px;">
+        <!-- Main Email Container -->
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:600px;margin:0 auto;background-color:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 10px 25px -5px rgba(0,0,0,0.05), 0 8px 10px -6px rgba(0,0,0,0.01);">
 
-                    <!-- Header -->
-                    <tr>
-                      <td style="background:linear-gradient(135deg, ${brandColor} 0%, ${brandDark} 100%);padding:40px 32px;text-align:center;border-bottom:4px solid ${brandAccent};">
-                        <a href="${websiteUrl}" target="_blank" style="text-decoration:none;display:inline-block;">
-                          <img src="${companyLogoUrl}" alt="FrontierWox" style="max-height:56px;max-width:200px;height:auto;border-radius:4px;display:inline-block;border:2px solid rgba(255,255,255,0.1);" />
-                        </a>
-                        <h1 style="color:#ffffff;margin:24px 0 0;font-size:24px;font-weight:700;letter-spacing:-0.5px;">FrontierWox internHub</h1>
-                        <p style="color:${brandAccent};margin:6px 0 0;font-size:14px;font-weight:500;letter-spacing:0.5px;text-transform:uppercase;">Internship Management Platform</p>
-                      </td>
-                    </tr>
+          <!-- Header -->
+          <tr>
+            <td style="background:linear-gradient(135deg, ${brandColor} 0%, ${brandDark} 100%);padding:40px 32px;text-align:center;border-bottom:4px solid ${brandAccent};">
+              <a href="${websiteUrl}" target="_blank" style="text-decoration:none;display:inline-block;">
+                <img src="${companyLogoUrl}" alt="FrontierWox" style="max-height:56px;max-width:200px;height:auto;border-radius:4px;display:inline-block;border:2px solid rgba(255,255,255,0.1);" />
+              </a>
+              <h1 style="color:#ffffff;margin:24px 0 0;font-size:24px;font-weight:700;letter-spacing:-0.5px;">FrontierWox internHub</h1>
+              <p style="color:${brandAccent};margin:6px 0 0;font-size:14px;font-weight:500;letter-spacing:0.5px;text-transform:uppercase;">Internship Management Platform</p>
+            </td>
+          </tr>
 
-                    <!-- Body Content -->
-                    <tr>
-                      <td style="padding:48px 40px;">
-                        ${content}
-                      </td>
-                    </tr>
+          <!-- Body Content -->
+          <tr>
+            <td style="padding:48px 40px;">
+              ${content}
+            </td>
+          </tr>
 
-                    <!-- Footer -->
-                    <tr>
-                      <td style="background-color:#F1F5F9;padding:32px 40px;text-align:center;border-top:1px solid ${borderLight};">
-                        <a href="${websiteUrl}" target="_blank" style="text-decoration:none;display:inline-block;margin-bottom:16px;">
-                          <img src="${normalLogoUrl}" alt="FrontierWox Icon" style="max-height:32px;display:inline-block;" />
-                        </a>
-                        <p style="color:${grayText};font-size:13px;margin:0 0 8px;font-weight:500;">
-                          <a href="${websiteUrl}" style="color:${brandAccent};text-decoration:none;">frontierwox.in</a>
-                        </p>
-                        <p style="color:#94A3B8;font-size:12px;margin:0 0 12px;line-height:1.5;">
-                          &copy; ${new Date().getFullYear()} FrontierWox. All rights reserved.<br />
-                          This is an automated email sent from the internHub platform. Please do not reply directly to this message.
-                        </p>
-                      </td>
-                    </tr>
-                  </table>
+          <!-- Footer -->
+          <tr>
+            <td style="background-color:#F1F5F9;padding:32px 40px;text-align:center;border-top:1px solid ${borderLight};">
+              <a href="${websiteUrl}" target="_blank" style="text-decoration:none;display:inline-block;margin-bottom:16px;">
+                <img src="${normalLogoUrl}" alt="FrontierWox Icon" style="max-height:32px;display:inline-block;" />
+              </a>
+              <p style="color:${grayText};font-size:13px;margin:0 0 8px;font-weight:500;">
+                <a href="${websiteUrl}" style="color:${brandAccent};text-decoration:none;">frontierwox.in</a>
+              </p>
+              <p style="color:#94A3B8;font-size:12px;margin:0 0 12px;line-height:1.5;">
+                &copy; ${new Date().getFullYear()} FrontierWox. All rights reserved.<br />
+                This is an automated email sent from the internHub platform. Please do not reply directly to this message.
+              </p>
+            </td>
+          </tr>
+        </table>
 
-                  <!-- Optional external footer links space -->
-                  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:600px;margin:0 auto;">
-                    <tr>
-                      <td align="center" style="padding:20px 0;">
-                        <p style="color:#94A3B8;font-size:11px;margin:0;">
-                          Secured by FrontierWox Technologies
-                        </p>
-                      </td>
-                    </tr>
-                  </table>
-                </td>
-              </tr>
-            </table>
-          </body>
-        </html>`;
+        <!-- Optional external footer links space -->
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:600px;margin:0 auto;">
+          <tr>
+            <td align="center" style="padding:20px 0;">
+              <p style="color:#94A3B8;font-size:11px;margin:0;">
+                Secured by FrontierWox Technologies
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
 
 /**
  * Action button component.

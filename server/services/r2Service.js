@@ -3,13 +3,30 @@ const {
   PutObjectCommand,
   DeleteObjectCommand,
   HeadObjectCommand,
+  GetObjectCommand,
 } = require('@aws-sdk/client-s3');
+const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
 const crypto = require('crypto');
 const path = require('path');
 const https = require('https');
 const http = require('http');
 const mime = require('mime-types');
 const logger = require('../utils/logger');
+
+const retryPromise = async (fn, retries = 3, backoff = 500) => {
+  try {
+    return await fn();
+  } catch (error) {
+    if (retries <= 0) throw error;
+    // Don't retry 4xx errors
+    if (error.$metadata?.httpStatusCode >= 400 && error.$metadata?.httpStatusCode < 500 && error.$metadata?.httpStatusCode !== 429) {
+      throw error;
+    }
+    logger.warn(`Retrying after error: ${error.message}. Retries left: ${retries}`);
+    await new Promise((res) => setTimeout(res, backoff));
+    return retryPromise(fn, retries - 1, backoff * 2);
+  }
+};
 
 /**
  * Cloudflare R2 Storage Service.
@@ -168,14 +185,13 @@ class R2Service {
     });
 
     try {
-      await client.send(command);
+      await retryPromise(() => client.send(command));
     } catch (error) {
       logger.error(`R2 upload failed for key "${objectKey}": ${error.message}`);
       throw new Error(`Failed to upload file to R2: ${error.message}`);
     }
 
-    const publicUrl = process.env.R2_PUBLIC_URL.replace(/\/+$/, '');
-    const secureUrl = `${publicUrl}/${objectKey}`;
+    const secureUrl = `/api/files/${objectKey}`;
 
     logger.info(`File uploaded to R2: ${objectKey} (${fileBuffer.length} bytes)`);
 
@@ -206,7 +222,7 @@ class R2Service {
       });
 
       try {
-        await client.send(headCommand);
+        await retryPromise(() => client.send(headCommand), 2, 500);
       } catch (headError) {
         // Object doesn't exist — might be a legacy Cloudinary ID, skip silently
         if (headError.name === 'NotFound' || headError.$metadata?.httpStatusCode === 404) {
@@ -221,7 +237,7 @@ class R2Service {
         Key: publicId,
       });
 
-      await client.send(deleteCommand);
+      await retryPromise(() => client.send(deleteCommand));
       logger.info(`File deleted from R2: ${publicId}`);
     } catch (error) {
       logger.warn(`R2 delete error for "${publicId}": ${error.message}`);
@@ -268,20 +284,23 @@ class R2Service {
     });
   }
 
-  /**
-   * Generate a public download URL for an R2 object.
-   * For R2 this is simply the public URL with the key appended.
-   *
-   * @param {string} publicId - R2 object key
-   * @param {string} _resourceType - Kept for API compatibility
-   * @param {string} _format - Kept for API compatibility
-   * @returns {string} Public download URL
-   */
-  getAttachmentUrl(publicId, _resourceType = 'image', _format = 'png') {
+  async getAttachmentUrl(publicId) {
     if (!publicId) return '';
 
-    const publicUrl = process.env.R2_PUBLIC_URL.replace(/\/+$/, '');
-    return `${publicUrl}/${publicId}`;
+    const client = getClient();
+    const command = new GetObjectCommand({
+      Bucket: process.env.R2_BUCKET_NAME,
+      Key: publicId,
+    });
+
+    // Generate a signed URL that expires in 1 hour (3600 seconds)
+    try {
+      const signedUrl = await getSignedUrl(client, command, { expiresIn: 3600 });
+      return signedUrl;
+    } catch (error) {
+      logger.error(`Error generating signed URL for ${publicId}: ${error.message}`);
+      return '';
+    }
   }
 }
 

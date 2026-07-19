@@ -163,6 +163,7 @@ userSchema.index({ assignedGuide: 1 });
 userSchema.index({ isActive: 1 });
 userSchema.index({ isDeleted: 1 });
 userSchema.index({ isDeleted: 1, role: 1 });
+userSchema.index({ createdAt: -1 });
 
 // --------- Pre-save: Hash password ---------
 userSchema.pre('save', async function (next) {

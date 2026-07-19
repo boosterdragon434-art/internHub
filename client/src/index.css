@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Inter:wght@300;400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=Space+Grotesk:wght@400;500;600;700&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -6,16 +6,17 @@
 
 @layer base {
   body {
-    @apply bg-slate-50 text-slate-900 font-sans antialiased transition-colors duration-300;
+    /* Hard-coding dark mode aesthetic per UI/UX Pro Max rules */
+    @apply bg-[#0F0F23] text-slate-100 font-sans antialiased transition-colors duration-300;
   }
   
   body.dark {
-    @apply bg-[#030712] text-slate-50;
+    @apply bg-[#0F0F23] text-slate-50;
   }
 
-  /* Custom premium headings using Plus Jakarta Sans */
+  /* Custom premium headings using Space Grotesk */
   h1, h2, h3, h4, h5, h6 {
-    font-family: 'Plus Jakarta Sans', 'Inter', sans-serif;
+    font-family: 'Space Grotesk', sans-serif;
   }
 }
 

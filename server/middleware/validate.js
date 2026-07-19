@@ -9,7 +9,7 @@ const validate = (schema) => {
   return (req, _res, next) => {
     const { error, value } = schema.validate(req.body, {
       abortEarly: false,
-      stripUnknown: true,
+      allowUnknown: false,
     });
 
     if (error) {

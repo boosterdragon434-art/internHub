@@ -81,6 +81,27 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => response,
   (error) => {
+    // Format error message based on the new backend { error: { ... } } structure
+    if (!error.response) {
+      error.isNetworkError = true;
+      error.formattedMessage = 'Network error. Please check your internet connection.';
+    } else {
+      const errData = error.response.data?.error;
+      if (errData) {
+        if (errData.fields) {
+          error.formattedMessage = `Validation Error: ${errData.message} (${Object.keys(errData.fields).join(', ')})`;
+        } else if (error.response.status >= 500) {
+          error.formattedMessage = 'A server error occurred. Please try again later.';
+        } else {
+          error.formattedMessage = errData.message || 'An unexpected error occurred.';
+        }
+        // Backward compatibility for components using error.response.data.message
+        error.response.data.message = error.formattedMessage;
+      } else if (error.response.data?.message) {
+        error.formattedMessage = error.response.data.message;
+      }
+    }
+
     if (error.response && error.response.status === 401) {
       // Token is invalid or expired
       const userStr = localStorage.getItem('user');

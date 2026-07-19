@@ -14,6 +14,7 @@ import useSnapping from './hooks/useSnapping';
 import useAutosave from './hooks/useAutosave';
 import { generateOverlayId, getDefaultsForField } from './utils/coordinateMath';
 import { updateTemplate, downloadTemplateFile } from '../../api/certificateApi';
+import ErrorBoundary from '../../components/common/ErrorBoundary';
 
 /**
  * DocumentStudioEditor — Top-level Konva-based editor replacing the legacy Canvas 2D AdvancedEditor.
@@ -501,4 +502,10 @@ const DocumentStudioEditor = ({ template, onSaved, onClose }) => {
   );
 };
 
-export default DocumentStudioEditor;
+export default function DocumentStudioEditorWithErrorBoundary(props) {
+  return (
+    <ErrorBoundary>
+      <DocumentStudioEditor {...props} />
+    </ErrorBoundary>
+  );
+}

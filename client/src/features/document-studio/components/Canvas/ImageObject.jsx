@@ -14,7 +14,7 @@ const PLACEHOLDER_STYLES = {
   barcode: { bg: '#F5F3FF', border: '#7C3AED', text: '#6D28D9', label: '▮▯▮ Barcode' },
 };
 
-const ImageObject = ({ overlay, renderW, renderH, isSelected, onSelect, onDragStart, onDragEnd, onDragMove, onTransformEnd }) => {
+const ImageObject = React.memo(({ overlay, renderW, renderH, isSelected, onSelect, onDragStart, onDragEnd, onDragMove, onTransformEnd }) => {
   if (!overlay.visible) return null;
 
   const cx = (overlay.x / 100) * renderW;
@@ -86,6 +86,6 @@ const ImageObject = ({ overlay, renderW, renderH, isSelected, onSelect, onDragSt
       />
     </Group>
   );
-};
+});
 
 export default ImageObject;

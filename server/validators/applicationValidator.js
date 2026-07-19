@@ -48,14 +48,17 @@ const applicationValidator = {
   }),
 
   assignPayment: Joi.object({
-    amount: Joi.number().min(1).max(1000000).required().messages({
-      'number.min': 'Payment amount must be at least ₹1',
+    amount: Joi.number().min(0).max(1000000).required().messages({
+      'number.min': 'Payment amount cannot be negative',
       'number.max': 'Payment amount cannot exceed ₹10,00,000',
       'any.required': 'Payment amount is required',
     }),
     currency: Joi.string().valid('INR', 'USD').optional(),
-    deadline: Joi.date().greater('now').required().messages({
-      'any.required': 'Payment deadline is required',
+    deadline: Joi.date().greater('now').when('amount', {
+      is: Joi.number().greater(0),
+      then: Joi.required(),
+      otherwise: Joi.optional().allow(null, ''),
+    }).messages({
       'date.greater': 'Payment deadline must be a future date',
     }),
     notes: Joi.string().trim().max(1000).optional().allow(''),

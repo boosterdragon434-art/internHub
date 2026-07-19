@@ -108,8 +108,8 @@ const CERTIFICATE_ID_PREFIX = 'CERT';
 /** Prefix for sequential internship completion certificate IDs */
 const INTERNSHIP_CERT_PREFIX = 'FWT-INT';
 
-/** Maximum number of applications for bulk certificate generation (Phase 9: raised from 50) */
-const BULK_GENERATION_LIMIT = 200;
+/** Maximum number of applications for bulk certificate generation */
+const BULK_GENERATION_LIMIT = 20;
 
 /** Maximum number of version snapshots retained per template (Phase 10) */
 const MAX_TEMPLATE_VERSIONS = 20;

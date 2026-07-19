@@ -91,7 +91,7 @@ const AdminApplicationsPage = () => {
     setSaving(true);
     try {
       if (statusForm.status === 'Approved' && Number(paymentAmount) > 0) {
-        // Validate payment fields before making API calls
+        // ── PAID ENROLLMENT: Validate payment fields before making API calls ──
         if (!paymentDeadline) {
           toast.error('Please specify a payment deadline.');
           setSaving(false);
@@ -112,6 +112,16 @@ const AdminApplicationsPage = () => {
           paymentNotes
         );
         toast.success('Application approved and payment request sent!');
+      } else if (statusForm.status === 'Approved' && paymentAmount !== '' && Number(paymentAmount) === 0) {
+        // ── FREE ENROLLMENT: No deadline required, auto-enroll ──
+        await assignPaymentAmount(
+          detailModal._id,
+          0,
+          paymentCurrency,
+          null,
+          paymentNotes
+        );
+        toast.success('Application approved and student enrolled (free joining)!');
       } else {
         await updateApplicationStatus(detailModal._id, statusForm.status, statusForm.adminNotes);
         toast.success('Status updated successfully!');
@@ -442,8 +452,13 @@ const AdminApplicationsPage = () => {
                       <div>
                         <h4 className="text-xs font-bold text-amber-800 dark:text-amber-400">Assign Joining Fee</h4>
                         <p className="text-[10px] text-amber-700 dark:text-amber-500 leading-relaxed">
-                          Configure the payment request for this student. Enter 0 or leave empty if free.
+                          Configure the payment request for this student. Enter 0 for free joining (auto-enrollment), or set a fee amount.
                         </p>
+                        {paymentAmount !== '' && Number(paymentAmount) === 0 && (
+                          <p className="mt-1.5 text-[11px] font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/20 px-2 py-1 rounded-md inline-block">
+                            ✅ Free Joining — Student will be auto-enrolled instantly
+                          </p>
+                        )}
                       </div>
                       <div className="grid grid-cols-2 gap-3">
                         <Input
@@ -463,28 +478,45 @@ const AdminApplicationsPage = () => {
                           onChange={(e) => setPaymentCurrency(e.target.value)}
                         />
                       </div>
-                      <div className="grid grid-cols-1 gap-3">
-                        <Input
-                          name="paymentDeadline"
-                          label="Payment Deadline"
-                          type="date"
-                          value={paymentDeadline}
-                          onChange={(e) => setPaymentDeadline(e.target.value)}
-                        />
-                        <Input
-                          name="paymentNotes"
-                          label="Message / Notes to Student"
-                          placeholder="e.g. Please complete the payment to secure your spot."
-                          value={paymentNotes}
-                          onChange={(e) => setPaymentNotes(e.target.value)}
-                        />
-                      </div>
+                      {Number(paymentAmount) > 0 && (
+                        <div className="grid grid-cols-1 gap-3">
+                          <Input
+                            name="paymentDeadline"
+                            label="Payment Deadline"
+                            type="date"
+                            value={paymentDeadline}
+                            onChange={(e) => setPaymentDeadline(e.target.value)}
+                          />
+                          <Input
+                            name="paymentNotes"
+                            label="Message / Notes to Student"
+                            placeholder="e.g. Please complete the payment to secure your spot."
+                            value={paymentNotes}
+                            onChange={(e) => setPaymentNotes(e.target.value)}
+                          />
+                        </div>
+                      )}
+                      {Number(paymentAmount) === 0 && paymentAmount !== '' && (
+                        <div className="grid grid-cols-1 gap-3">
+                          <Input
+                            name="paymentNotes"
+                            label="Internal Notes (Optional)"
+                            placeholder="e.g. Scholarship student, no fee required."
+                            value={paymentNotes}
+                            onChange={(e) => setPaymentNotes(e.target.value)}
+                          />
+                        </div>
+                      )}
                     </div>
                   )}
 
                   <div className="flex justify-end">
                     <Button variant="primary" onClick={handleStatusUpdate} loading={saving}>
-                      {statusForm.status === 'Approved' && Number(paymentAmount) > 0 ? 'Approve & Request Payment' : 'Update Status'}
+                      {statusForm.status === 'Approved' && Number(paymentAmount) > 0
+                        ? 'Approve & Request Payment'
+                        : statusForm.status === 'Approved' && paymentAmount !== '' && Number(paymentAmount) === 0
+                          ? 'Approve & Enroll (Free)'
+                          : 'Update Status'}
                     </Button>
                   </div>
                 </div>

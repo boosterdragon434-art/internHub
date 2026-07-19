@@ -126,6 +126,7 @@ const applicationSchema = new mongoose.Schema(
 applicationSchema.index({ user: 1, internship: 1 }); // Not unique anymore to allow re-applications
 applicationSchema.index({ status: 1 });
 applicationSchema.index({ internship: 1 });
+applicationSchema.index({ email: 1 });
 applicationSchema.index({ createdAt: -1 });
 
 module.exports = mongoose.model('Application', applicationSchema);

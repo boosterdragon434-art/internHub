@@ -20,6 +20,18 @@ const LOG_LEVELS = {
  */
 const formatMessage = (level, message, data) => {
   const timestamp = new Date().toISOString();
+  
+  if (process.env.NODE_ENV === 'production') {
+    const logObj = { timestamp, level, message };
+    if (data instanceof Error) {
+      logObj.error = data.message;
+      logObj.stack = data.stack;
+    } else if (data !== undefined) {
+      logObj.data = data;
+    }
+    return JSON.stringify(logObj);
+  }
+
   const base = `[${timestamp}] [${level}] ${message}`;
   if (data !== undefined) {
     const serialized =

@@ -56,3 +56,11 @@ lerna-debug.log*
 .DS_Store
 Thumbs.db
 ehthumbs.db
+
+# Agent files
+.agents/
+design-system/
+
+# Audit Documents
+*audit*.md
+internhub-master-audit-hardening-prompt.md

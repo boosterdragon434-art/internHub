@@ -5,7 +5,7 @@ import { Rect, Text, Group, Circle, RegularPolygon, Line, Star } from 'react-kon
  * ShapeObject — Konva renderer for shape-type overlays.
  * Supports: rectangle, roundedRectangle, circle, ellipse, triangle, line, star.
  */
-const ShapeObject = ({ overlay, renderW, renderH, isSelected, onSelect, onDragStart, onDragEnd, onDragMove, onTransformEnd }) => {
+const ShapeObject = React.memo(({ overlay, renderW, renderH, isSelected, onSelect, onDragStart, onDragEnd, onDragMove, onTransformEnd }) => {
   if (!overlay.visible) return null;
 
   const cx = (overlay.x / 100) * renderW;
@@ -184,6 +184,6 @@ const ShapeObject = ({ overlay, renderW, renderH, isSelected, onSelect, onDragSt
         />
       );
   }
-};
+});
 
 export default ShapeObject;

@@ -1,6 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
+const compression = require('compression');
 const morgan = require('morgan');
 const mongoSanitize = require('express-mongo-sanitize');
 // NOTE: xss-clean has been removed — it is deprecated, unmaintained since 2021,
@@ -27,6 +28,8 @@ const guideRoutes = require('./routes/guideRoutes');
 const taskRoutes = require('./routes/taskRoutes');
 const reminderRoutes = require('./routes/reminderRoutes');
 const certificateRoutes = require('./routes/certificateRoutes');
+const fileRoutes = require('./routes/fileRoutes');
+const cronRoutes = require('./routes/cronRoutes');
 
 const attendanceRoutes = require('./routes/attendanceRoutes');
 const teamRoutes = require('./routes/teamRoutes');
@@ -131,7 +134,11 @@ app.use(mongoSanitize());
 
 // --------------- General Middleware ---------------
 app.use(express.json({ limit: '15mb' }));
-app.use(express.urlencoded({ extended: true, limit: '15mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// Response compression
+app.use(compression());
+
 app.use(passiveReminderCheck);
 app.use(passiveBackgroundChecks);
 
@@ -169,6 +176,8 @@ app.use('/api/guides', guideRoutes);
 app.use('/api/tasks', taskRoutes);
 app.use('/api/reminders', reminderRoutes);
 app.use('/api/certificates', certificateRoutes);
+app.use('/api/files', fileRoutes);
+app.use('/api/cron', cronRoutes);
 
 app.use('/api/attendance', attendanceRoutes);
 app.use('/api/teams', teamRoutes);

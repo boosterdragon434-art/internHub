@@ -82,7 +82,7 @@ const isItalicFont = (fontFamily) =>
  * Mirrors the exact text rendering logic from the existing Canvas 2D editor
  * and certificateService.js _buildOverlayPDF.
  */
-const TextObject = ({ overlay, renderW, renderH, isSelected, onSelect, onDragStart, onDragEnd, onDragMove, onTransformEnd }) => {
+const TextObject = React.memo(({ overlay, renderW, renderH, isSelected, onSelect, onDragStart, onDragEnd, onDragMove, onTransformEnd }) => {
   if (!overlay.visible) return null;
 
   const x = (overlay.x / 100) * renderW;
@@ -158,6 +158,6 @@ const TextObject = ({ overlay, renderW, renderH, isSelected, onSelect, onDragSta
       }}
     />
   );
-};
+});
 
 export default TextObject;

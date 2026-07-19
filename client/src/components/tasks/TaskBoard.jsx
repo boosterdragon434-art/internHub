@@ -3,6 +3,7 @@ import { TASK_COLUMNS, PRIORITY_META, isTaskOverdue } from '../../utils/taskCons
 import TaskCard from './TaskCard';
 import TaskStatusMenu from './TaskStatusMenu';
 import { Spinner } from '../common/Loader';
+import ErrorBoundary from '../common/ErrorBoundary';
 
 /**
  * TaskBoard — shared kanban + list renderer used by the Admin, Guide, and
@@ -144,4 +145,10 @@ const TaskBoard = ({
   );
 };
 
-export default TaskBoard;
+export default function TaskBoardWithErrorBoundary(props) {
+  return (
+    <ErrorBoundary>
+      <TaskBoard {...props} />
+    </ErrorBoundary>
+  );
+}

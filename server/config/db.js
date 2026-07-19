@@ -15,6 +15,8 @@ const connectDB = async () => {
         maxPoolSize: 10,
         serverSelectionTimeoutMS: 5000,
         socketTimeoutMS: 45000,
+        bufferCommands: false, // Prevent hanging on cold starts
+        keepAlive: true,
       });
 
       logger.info(`MongoDB Connected: ${conn.connection.host}`);

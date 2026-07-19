@@ -8,6 +8,7 @@ const PaymentRequest = require('../models/PaymentRequest');
 const Payment = require('../models/Payment');
 const Settings = require('../models/Settings');
 const AuditLog = require('../models/AuditLog');
+const EnrollmentInstance = require('../models/EnrollmentInstance');
 const ApiError = require('../utils/ApiError');
 const ApiResponse = require('../utils/ApiResponse');
 const r2Service = require('../services/r2Service');
@@ -232,16 +233,23 @@ const getApplication = async (req, res, next) => {
 const updateApplicationStatus = async (req, res, next) => {
   try {
     const { status, adminNotes } = req.body;
-    const application = await Application.findById(req.params.id).populate('internship', 'title startDate');
+    const application = await Application.findOneAndUpdate(
+      { _id: req.params.id, status: { $ne: status } },
+      { $set: { status, ...(adminNotes !== undefined && { adminNotes }) } },
+      { new: false, runValidators: true }
+    ).populate('internship', 'title startDate');
 
     if (!application) {
+      const exists = await Application.findById(req.params.id);
+      if (exists && exists.status === status) {
+        return ApiResponse.success(res, 200, 'Application status is already updated.', exists);
+      }
       return next(ApiError.notFound('Application not found.'));
     }
 
     const oldStatus = application.status;
-    application.status = status;
+    application.status = status; // for email formatting and response
     if (adminNotes !== undefined) application.adminNotes = adminNotes;
-    await application.save();
 
     const user = await User.findById(application.user);
 
@@ -270,8 +278,7 @@ const updateApplicationStatus = async (req, res, next) => {
       const setting = await Settings.findOne({ key: 'applicationCooldown' });
       const cooldownDays = setting && setting.value !== undefined ? setting.value : 0;
       if (cooldownDays > 0) {
-        const expiresAt = new Date();
-        expiresAt.setDate(expiresAt.getDate() + cooldownDays);
+        const expiresAt = new Date(Date.now() + cooldownDays * 24 * 60 * 60 * 1000);
         await Cooldown.create({
           student: application.user,
           internship: application.internship._id,
@@ -378,6 +385,7 @@ const sendOfferLetter = async (req, res, next) => {
       templateId,
       issuerId: req.user.id,
       overwrite: false,
+      skipEmail: true, // Offer letter has its own email — skip the generic certificate delivery email
     });
 
     if (!result.success) {
@@ -408,6 +416,8 @@ const sendOfferLetter = async (req, res, next) => {
  *          Atomically approves the application if it is still in a pre-approved
  *          state (Applied / Under Review), so the admin can approve + assign
  *          payment in a single action without a 409 race condition.
+ *          When amount === 0, auto-enrolls the student (free joining) without
+ *          going through the payment flow.
  * @route   PUT /api/applications/:id/assign-payment
  * @access  Admin
  */
@@ -415,12 +425,16 @@ const assignPayment = async (req, res, next) => {
   try {
     const { amount, currency = 'INR', deadline, notes = '' } = req.body;
 
-    if (!amount || !deadline) {
+    // amount is validated by Joi (>= 0); deadline is required only when amount > 0
+    if (amount === undefined || amount === null) {
+      return next(ApiError.badRequest('Amount is required.'));
+    }
+    if (amount > 0 && !deadline) {
       return next(ApiError.badRequest('Amount and deadline are required for payment request.'));
     }
 
     const application = await Application.findById(req.params.id)
-      .populate('internship', 'title startDate');
+      .populate('internship', 'title startDate endDate duration');
 
     if (!application) {
       return next(ApiError.notFound('Application not found.'));
@@ -437,7 +451,6 @@ const assignPayment = async (req, res, next) => {
     ];
 
     if (!ASSIGNABLE_STATUSES.includes(application.status)) {
-      // Application is in a terminal or post-payment state — refuse
       return next(
         ApiError.conflict(
           `Payment cannot be assigned to applications with status "${application.status}". ` +
@@ -449,6 +462,116 @@ const assignPayment = async (req, res, next) => {
     const needsApproval = PRE_APPROVED_STATUSES.includes(application.status);
     const originalStatus = application.status;
 
+    // ── FREE ENROLLMENT BRANCH (amount === 0) ──
+    if (amount === 0) {
+      const session = await mongoose.startSession();
+      session.startTransaction();
+
+      let enrollment;
+      try {
+        // Approve if needed
+        if (needsApproval) {
+          application.status = APPLICATION_STATUS.APPROVED;
+          await application.save({ session });
+
+          await AuditLog.create([{
+            admin: req.user.id,
+            action: 'APPROVED_APPLICATION_FREE_ENROLLMENT',
+            targetModel: 'Application',
+            targetId: application._id,
+            changes: { previousStatus: originalStatus, newStatus: APPLICATION_STATUS.APPROVED },
+            ipAddress: req.ip,
+          }], { session });
+        }
+
+        // Skip payment flow — directly set to Joined
+        application.status = APPLICATION_STATUS.JOINED;
+        await application.save({ session });
+
+        // Increment filled positions on the internship
+        await Internship.findByIdAndUpdate(
+          application.internship._id,
+          { $inc: { filledPositions: 1 } },
+          { session }
+        );
+
+        // Compute enrollment dates (same logic as payment verification flow)
+        const internshipObj = application.internship;
+        let startDate = new Date();
+        let endDate = new Date();
+        endDate.setMonth(endDate.getMonth() + 3); // Default 3 months
+
+        if (internshipObj && internshipObj.startDate && internshipObj.endDate) {
+          startDate = new Date(internshipObj.startDate);
+          endDate = new Date(internshipObj.endDate);
+        } else if (internshipObj && internshipObj.duration) {
+          const match = internshipObj.duration.match(/(\d+)\s*(month|week)s?/i);
+          if (match) {
+            const durationAmount = parseInt(match[1], 10);
+            const unit = match[2].toLowerCase();
+            if (unit === 'month') endDate.setMonth(endDate.getMonth() + durationAmount);
+            if (unit === 'week') endDate.setDate(endDate.getDate() + (durationAmount * 7));
+          }
+        }
+
+        // Create EnrollmentInstance — unlocks attendance, tasks, team, certificates
+        const enrollments = await EnrollmentInstance.create([{
+          student: application.user,
+          internship: application.internship._id,
+          application: application._id,
+          payment: null, // No payment for free enrollment
+          startDate,
+          endDate,
+          status: 'active',
+        }], { session });
+
+        enrollment = enrollments[0];
+
+        await AuditLog.create([{
+          admin: req.user.id,
+          action: 'FREE_ENROLLMENT_CREATED',
+          targetModel: 'EnrollmentInstance',
+          targetId: enrollment._id,
+          changes: { amount: 0, note: 'Free joining — no payment required' },
+          ipAddress: req.ip,
+        }], { session });
+
+        // In-app notification
+        await Notification.create([{
+          user: application.user,
+          title: 'You\'re Enrolled! 🚀',
+          message: `You have been enrolled in ${application.internship.title} (free joining). Welcome aboard!`,
+          type: 'application',
+          link: '/student/dashboard',
+        }], { session });
+
+        await session.commitTransaction();
+      } catch (txError) {
+        await session.abortTransaction();
+        throw txError;
+      } finally {
+        session.endSession();
+      }
+
+      // Send joining confirmation email (non-blocking, outside transaction)
+      const user = await User.findById(application.user);
+      if (user) {
+        setImmediate(() => {
+          emailService.sendJoiningConfirmation(user, application.internship.title).catch((err) => {
+            logger.error(`Failed to send free joining confirmation email to ${user.email}:`, err);
+          });
+        });
+      }
+
+      logger.info(`Free enrollment created for application ${application._id} (${application.internship.title})`);
+
+      return ApiResponse.success(res, 200, 'Application approved and student enrolled (free joining).', {
+        application,
+        enrollment,
+      });
+    }
+
+    // ── PAID ENROLLMENT BRANCH (amount > 0) ──
     // Check if PaymentRequest already exists and is pending
     const existingRequest = await PaymentRequest.findOne({
       application: application._id,

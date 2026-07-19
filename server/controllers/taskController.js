@@ -7,6 +7,7 @@ const ApiError = require('../utils/ApiError');
 const ApiResponse = require('../utils/ApiResponse');
 const logger = require('../utils/logger');
 const escapeRegex = require('../utils/escapeRegex');
+const { PAGINATION } = require('../config/constants');
 
 /** In-app route each role's task workspace lives at. */
 const ROLE_TASK_PATHS = {
@@ -200,8 +201,15 @@ const createTask = async (req, res, next) => {
  */
 const getTasks = async (req, res, next) => {
   try {
-    const { status, priority, search, internship, parentTask, assigneeId } = req.query;
+    const { 
+      status, priority, search, internship, parentTask, assigneeId,
+      page = PAGINATION.DEFAULT_PAGE,
+      limit = PAGINATION.DEFAULT_LIMIT,
+    } = req.query;
     const { id: userId, role } = req.user;
+
+    const pageNum = Math.max(1, parseInt(page, 10));
+    const limitNum = Math.min(parseInt(limit, 10), PAGINATION.MAX_LIMIT);
 
     const filter = {};
 
@@ -244,13 +252,22 @@ const getTasks = async (req, res, next) => {
       }
     }
 
+    const total = await Task.countDocuments(filter);
     const tasks = await Task.find(filter)
       .populate('assignees', 'name email avatar role')
       .populate('createdBy', 'name email avatar role')
       .sort('order createdAt')
+      .skip((pageNum - 1) * limitNum)
+      .limit(limitNum)
       .lean();
 
-    ApiResponse.success(res, 200, 'Tasks fetched successfully.', tasks);
+    ApiResponse.success(
+      res, 
+      200, 
+      'Tasks fetched successfully.', 
+      tasks,
+      ApiResponse.paginate(pageNum, limitNum, total)
+    );
   } catch (error) {
     next(error);
   }
@@ -360,12 +377,21 @@ const updateTask = async (req, res, next) => {
       updates.completedAt = null;
     }
 
-    const updatedTask = await Task.findByIdAndUpdate(taskId, updates, {
+    const query = { _id: taskId };
+    if (updates.status && updates.status !== oldStatus) {
+      query.status = oldStatus;
+    }
+
+    const updatedTask = await Task.findOneAndUpdate(query, updates, {
       new: true,
       runValidators: true,
     })
       .populate('assignees', 'name email avatar role')
       .populate('createdBy', 'name email avatar role');
+
+    if (!updatedTask) {
+      return next(ApiError.conflict('Task was modified by another user. Please refresh and try again.'));
+    }
 
     // Audit Log and Notification creation
     if (updates.status && updates.status !== oldStatus) {

@@ -497,7 +497,7 @@ const _resolveCertificateFields = async (application, overrides = {}, templateDe
  * Used by both single and bulk generation endpoints.
  * @private
  */
-const _generateSingleCertificate = async ({ application, grade, skillsAcquired, performance, templateId, resolvedTemplate, issuerId, overwrite = false, customFields = {} }) => {
+const _generateSingleCertificate = async ({ application, grade, skillsAcquired, performance, templateId, resolvedTemplate, issuerId, overwrite = false, customFields = {}, skipEmail = false }) => {
   const student = application.user;
   const internship = application.internship;
   const guideId = student.assignedGuide || null;
@@ -657,19 +657,21 @@ const _generateSingleCertificate = async ({ application, grade, skillsAcquired, 
 
   const docTypeName = template?.documentCategory?.replace('_', ' ') || 'certificate';
 
-  // Send in-app notification
-  await Notification.create({
-    user: student._id,
-    title: `${docTypeName.charAt(0).toUpperCase() + docTypeName.slice(1)} Issued! 🎓`,
-    message: `Your ${docTypeName} for "${internship.title}" is now ready for download!`,
-    type: 'certificate',
-    link: '/student/certificates',
-  });
+  // Send in-app notification and email unless caller handles it (e.g., offer letter flow)
+  if (!skipEmail) {
+    await Notification.create({
+      user: student._id,
+      title: `${docTypeName.charAt(0).toUpperCase() + docTypeName.slice(1)} Issued! 🎓`,
+      message: `Your ${docTypeName} for "${internship.title}" is now ready for download!`,
+      type: 'certificate',
+      link: '/student/certificates',
+    });
 
-  // Send certificate delivery email with PDF link (non-blocking)
-  emailService
-    .sendCertificateDelivery(student, internship.title, certificateId, secureUrl)
-    .catch((err) => logger.error(`Certificate email failed for ${student.email}:`, err));
+    // Send certificate delivery email with PDF link (non-blocking)
+    emailService
+      .sendCertificateDelivery(student, internship.title, certificateId, secureUrl)
+      .catch((err) => logger.error(`Certificate email failed for ${student.email}:`, err));
+  }
 
   logger.info(`Certificate generated & issued: ${certificateId} for student ${student.email}`);
 
@@ -736,11 +738,26 @@ const bulkGenerate = async (req, res, next) => {
       return next(ApiError.badRequest(`Maximum ${BULK_GENERATION_LIMIT} certificates per batch.`));
     }
 
+    // Prevent concurrent generation for the same applications
+    const lockResult = await Application.updateMany(
+      { _id: { $in: applicationIds }, lockedForGeneration: { $ne: true } },
+      { $set: { lockedForGeneration: true } }
+    );
+    
+    // We only process applications we successfully locked
+    const lockedApps = await Application.find({ _id: { $in: applicationIds }, lockedForGeneration: true });
+    const lockedAppIds = lockedApps.map(a => a._id.toString());
+    
+    if (lockedAppIds.length === 0) {
+      return next(ApiError.conflict('All requested applications are currently locked by another generation process.'));
+    }
+
     const results = {
-      total: applicationIds.length,
+      total: lockedAppIds.length,
       succeeded: 0,
       failed: 0,
       details: [],
+      skippedLocked: applicationIds.length - lockedAppIds.length
     };
 
     // Resolve the template once for the whole batch
@@ -755,8 +772,8 @@ const bulkGenerate = async (req, res, next) => {
 
     // Process with bounded concurrency (e.g. 4 at a time)
     const CONCURRENCY_LIMIT = 4;
-    for (let i = 0; i < applicationIds.length; i += CONCURRENCY_LIMIT) {
-      const chunk = applicationIds.slice(i, i + CONCURRENCY_LIMIT);
+    for (let i = 0; i < lockedAppIds.length; i += CONCURRENCY_LIMIT) {
+      const chunk = lockedAppIds.slice(i, i + CONCURRENCY_LIMIT);
       
       await Promise.all(
         chunk.map(async (appId) => {
@@ -811,6 +828,12 @@ const bulkGenerate = async (req, res, next) => {
         })
       );
     }
+
+    // Release locks
+    await Application.updateMany(
+      { _id: { $in: lockedAppIds } },
+      { $set: { lockedForGeneration: false } }
+    );
 
     await AuditLog.create({
       admin: req.user.id,
