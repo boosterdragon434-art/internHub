@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams, useNavigate, useLocation } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
-import { motion } from 'framer-motion';
-import { FiClock, FiMapPin, FiBriefcase, FiArrowRight } from 'react-icons/fi';
+import { motion, AnimatePresence } from 'framer-motion';
+import { FiClock, FiMapPin, FiBriefcase, FiArrowRight, FiSearch, FiFilter, FiX, FiCheckCircle } from 'react-icons/fi';
 import { getInternshipsList } from '../../api/internshipApi';
 import { formatDisplayAmount } from '../../utils/formatters';
 import { useDebounce } from '../../hooks/useDebounce';
@@ -94,8 +94,6 @@ const InternshipsPage = () => {
       if (found) {
         setSelectedInternship(found);
       } else {
-        // If not in current page, you'd typically fetch it directly.
-        // For simplicity, we just clear it if not found in current list to avoid complex state.
         setSelectedInternship(null);
         searchParams.delete('selected');
         setSearchParams(searchParams, { replace: true });
@@ -123,179 +121,277 @@ const InternshipsPage = () => {
 
   const getModeStyles = (m) => {
     switch (m) {
-      case 'Remote': return 'text-emerald-700 bg-emerald-50 dark:bg-emerald-900/30 dark:text-emerald-400';
-      case 'Hybrid': return 'text-amber-700 bg-amber-50 dark:bg-amber-900/30 dark:text-amber-400';
-      default: return 'text-violet-700 bg-violet-50 dark:bg-violet-900/30 dark:text-violet-400';
+      case 'Remote': return 'text-primary-700 bg-primary-50 dark:bg-primary-900/30 dark:text-primary-400 border-primary-200 dark:border-primary-800';
+      case 'Hybrid': return 'text-accent-700 bg-accent-50 dark:bg-accent-900/30 dark:text-accent-400 border-accent-200 dark:border-accent-800';
+      default: return 'text-indigo-700 bg-indigo-50 dark:bg-indigo-900/30 dark:text-indigo-400 border-indigo-200 dark:border-indigo-800';
     }
   };
 
   return (
     <>
       <Helmet>
-        <title>Careers & Internships — FWT iZON</title>
-        <meta name="description" content="Discover premium internship opportunities at FWT iZON." />
+        <title>Browse Tracks — InternHub</title>
+        <meta name="description" content="Discover premium tech internships and launch your career." />
       </Helmet>
 
-      <div className="min-h-screen bg-white dark:bg-[#0a0a11]">
-        {/* Header */}
-        <div className="bg-brand-50/50 dark:bg-brand-900/10 border-b border-brand-100 dark:border-brand-800/50 pt-16 pb-12 px-6">
-          <div className="max-w-7xl mx-auto flex flex-col md:flex-row md:items-end justify-between gap-6">
+      <div className="min-h-screen bg-slate-50 dark:bg-slate-950 font-sans selection:bg-primary-200 selection:text-primary-900 dark:selection:bg-primary-900/50 dark:selection:text-primary-50 relative">
+        
+        {/* Background Gradients */}
+        <div className="absolute top-0 inset-x-0 h-[500px] bg-gradient-to-b from-primary-50 to-slate-50 dark:from-primary-950/20 dark:to-slate-950 pointer-events-none" />
+        
+        {/* Modern Header */}
+        <div className="relative pt-24 pb-16 px-6 z-10 border-b border-slate-200 dark:border-slate-800 bg-white/50 dark:bg-slate-900/50 backdrop-blur-xl">
+          <div className="max-w-7xl mx-auto flex flex-col md:flex-row md:items-end justify-between gap-8">
             <div className="space-y-4 max-w-2xl">
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-brand-100 dark:bg-brand-800 text-[10px] font-bold uppercase tracking-widest text-brand-700 dark:text-brand-300">
-                <span className="w-1.5 h-1.5 rounded-full bg-brand-500 animate-pulse" />
-                Join the Team
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-[10px] font-bold uppercase tracking-widest text-primary-600 dark:text-primary-400 shadow-sm">
+                <FiCheckCircle className="w-3 h-3" />
+                Enrollment Open
               </div>
-              <h1 className="text-4xl md:text-5xl font-serif tracking-tight text-brand-900 dark:text-white leading-tight">
-                Discover your next career-defining role.
+              <h1 className="text-4xl md:text-5xl font-display font-extrabold tracking-tight text-slate-900 dark:text-white leading-tight">
+                Discover your next <span className="text-primary-600 dark:text-primary-400">career-defining</span> role.
               </h1>
-              <p className="text-sm md:text-base text-slate-600 dark:text-slate-400">
-                Explore our open internship positions and apply to join our growing engineering, design, and product teams.
+              <p className="text-base text-slate-600 dark:text-slate-400 font-medium">
+                Browse our curated selection of high-velocity tech tracks. Find the perfect fit and start your sprint.
               </p>
+            </div>
+            
+            {/* Search Bar - Prominent */}
+            <div className="w-full md:w-96 relative group">
+              <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                <FiSearch className="h-5 w-5 text-slate-400 group-focus-within:text-primary-500 transition-colors" />
+              </div>
+              <input
+                type="text"
+                placeholder="Search tracks, skills, or roles..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="w-full pl-11 pr-4 py-4 bg-white dark:bg-slate-900 border-2 border-slate-200 dark:border-slate-800 rounded-2xl text-sm font-medium text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:border-primary-500 focus:ring-4 focus:ring-primary-500/10 transition-all shadow-sm"
+              />
             </div>
           </div>
         </div>
 
-        {/* Main Layout */}
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-12 flex flex-col lg:flex-row gap-10">
-          {/* Left: Filter Sidebar */}
-          <FilterSidebar
-            search={search}
-            onSearchChange={setSearch}
-            category={category}
-            onCategoryChange={setCategory}
-            mode={mode}
-            onModeChange={setMode}
-            categoryOptions={categoryOptions}
-            modeOptions={modeOptions}
-            onClearAll={handleClearAll}
-            isMobileOpen={isMobileFilterOpen}
-            onMobileToggle={() => setIsMobileFilterOpen(!isMobileFilterOpen)}
-          />
-
-          {/* Right: Internship Listings */}
-          <div className="flex-1 min-w-0">
-            {loading ? (
-              <div className="space-y-4">
-                {Array.from({ length: 5 }).map((_, idx) => (
-                  <div key={idx} className="h-24 bg-slate-50 dark:bg-slate-800/50 animate-pulse rounded-2xl" />
-                ))}
-              </div>
-            ) : internships.length === 0 ? (
-              <div className="py-12 border border-slate-100 dark:border-slate-800 rounded-3xl text-center bg-slate-50/50 dark:bg-slate-900/20">
-                <EmptyState
-                  title="No roles match your criteria"
-                  description="Try adjusting your filters or checking back later for new opportunities."
-                  icon={FiBriefcase}
-                  actionText="Clear Filters"
-                  onActionClick={handleClearAll}
+        {/* Main Content Layout */}
+        <div className="max-w-7xl mx-auto px-6 py-12 relative z-10">
+          <div className="flex flex-col lg:flex-row gap-8">
+            
+            {/* Filter Sidebar (Desktop) */}
+            <div className="hidden lg:block w-72 shrink-0">
+              <div className="sticky top-24 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-[2rem] p-6 shadow-sm">
+                <div className="flex items-center justify-between mb-6">
+                  <h3 className="font-display font-bold text-lg text-slate-900 dark:text-white flex items-center gap-2">
+                    <FiFilter className="text-primary-500" /> Filters
+                  </h3>
+                  {(search || category || mode) && (
+                    <button
+                      onClick={handleClearAll}
+                      className="text-xs font-bold text-accent-500 hover:text-accent-600 transition-colors"
+                    >
+                      Clear All
+                    </button>
+                  )}
+                </div>
+                
+                <FilterSidebar
+                  category={category}
+                  setCategory={setCategory}
+                  mode={mode}
+                  setMode={setMode}
+                  categoryOptions={categoryOptions}
+                  modeOptions={modeOptions}
                 />
               </div>
-            ) : (
-              <div className="space-y-2">
-                {internships.map((internship, idx) => (
+            </div>
+
+            {/* Mobile Filter Toggle */}
+            <div className="lg:hidden flex items-center justify-between bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
+              <span className="font-bold text-sm text-slate-900 dark:text-white">Refine Results</span>
+              <button
+                onClick={() => setIsMobileFilterOpen(true)}
+                className="p-2 rounded-xl bg-primary-50 dark:bg-primary-900/30 text-primary-600 dark:text-primary-400"
+              >
+                <FiFilter className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Mobile Filter Overlay */}
+            <AnimatePresence>
+              {isMobileFilterOpen && (
+                <>
                   <motion.div
-                    key={internship._id}
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: idx * 0.05 }}
-                    layoutId={`internship-${internship._id}`}
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-40 lg:hidden"
+                    onClick={() => setIsMobileFilterOpen(false)}
+                  />
+                  <motion.div
+                    initial={{ x: '100%' }}
+                    animate={{ x: 0 }}
+                    exit={{ x: '100%' }}
+                    transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+                    className="fixed inset-y-0 right-0 w-4/5 max-w-sm bg-white dark:bg-slate-900 z-50 p-6 overflow-y-auto border-l border-slate-200 dark:border-slate-800 shadow-2xl"
                   >
-                    <button
-                      onClick={() => handleRowClick(internship)}
-                      className="w-full text-left group block p-5 md:p-6 rounded-2xl hover:bg-brand-50/60 dark:hover:bg-brand-900/20 border border-transparent hover:border-brand-100 dark:hover:border-brand-800/50 transition-all duration-300"
+                    <div className="flex justify-between items-center mb-8">
+                      <h2 className="text-lg font-display font-bold text-slate-900 dark:text-white">Filters</h2>
+                      <button
+                        onClick={() => setIsMobileFilterOpen(false)}
+                        className="p-2 bg-slate-100 dark:bg-slate-800 rounded-full text-slate-500 hover:text-slate-900 dark:hover:text-white"
+                      >
+                        <FiX className="w-5 h-5" />
+                      </button>
+                    </div>
+                    <FilterSidebar
+                      category={category}
+                      setCategory={setCategory}
+                      mode={mode}
+                      setMode={setMode}
+                      categoryOptions={categoryOptions}
+                      modeOptions={modeOptions}
+                    />
+                    <div className="mt-8 pt-6 border-t border-slate-200 dark:border-slate-800">
+                      <button
+                        onClick={() => setIsMobileFilterOpen(false)}
+                        className="w-full py-3 bg-primary-600 hover:bg-primary-700 text-white font-bold rounded-xl shadow-md transition-colors"
+                      >
+                        Apply Filters
+                      </button>
+                      <button
+                        onClick={() => { handleClearAll(); setIsMobileFilterOpen(false); }}
+                        className="w-full py-3 mt-3 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold rounded-xl hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                      >
+                        Clear All
+                      </button>
+                    </div>
+                  </motion.div>
+                </>
+              )}
+            </AnimatePresence>
+
+            {/* Results Grid */}
+            <div className="flex-1">
+              <div className="mb-6 flex justify-between items-end">
+                <div>
+                  <h2 className="text-xl font-display font-bold text-slate-900 dark:text-white">
+                    Available Tracks
+                  </h2>
+                  <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+                    {internships.length} result{internships.length !== 1 && 's'} found
+                  </p>
+                </div>
+              </div>
+
+              {loading ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {[1, 2, 3, 4, 5, 6].map((n) => (
+                    <InternshipSkeleton key={n} />
+                  ))}
+                </div>
+              ) : internships.length === 0 ? (
+                <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-12 text-center shadow-sm">
+                   <EmptyState
+                    icon={FiBriefcase}
+                    title="No tracks found"
+                    message="We couldn't find any internships matching your current filters. Try adjusting your search criteria."
+                    action={{ label: 'Clear Filters', onClick: handleClearAll }}
+                  />
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 auto-rows-fr">
+                  {internships.map((internship, idx) => (
+                    <motion.div
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: idx * 0.05 }}
+                      key={internship._id}
                     >
-                      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                        {/* Title & Domain */}
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 mb-2">
-                            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                              FWT iZON
+                      <div
+                        onClick={() => handleRowClick(internship)}
+                        className={`h-full bg-white dark:bg-slate-900 border rounded-3xl overflow-hidden cursor-pointer flex flex-col group transition-all duration-300 ${
+                          selectedId === internship._id
+                            ? 'border-primary-500 ring-4 ring-primary-500/10 shadow-lg'
+                            : 'border-slate-200 dark:border-slate-800 shadow-sm hover:shadow-xl hover:shadow-primary-500/5 hover:border-primary-300 dark:hover:border-primary-700'
+                        }`}
+                      >
+                        {/* Cover Image / Header */}
+                        <div className="h-40 bg-slate-100 dark:bg-slate-950 relative overflow-hidden">
+                          {internship.imageUrl ? (
+                            <img
+                              src={internship.imageUrl}
+                              alt={internship.title}
+                              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
+                            />
+                          ) : (
+                            <div className="w-full h-full bg-gradient-to-br from-primary-50 to-accent-50 dark:from-slate-800 dark:to-slate-900 flex items-center justify-center">
+                               <FiCpu className="h-10 w-10 text-primary-300 dark:text-slate-700" />
+                            </div>
+                          )}
+                          <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
+                          <div className="absolute bottom-4 left-4 right-4 flex justify-between items-end">
+                            <span className={`px-3 py-1 text-[10px] font-bold uppercase tracking-wider rounded-full border shadow-sm backdrop-blur-md ${getModeStyles(internship.mode)}`}>
+                              {internship.mode}
                             </span>
-                            <span className="w-1 h-1 rounded-full bg-slate-300 dark:bg-slate-700" />
-                            <span className="text-[10px] font-bold uppercase tracking-wider text-brand-600 dark:text-brand-400">
-                              {internship.category}
+                            <span className="text-white font-bold drop-shadow-md">
+                              {formatDisplayAmount(internship.fees, 'Free')}
                             </span>
                           </div>
-                          <h3 className="text-xl md:text-2xl font-serif font-medium text-slate-900 dark:text-slate-50 group-hover:text-brand-700 dark:group-hover:text-brand-300 transition-colors truncate">
-                            {internship.title}
-                          </h3>
                         </div>
 
-                        {/* Badges & CTA */}
-                        <div className="flex items-center gap-4 shrink-0">
-                          <div className="hidden sm:flex items-center gap-3">
-                            <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 text-xs font-semibold">
-                              <FiClock className="w-3 h-3" /> {internship.duration}
-                            </div>
-                            <div className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold ${getModeStyles(internship.mode)}`}>
-                              <FiMapPin className="w-3 h-3" /> {internship.mode}
-                            </div>
-                          </div>
+                        {/* Content */}
+                        <div className="p-6 flex-1 flex flex-col">
+                          <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2 block">
+                            {internship.category}
+                          </span>
+                          <h3 className="text-xl font-display font-bold text-slate-900 dark:text-white mb-3 group-hover:text-primary-600 dark:group-hover:text-primary-400 transition-colors line-clamp-2">
+                            {internship.title}
+                          </h3>
+                          <p className="text-sm text-slate-600 dark:text-slate-400 line-clamp-2 leading-relaxed mb-6">
+                            {internship.shortDescription || internship.description}
+                          </p>
                           
-                          <div className="flex items-center gap-3 ml-auto">
-                            <div className="text-right hidden md:block">
-                              <span className="block text-[10px] font-bold uppercase text-slate-400">Stipend / Fee</span>
-                              <span className="text-sm font-semibold text-slate-700 dark:text-slate-300">
-                                {formatDisplayAmount(internship.fees, 'Paid / Free')}
-                              </span>
-                            </div>
-                            <div className="w-10 h-10 rounded-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex items-center justify-center group-hover:bg-brand-600 group-hover:border-brand-600 group-hover:text-white text-slate-400 transition-all duration-300 shadow-sm">
-                              <FiArrowRight className="w-4 h-4 group-hover:-rotate-45 transition-transform duration-300" />
-                            </div>
+                          {/* Footer */}
+                          <div className="mt-auto pt-4 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-sm">
+                             <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400 font-medium">
+                               <FiClock className="w-4 h-4" /> {internship.duration}
+                             </div>
+                             
+                             <div className="w-8 h-8 rounded-full bg-slate-50 dark:bg-slate-800 flex items-center justify-center text-primary-600 dark:text-primary-400 group-hover:bg-accent-500 group-hover:text-white transition-colors">
+                               <FiArrowRight className="w-4 h-4" />
+                             </div>
                           </div>
                         </div>
                       </div>
-                      
-                      {/* Mobile Badges */}
-                      <div className="flex sm:hidden items-center gap-2 mt-4">
-                        <span className="px-2.5 py-1 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 text-[10px] font-semibold">
-                          {internship.duration}
-                        </span>
-                        <span className={`px-2.5 py-1 rounded-full text-[10px] font-semibold ${getModeStyles(internship.mode)}`}>
-                          {internship.mode}
-                        </span>
-                        <span className="px-2.5 py-1 rounded-full bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 text-[10px] font-semibold ml-auto">
-                          {formatDisplayAmount(internship.fees, 'Paid / Free')}
-                        </span>
-                      </div>
-                    </button>
-                    {/* Minimal Separator */}
-                    {idx < internships.length - 1 && (
-                      <div className="h-px bg-slate-100 dark:bg-slate-800/60 mx-6" />
-                    )}
-                  </motion.div>
-                ))}
-              </div>
-            )}
-            
-            {/* Pagination */}
-            {pagination.totalPages > 1 && (
-              <div className="flex justify-center mt-12">
-                <div className="flex items-center gap-2">
-                  {Array.from({ length: pagination.totalPages }).map((_, idx) => (
+                    </motion.div>
+                  ))}
+                </div>
+              )}
+              
+              {/* Pagination (Simplified visually) */}
+              {pagination.totalPages > 1 && (
+                <div className="mt-12 flex justify-center gap-2">
+                  {[...Array(pagination.totalPages)].map((_, i) => (
                     <button
-                      key={idx + 1}
-                      onClick={() => setPagination((prev) => ({ ...prev, page: idx + 1 }))}
-                      className={`w-8 h-8 rounded-full text-xs font-bold transition-colors ${
-                        pagination.page === idx + 1
-                          ? 'bg-brand-600 text-white'
-                          : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500'
+                      key={i}
+                      onClick={() => setPagination(prev => ({ ...prev, page: i + 1 }))}
+                      className={`w-10 h-10 rounded-xl font-bold transition-colors ${
+                        pagination.page === i + 1
+                          ? 'bg-primary-600 text-white shadow-md'
+                          : 'bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'
                       }`}
                     >
-                      {idx + 1}
+                      {i + 1}
                     </button>
                   ))}
                 </div>
-              </div>
-            )}
+              )}
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Detail & Application Drawer */}
       <InternshipDrawer
         internship={selectedInternship}
-        isOpen={!!selectedInternship}
+        isOpen={!!selectedId}
         onClose={handleCloseDrawer}
       />
     </>
