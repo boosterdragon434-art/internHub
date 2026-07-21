@@ -360,8 +360,8 @@ const HomePage = () => {
                       </p>
 
                       <div className="mt-auto pt-6 flex items-center justify-between border-t border-slate-100 dark:border-ink-800 mt-6">
-                        <span className="text-sm text-slate-500 dark:text-slate-400 font-medium flex items-center gap-1.5">
-                          <FiClock className="w-4 h-4" /> {internship.duration}
+                        <span className="text-xs font-semibold text-violet-600 dark:text-violet-400 group-hover:translate-x-0.5 transition-transform inline-flex items-center gap-1">
+                          View Track <FiArrowRight className="w-3.5 h-3.5" />
                         </span>
                         <span className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
                           {formatDisplayAmount(internship.fees, 'Free')}

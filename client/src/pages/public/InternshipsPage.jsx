@@ -61,8 +61,6 @@ const SORT_OPTIONS = [
   { value: 'popular', label: 'Most Popular' },
 ];
 
-const spotsLeft = (i) => Math.max(0, (i.openings || 0) - (i.filledPositions || 0));
-
 const InternshipsPage = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -330,7 +328,6 @@ const InternshipsPage = () => {
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 auto-rows-fr">
                   {visibleInternships.map((internship, idx) => {
-                    const remaining = spotsLeft(internship);
                     const isSaved = savedIds.has(internship._id);
                     return (
                       <motion.div
@@ -404,16 +401,12 @@ const InternshipsPage = () => {
                             )}
 
                             <div className="mt-auto pt-4 border-t border-slate-100 dark:border-ink-800 flex items-center justify-between text-sm">
-                              <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400 font-medium">
-                                <FiClock className="w-4 h-4" /> {internship.duration}
+                              <span className="text-xs font-semibold text-violet-600 dark:text-violet-400 group-hover:translate-x-0.5 transition-transform inline-flex items-center gap-1">
+                                View Track Details <FiArrowRight className="w-3.5 h-3.5" />
+                              </span>
+                              <div className="w-8 h-8 rounded-full bg-slate-50 dark:bg-ink-800 flex items-center justify-center text-violet-600 dark:text-violet-400 group-hover:bg-amber-400 group-hover:text-ink-950 transition-colors">
+                                <FiArrowRight className="w-4 h-4" />
                               </div>
-                              {remaining > 0 && remaining <= 3 ? (
-                                <span className="text-[11px] font-bold text-rose-600 dark:text-rose-400">{remaining} spot{remaining !== 1 ? 's' : ''} left</span>
-                              ) : (
-                                <div className="w-8 h-8 rounded-full bg-slate-50 dark:bg-ink-800 flex items-center justify-center text-violet-600 dark:text-violet-400 group-hover:bg-amber-400 group-hover:text-ink-950 transition-colors">
-                                  <FiArrowRight className="w-4 h-4" />
-                                </div>
-                              )}
                             </div>
                           </div>
                         </div>

@@ -116,14 +116,8 @@ const InternshipDrawer = ({ internship, isOpen, onClose }) => {
 
   if (!internship) return null;
 
-  const spotsLeft = Math.max(0, internship.openings - (internship.filledPositions || 0));
-
   const detailItems = [
-    { icon: FiClock, label: 'Duration', value: internship.duration },
-    { icon: FiMapPin, label: 'Mode', value: internship.mode },
-    { icon: FiUsers, label: 'Openings', value: `${spotsLeft} remaining` },
-    { icon: FiCalendar, label: 'Start Date', value: formatDate(internship.startDate) },
-    { icon: FiCalendar, label: 'End Date', value: formatDate(internship.endDate) },
+    { icon: FiMapPin, label: 'Mode', value: internship.mode === 'Offline' ? 'On-site' : internship.mode },
     { icon: FaRupeeSign, label: 'Fees', value: formatDisplayAmount(internship.fees, 'Free') },
   ];
 
