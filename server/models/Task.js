@@ -142,6 +142,8 @@ const taskSchema = new mongoose.Schema(
 
 // --------- Indexes ---------
 taskSchema.index({ assignees: 1 });
+taskSchema.index({ assignees: 1, status: 1 });
+taskSchema.index({ internship: 1, status: 1 });
 taskSchema.index({ status: 1 });
 taskSchema.index({ priority: 1 });
 taskSchema.index({ dueDate: 1 });

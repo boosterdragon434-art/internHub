@@ -30,7 +30,7 @@ const AdminPaymentsPage = () => {
     { value: 'failed', label: 'Failed' }, { value: 'refunded', label: 'Refunded' },
   ];
 
-  const fetchPayments = async () => {
+  const fetchPayments = React.useCallback(async () => {
     setLoading(true);
     try {
       const params = { page: pagination.page, limit: 10 };
@@ -42,11 +42,11 @@ const AdminPaymentsPage = () => {
       }
     } catch (err) { console.error(err); }
     finally { setLoading(false); }
-  };
+  }, [pagination.page, statusFilter]);
 
   useEffect(() => {
     fetchPayments();
-  }, [statusFilter, pagination.page]);
+  }, [fetchPayments]);
 
   const handleExport = async () => {
     try {

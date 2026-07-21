@@ -26,13 +26,12 @@ const StudentTasksPage = () => {
   const [selectedTask, setSelectedTask] = useState(null);
 
   const fetchTasks = useCallback(async () => {
-    setLoading(true);
     try {
       const response = await getTasks();
       if (response.data?.success) {
         setTasks(response.data.data);
       }
-    } catch (err) {
+    } catch {
       toast.error('Failed to load assigned tasks');
     } finally {
       setLoading(false);

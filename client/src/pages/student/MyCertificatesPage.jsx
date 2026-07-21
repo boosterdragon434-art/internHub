@@ -27,22 +27,22 @@ const MyCertificatesPage = () => {
   const [certificates, setCertificates] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    fetchCertificates();
-  }, []);
-
-  const fetchCertificates = async () => {
+  const fetchCertificates = React.useCallback(async () => {
     try {
       const response = await getMyCertificates();
       if (response.data?.success) {
         setCertificates(response.data.data);
       }
-    } catch (err) {
+    } catch {
       toast.error('Failed to load certificates portfolio');
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    fetchCertificates();
+  }, [fetchCertificates]);
 
   return (
     <EnrollmentGate featureName="Certificates">

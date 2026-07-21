@@ -17,14 +17,14 @@ const AdminDashboard = () => {
   useEffect(() => {
     const fetch = async () => {
       try {
-        const [intRes, appRes, payRes, userRes] = await Promise.all([
+        const [intRes, appRes, payRes, userRes] = await Promise.allSettled([
           getInternshipStats(), getApplicationStats(), getPaymentStats(), getUserStats(),
         ]);
         setStats({
-          internships: intRes.success ? intRes.data : {},
-          applications: appRes.success ? appRes.data : {},
-          payments: payRes.success ? payRes.data : {},
-          users: userRes.success ? userRes.data : {},
+          internships: intRes.status === 'fulfilled' && intRes.value?.success ? intRes.value.data : {},
+          applications: appRes.status === 'fulfilled' && appRes.value?.success ? appRes.value.data : {},
+          payments: payRes.status === 'fulfilled' && payRes.value?.success ? payRes.value.data : {},
+          users: userRes.status === 'fulfilled' && userRes.value?.success ? userRes.value.data : {},
         });
       } catch (err) {
         console.error(err);

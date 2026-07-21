@@ -1299,6 +1299,16 @@ const AdvancedEditor = ({ template, onSaved, onClose }) => {
     return () => window.removeEventListener('beforeunload', handler);
   }, [hasUnsavedChanges]);
 
+  const MAX_HISTORY = 50;
+  const saveToHistory = React.useCallback((state) => { setHistory((h) => { const trimmed = [...h.slice(0, historyIndex + 1), state]; return trimmed.length > MAX_HISTORY ? trimmed.slice(trimmed.length - MAX_HISTORY) : trimmed; }); setHistoryIndex((i) => Math.min(i + 1, MAX_HISTORY - 1)); }, [historyIndex]);
+  const undo = React.useCallback(() => { if (historyIndex > 0) { setHistoryIndex((i) => i - 1); setOverlays(history[historyIndex - 1]); } }, [historyIndex, history]);
+  const redo = React.useCallback(() => { if (historyIndex < history.length - 1) { setHistoryIndex((i) => i + 1); setOverlays(history[historyIndex + 1]); } }, [historyIndex, history]);
+
+  const updateOverlay = React.useCallback((id, updates, noHistory = false) => {
+    setOverlays((prev) => { const updated = prev.map((o) => (o.id === id ? { ...o, ...updates } : o)); if(!noHistory) saveToHistory(updated); return updated; });
+    if (selected?.id === id) setSelected((prev) => ({ ...prev, ...updates }));
+  }, [saveToHistory, selected?.id]);
+
   // Keyboard shortcuts — proper dependency array prevents stacking listeners
   useEffect(() => {
     const handler = (e) => {
@@ -1463,14 +1473,27 @@ const AdvancedEditor = ({ template, onSaved, onClose }) => {
       }
       if (overlay.rotation) { ctx.translate(x, y); ctx.rotate((overlay.rotation * Math.PI) / 180); ctx.translate(-x, -y); }
 
-      let lines = wrapText(ctx, text, maxWidth);
+      const wrapTextHelper = (context, txt, maxW) => {
+        const words = txt.split(' ');
+        const lines = [];
+        let current = '';
+        words.forEach((word) => {
+          const test = current + (current ? ' ' : '') + word;
+          if (context.measureText(test).width > maxW && current) { lines.push(current); current = word; }
+          else current = test;
+        });
+        if (current) lines.push(current);
+        return lines;
+      };
+
+      let lines = wrapTextHelper(ctx, text, maxWidth);
       let lineHeight = fontSize * (overlay.lineHeight || 1.2);
       let textHeight = lines.length * lineHeight;
       if (textHeight > height && fontSize > 6) {
         const scaleFactor = Math.max(0.5, height / textHeight);
         fontSize = Math.max(6, fontSize * scaleFactor);
         ctx.font = `${overlay.fontWeight === 'bold' ? 'bold' : 'normal'} ${fontSize}px ${overlay.fontFamily || 'Arial'}`;
-        lines = wrapText(ctx, text, maxWidth);
+        lines = wrapTextHelper(ctx, text, maxWidth);
         lineHeight = fontSize * (overlay.lineHeight || 1.2);
       }
       const textBlockH = lines.length * lineHeight;
@@ -1480,28 +1503,9 @@ const AdvancedEditor = ({ template, onSaved, onClose }) => {
     });
   }, [templateImg, overlays, zoom, showGrid, gridSize, template, selected]);
 
-  const wrapText = (ctx, text, maxWidth) => {
-    const words = text.split(' ');
-    const lines = [];
-    let current = '';
-    words.forEach((word) => {
-      const test = current + (current ? ' ' : '') + word;
-      if (ctx.measureText(test).width > maxWidth && current) { lines.push(current); current = word; }
-      else current = test;
-    });
-    if (current) lines.push(current);
-    return lines;
-  };
 
-  const MAX_HISTORY = 50;
-  const saveToHistory = (state) => { setHistory((h) => { const trimmed = [...h.slice(0, historyIndex + 1), state]; return trimmed.length > MAX_HISTORY ? trimmed.slice(trimmed.length - MAX_HISTORY) : trimmed; }); setHistoryIndex((i) => Math.min(i + 1, MAX_HISTORY - 1)); };
-  const undo = () => { if (historyIndex > 0) { setHistoryIndex((i) => i - 1); setOverlays(history[historyIndex - 1]); } };
-  const redo = () => { if (historyIndex < history.length - 1) { setHistoryIndex((i) => i + 1); setOverlays(history[historyIndex + 1]); } };
 
-  const updateOverlay = (id, updates, noHistory = false) => {
-    setOverlays((prev) => { const updated = prev.map((o) => (o.id === id ? { ...o, ...updates } : o)); if(!noHistory) saveToHistory(updated); return updated; });
-    if (selected?.id === id) setSelected((prev) => ({ ...prev, ...updates }));
-  };
+
 
   const addOverlay = (forcedField = null) => {
     const field = forcedField || 'studentName';

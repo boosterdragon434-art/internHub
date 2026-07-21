@@ -52,7 +52,7 @@ const AdminApplicationsPage = () => {
     'Joined', 'Completed'
   ].map((s) => ({ value: s, label: s }));
 
-  const fetchData = async () => {
+  const fetchData = React.useCallback(async () => {
     setLoading(true);
     try {
       const params = { page: pagination.page, limit: 10 };
@@ -61,16 +61,16 @@ const AdminApplicationsPage = () => {
       const res = await getAllApplications(params);
       if (res.success) {
         setApps(res.data);
-        if (res.pagination) setPagination((p) => ({ ...p, totalPages: res.pagination.totalPages }));
+        if (res.pagination) setPagination((p) => ({ ...p, totalPages: res.pagination.totalPages || res.pagination.pages || 1 }));
       }
     } catch (err) {
       console.error(err);
     } finally {
       setLoading(false);
     }
-  };
+  }, [debouncedSearch, statusFilter, pagination.page]);
 
-  useEffect(() => { fetchData(); }, [debouncedSearch, statusFilter, pagination.page]);
+  useEffect(() => { fetchData(); }, [fetchData]);
 
   useEffect(() => {
     const fetchOfferTemplates = async () => {

@@ -13,6 +13,7 @@ import {
   FiTrendingUp,
   FiBarChart2,
   FiCalendar,
+  FiCheckCircle,
 } from 'react-icons/fi';
 import toast from 'react-hot-toast';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';

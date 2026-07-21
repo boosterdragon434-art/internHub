@@ -32,15 +32,18 @@ const AdminTasksPage = () => {
   const [creating, setCreating] = useState(false);
 
   const fetchInitialData = useCallback(async () => {
-    setLoading(true);
     try {
-      const [tasksRes, studentsRes] = await Promise.all([
+      const [tasksRes, studentsRes] = await Promise.allSettled([
         getTasks(),
         getAllUsers({ role: 'student', limit: 100 }),
       ]);
-      if (tasksRes.data?.success) setTasks(tasksRes.data.data);
-      if (studentsRes?.success) setStudents(studentsRes.data || []);
-    } catch (err) {
+      if (tasksRes.status === 'fulfilled' && tasksRes.value?.data?.success) {
+        setTasks(tasksRes.value.data.data);
+      }
+      if (studentsRes.status === 'fulfilled' && studentsRes.value?.success) {
+        setStudents(studentsRes.value.data || []);
+      }
+    } catch {
       toast.error('Failed to load tasks and students list');
     } finally {
       setLoading(false);

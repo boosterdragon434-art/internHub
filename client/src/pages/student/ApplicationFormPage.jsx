@@ -56,6 +56,35 @@ const selectStyle = {
   backgroundSize: '1.25rem',
 };
 
+/** File upload card component declared at top level */
+const FileUploadCard = ({ label, required, file, onFileChange, onRemove, accept, error, hint }) => (
+  <FormInput label={label} required={required} error={error}>
+    {file ? (
+      <div className="flex items-center gap-3 bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800/40 rounded-xl p-3">
+        <div className="w-10 h-10 rounded-lg bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center shrink-0">
+          {file.type?.startsWith('image/') ? <FiImage className="w-5 h-5 text-emerald-600" /> : <FiFileText className="w-5 h-5 text-emerald-600" />}
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-xs font-semibold text-emerald-700 dark:text-emerald-400 truncate">{file.name}</p>
+          <p className="text-[10px] text-emerald-600/70">{(file.size / (1024 * 1024)).toFixed(2)} MB</p>
+        </div>
+        <button onClick={onRemove} className="p-1.5 rounded-lg text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/20 transition-colors" type="button">
+          <FiX className="w-4 h-4" />
+        </button>
+      </div>
+    ) : (
+      <label className="flex flex-col items-center gap-2 p-5 border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-xl cursor-pointer hover:border-accent-400 dark:hover:border-accent-600 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-all group">
+        <div className="w-12 h-12 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center group-hover:bg-accent-50 dark:group-hover:bg-accent-950/20 transition-colors">
+          <FiUpload className="w-5 h-5 text-slate-400 group-hover:text-accent-500 transition-colors" />
+        </div>
+        <span className="text-xs text-slate-500 dark:text-slate-400 text-center">Click to upload</span>
+        {hint && <span className="text-[10px] text-slate-400">{hint}</span>}
+        <input type="file" accept={accept} onChange={onFileChange} className="hidden" />
+      </label>
+    )}
+  </FormInput>
+);
+
 const ApplicationFormPage = () => {
   const { id: internshipId } = useParams();
   const navigate = useNavigate();
@@ -268,35 +297,6 @@ const ApplicationFormPage = () => {
 
   const progress = ((step + 1) / steps.length) * 100;
 
-  /** File upload card */
-  const FileUploadCard = ({ label, required, file, onFileChange, onRemove, accept, fieldName, hint }) => (
-    <FormInput label={label} required={required} error={errors[fieldName]}>
-      {file ? (
-        <div className="flex items-center gap-3 bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800/40 rounded-xl p-3">
-          <div className="w-10 h-10 rounded-lg bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center shrink-0">
-            {file.type.startsWith('image/') ? <FiImage className="w-5 h-5 text-emerald-600" /> : <FiFileText className="w-5 h-5 text-emerald-600" />}
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-xs font-semibold text-emerald-700 dark:text-emerald-400 truncate">{file.name}</p>
-            <p className="text-[10px] text-emerald-600/70">{(file.size / (1024 * 1024)).toFixed(2)} MB</p>
-          </div>
-          <button onClick={onRemove} className="p-1.5 rounded-lg text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/20 transition-colors" type="button">
-            <FiX className="w-4 h-4" />
-          </button>
-        </div>
-      ) : (
-        <label className="flex flex-col items-center gap-2 p-5 border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-xl cursor-pointer hover:border-accent-400 dark:hover:border-accent-600 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-all group">
-          <div className="w-12 h-12 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center group-hover:bg-accent-50 dark:group-hover:bg-accent-950/20 transition-colors">
-            <FiUpload className="w-5 h-5 text-slate-400 group-hover:text-accent-500 transition-colors" />
-          </div>
-          <span className="text-xs text-slate-500 dark:text-slate-400 text-center">Click to upload</span>
-          {hint && <span className="text-[10px] text-slate-400">{hint}</span>}
-          <input type="file" accept={accept} onChange={onFileChange} className="hidden" />
-        </label>
-      )}
-    </FormInput>
-  );
-
   return (
     <>
       <Helmet><title>Apply — {internship?.title || 'Internship'} — InternHub</title></Helmet>
@@ -448,7 +448,7 @@ const ApplicationFormPage = () => {
                     onFileChange={handleFileChange(setAadharCard, 'aadharCard', 'all')}
                     onRemove={removeFile(setAadharCard)}
                     accept=".pdf,.jpg,.jpeg,.png,.webp"
-                    fieldName="aadharCard"
+                    error={errors.aadharCard}
                     hint="PDF or image, max 10MB"
                   />
                   <FileUploadCard
@@ -458,7 +458,7 @@ const ApplicationFormPage = () => {
                     onFileChange={handleFileChange(setPassportPhoto, 'passportPhoto', 'image')}
                     onRemove={removeFile(setPassportPhoto)}
                     accept=".jpg,.jpeg,.png,.webp"
-                    fieldName="passportPhoto"
+                    error={errors.passportPhoto}
                     hint="Image only, max 10MB"
                   />
                   <FileUploadCard
@@ -468,7 +468,7 @@ const ApplicationFormPage = () => {
                     onFileChange={handleFileChange(setIdCard, 'idCard', 'all')}
                     onRemove={removeFile(setIdCard)}
                     accept=".pdf,.jpg,.jpeg,.png,.webp"
-                    fieldName="idCard"
+                    error={errors.idCard}
                     hint="PDF or image, max 10MB"
                   />
                   <FileUploadCard
@@ -478,7 +478,7 @@ const ApplicationFormPage = () => {
                     onFileChange={handleFileChange(setResume, 'resume', 'pdf')}
                     onRemove={removeFile(setResume)}
                     accept=".pdf"
-                    fieldName="resume"
+                    error={errors.resume}
                     hint="PDF only, max 10MB"
                   />
                 </div>

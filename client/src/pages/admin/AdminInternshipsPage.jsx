@@ -40,7 +40,7 @@ const AdminInternshipsPage = () => {
     'Content Writing', 'Graphic Design', 'Video Editing', 'Other',
   ].map((c) => ({ value: c, label: c }));
 
-  const fetchData = async () => {
+  const fetchData = React.useCallback(async () => {
     setLoading(true);
     try {
       const params = { page: pagination.page, limit: 10, status: '' };
@@ -48,13 +48,13 @@ const AdminInternshipsPage = () => {
       const res = await getInternshipsList(params);
       if (res.success) {
         setInternships(res.data);
-        if (res.pagination) setPagination((p) => ({ ...p, totalPages: res.pagination.totalPages }));
+        if (res.pagination) setPagination((p) => ({ ...p, totalPages: res.pagination.totalPages || res.pagination.pages || 1 }));
       }
     } catch (err) { console.error(err); }
     finally { setLoading(false); }
-  };
+  }, [debouncedSearch, pagination.page]);
 
-  useEffect(() => { fetchData(); }, [debouncedSearch, pagination.page]);
+  useEffect(() => { fetchData(); }, [fetchData]);
 
   const openCreateModal = () => {
     setEditing(null);

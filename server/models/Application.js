@@ -218,6 +218,8 @@ const applicationSchema = new mongoose.Schema(
 
 // --------- Indexes ---------
 applicationSchema.index({ user: 1, internship: 1 }); // Not unique anymore to allow re-applications
+applicationSchema.index({ user: 1, status: 1 });
+applicationSchema.index({ internship: 1, status: 1 });
 applicationSchema.index({ status: 1 });
 applicationSchema.index({ internship: 1 });
 applicationSchema.index({ email: 1 });

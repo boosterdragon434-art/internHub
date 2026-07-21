@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Helmet } from 'react-helmet-async';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -9,7 +9,6 @@ import {
   FiAward,
   FiBriefcase,
   FiX,
-  FiGithub,
   FiGlobe,
   FiShield,
 } from 'react-icons/fi';
@@ -36,11 +35,7 @@ const StudentTeamPage = () => {
   const [contribData, setContribData] = useState({ role: '', responsibilities: '', tasksCompleted: '' });
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  useEffect(() => {
-    fetchTeam();
-  }, []);
-
-  const fetchTeam = async () => {
+  const fetchTeam = useCallback(async () => {
     try {
       const res = await getMyTeam();
       if (res.data?.success && res.data?.data?.team) {
@@ -51,7 +46,11 @@ const StudentTeamPage = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    fetchTeam();
+  }, [fetchTeam]);
 
   const handleOpenProjectModal = () => {
     setProjectData({

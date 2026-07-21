@@ -90,6 +90,7 @@ const paymentSchema = new mongoose.Schema(
 
 // --------- Indexes ---------
 paymentSchema.index({ user: 1 });
+paymentSchema.index({ user: 1, status: 1 });
 paymentSchema.index({ status: 1 });
 paymentSchema.index({ createdAt: -1 });
 

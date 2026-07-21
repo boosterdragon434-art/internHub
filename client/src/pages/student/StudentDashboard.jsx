@@ -12,7 +12,6 @@ import {
   FiCalendar,
   FiAward,
   FiArrowRight,
-  FiTrendingUp,
   FiCheckSquare,
   FiCpu,
   FiActivity,
@@ -32,7 +31,7 @@ import ReminderWidget from '../../components/productivity/ReminderWidget';
  */
 const StudentDashboard = () => {
   const { user } = useAuth();
-  const { isEnrolled, activeEnrollment, enrollments, loading: enrollmentLoading } = useEnrollment();
+  const { isEnrolled, activeEnrollment, loading: enrollmentLoading } = useEnrollment();
   const [applications, setApplications] = useState([]);
   const [loading, setLoading] = useState(true);
 

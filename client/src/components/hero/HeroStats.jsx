@@ -11,7 +11,7 @@ import { GraduationCap, Building, Award, TrendingUp } from 'lucide-react';
 const STATS = [
   {
     icon: GraduationCap,
-    value: 25000,
+    value: 250,
     suffix: '+',
     label: 'Students',
     color: 'text-blue-600',
@@ -20,16 +20,16 @@ const STATS = [
   },
   {
     icon: Building,
-    value: 1500,
-    suffix: '+',
-    label: 'Companies',
+    value: 99,
+    suffix: '%',
+    label: 'Satisfaction',
     color: 'text-orange-600',
     bgColor: 'bg-orange-50',
     iconColor: 'text-orange-500',
   },
   {
     icon: Award,
-    value: 50000,
+    value: 250,
     suffix: '+',
     label: 'Certificates',
     color: 'text-blue-600',
@@ -38,7 +38,7 @@ const STATS = [
   },
   {
     icon: TrendingUp,
-    value: 97,
+    value: 98,
     suffix: '%',
     label: 'Completion Rate',
     color: 'text-orange-600',
