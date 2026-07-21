@@ -180,3 +180,165 @@
   background-size: 32px 32px;
 }
 
+/* ============================================================
+   Premium Hero Section — GPU-Accelerated CSS Animations
+   All animations use transform/opacity only → compositor thread.
+   Eliminates ~30 concurrent Framer Motion JS animation loops.
+   ============================================================ */
+
+/* ── Gradient mesh background ── */
+.hero-gradient-mesh {
+  animation: heroGradientShift 18s ease-in-out infinite;
+  will-change: background-position;
+}
+
+@keyframes heroGradientShift {
+  0%, 100% { background-position: 0% 50%; }
+  25% { background-position: 50% 0%; }
+  50% { background-position: 100% 50%; }
+  75% { background-position: 50% 100%; }
+}
+
+/* ── Glow drift — slow translate loop ── */
+.hero-glow-drift-1 {
+  animation: heroGlowDrift1 22s ease-in-out infinite;
+  will-change: transform;
+}
+
+@keyframes heroGlowDrift1 {
+  0%, 100% { transform: translate(0, 0); }
+  33% { transform: translate(25px, -20px); }
+  66% { transform: translate(-15px, 12px); }
+}
+
+.hero-glow-drift-2 {
+  animation: heroGlowDrift2 28s ease-in-out infinite;
+  will-change: transform;
+}
+
+@keyframes heroGlowDrift2 {
+  0%, 100% { transform: translate(0, 0); }
+  33% { transform: translate(-18px, 15px); }
+  66% { transform: translate(20px, -12px); }
+}
+
+/* ── Glass reflection pulse ── */
+.hero-glass-reflection {
+  animation: heroGlassReflection 10s ease-in-out infinite;
+}
+
+@keyframes heroGlassReflection {
+  0%, 100% { opacity: 0.12; }
+  50% { opacity: 0.22; }
+}
+
+/* ── Floating bob (for dashboard overlapping cards / dots) ── */
+.hero-float-bob {
+  animation: heroFloatBob 4s ease-in-out infinite;
+  will-change: transform;
+}
+
+@keyframes heroFloatBob {
+  0%, 100% { transform: translateZ(30px) translateY(0); }
+  50% { transform: translateZ(30px) translateY(-6px); }
+}
+
+.hero-float-bob-reverse {
+  animation: heroFloatBobReverse 4.5s ease-in-out infinite;
+  will-change: transform;
+}
+
+@keyframes heroFloatBobReverse {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(5px); }
+}
+
+/* ── Pulse dot (AI assistant / tasks indicators) ── */
+.hero-pulse-dot {
+  animation: heroPulseDot 2s ease-in-out infinite;
+}
+
+@keyframes heroPulseDot {
+  0%, 100% { opacity: 0.5; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.3); }
+}
+
+/* ── Bar chart grow (analytics mini bars) ── */
+.hero-bar-grow {
+  height: 0;
+  animation: heroBarGrow 0.5s ease-out forwards;
+}
+
+@keyframes heroBarGrow {
+  from { height: 0; }
+  to { height: var(--bar-height, 50%); }
+}
+
+/* ── SVG ring fill (attendance radial progress) ── */
+.hero-ring-fill {
+  animation: heroRingFill 1s ease-out forwards;
+}
+
+@keyframes heroRingFill {
+  from { stroke-dashoffset: 113.097; /* 2*PI*18 full circle */ }
+  to { stroke-dashoffset: var(--ring-target, 0); }
+}
+
+/* ── Network connection line dash flow ── */
+.hero-net-line {
+  opacity: 0.3;
+  animation: heroNetLineDash 10s linear infinite, heroNetLineFade 5s ease-in-out infinite;
+}
+
+@keyframes heroNetLineDash {
+  from { stroke-dashoffset: 0; }
+  to { stroke-dashoffset: -10; }
+}
+
+@keyframes heroNetLineFade {
+  0%, 100% { opacity: 0.15; }
+  50% { opacity: 0.4; }
+}
+
+/* ── Network node dot pulse ── */
+.hero-net-dot {
+  opacity: 0.25;
+  animation: heroNetDotPulse 3.5s ease-in-out infinite;
+}
+
+@keyframes heroNetDotPulse {
+  0%, 100% { opacity: 0.15; r: 0.3; }
+  50% { opacity: 0.4; r: 0.5; }
+}
+
+/* ── Tabular numerals for stats counters ── */
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Reduced motion: kill ALL hero decorative animations ── */
+@media (prefers-reduced-motion: reduce) {
+  .hero-gradient-mesh,
+  .hero-glow-drift-1,
+  .hero-glow-drift-2,
+  .hero-glass-reflection,
+  .hero-float-bob,
+  .hero-float-bob-reverse,
+  .hero-pulse-dot,
+  .hero-bar-grow,
+  .hero-ring-fill,
+  .hero-net-line,
+  .hero-net-dot {
+    animation: none !important;
+  }
+  .hero-bar-grow {
+    height: var(--bar-height, 50%) !important;
+  }
+}
+
+/* ── Hide heavy effects on very small / low-power devices ── */
+@media (max-width: 480px) {
+  .hero-connection-lines {
+    display: none;
+  }
+}

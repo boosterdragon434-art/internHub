@@ -20,6 +20,7 @@ import {
 import { getInternshipsList } from '../../api/internshipApi';
 import { formatDisplayAmount } from '../../utils/formatters';
 import { InternshipSkeleton } from '../../components/ui/SkeletonCard';
+import HeroSection from '../../components/hero/HeroSection';
 
 // ─────────────────────────────────────────────────────────────
 // Motion presets
@@ -88,46 +89,8 @@ const GenerativePlaceholder = () => (
 );
 
 // ─────────────────────────────────────────────────────────────
-// Terminal hero visual — dramatizes "apply → matched → ship"
-// as a literal terminal session instead of a generic screenshot
+// Old TerminalHero removed — replaced by premium HeroSection
 // ─────────────────────────────────────────────────────────────
-const HERO_LINES = [
-  { text: '$ internhub apply --track=fullstack', color: 'text-violet-300', delay: 0.6 },
-  { text: '> Matching you with an active cohort...', color: 'text-slate-400', delay: 1.4 },
-  { text: '> Mentor assigned: reviewed within 24h', color: 'text-slate-400', delay: 2.1 },
-  { text: '> Preparing your first sprint...', color: 'text-slate-400', delay: 2.8 },
-  { text: '✓ You\u2019re in. Let\u2019s ship something.', color: 'text-emerald-400', delay: 3.6 },
-];
-
-const TerminalHero = () => (
-  <div className="w-full bg-ink-950 dark:bg-black/40 rounded-2xl border border-white/10 dark:border-ink-700 p-5 sm:p-6 font-mono text-xs sm:text-sm overflow-hidden relative shadow-2xl">
-    <div className="flex items-center gap-2 mb-4 border-b border-white/10 pb-3">
-      <div className="w-3 h-3 rounded-full bg-rose-500" />
-      <div className="w-3 h-3 rounded-full bg-amber-500" />
-      <div className="w-3 h-3 rounded-full bg-emerald-500" />
-      <span className="ml-2 text-[10px] uppercase tracking-widest text-slate-500">internhub — zsh</span>
-    </div>
-    <div className="space-y-2 min-h-[130px]">
-      {HERO_LINES.map((line, i) => (
-        <motion.div
-          key={i}
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: line.delay, duration: 0.3 }}
-          className={line.color}
-        >
-          {line.text}
-        </motion.div>
-      ))}
-      <motion.span
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 4.2 }}
-        className="inline-block text-slate-500 terminal-cursor"
-      />
-    </div>
-  </div>
-);
 
 // ─────────────────────────────────────────────────────────────
 // Main HomePage
@@ -184,77 +147,14 @@ const HomePage = () => {
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-ink-950 text-slate-900 dark:text-slate-50 relative overflow-hidden font-body selection:bg-violet-200 selection:text-violet-900 dark:selection:bg-violet-500/30 dark:selection:text-violet-50">
       <Helmet>
-        <title>InternHub — Internships That Actually Compile</title>
-        <meta name="description" content="Real codebases, real mentors, real deadlines. Apply to a tech internship track, get matched with a cohort, ship production work, and earn a verifiable credential." />
+        <title>InternHub — Manage Every Internship With Intelligence</title>
+        <meta name="description" content="All-in-one internship & workforce management platform. Streamline onboarding, attendance, approvals, mentoring, evaluations, certificates, placements, and analytics from one intelligent platform." />
       </Helmet>
 
+      {/* ==================== PREMIUM HERO ==================== */}
+      <HeroSection />
+
       <AmbientBackground />
-
-      {/* ==================== HERO ==================== */}
-      <section className="relative pt-28 pb-20 lg:pt-36 lg:pb-28 z-10 px-4 sm:px-6 lg:px-8">
-        <div className="max-w-7xl mx-auto grid lg:grid-cols-2 gap-14 items-center">
-          <motion.div initial="hidden" animate="visible" variants={staggerContainer} className="space-y-8 text-center lg:text-left">
-            <motion.div
-              variants={fadeUp}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white dark:bg-ink-900 border border-slate-200 dark:border-ink-700 text-xs font-bold uppercase tracking-wider text-violet-600 dark:text-violet-400 shadow-sm"
-            >
-              <span className="relative flex h-2 w-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
-              </span>
-              {loadingFeatured
-                ? 'Checking open tracks...'
-                : platformStats.activeTracks
-                  ? `${platformStats.activeTracks} track${platformStats.activeTracks !== 1 ? 's' : ''} accepting applications now`
-                  : 'Rolling admissions open'}
-            </motion.div>
-
-            <motion.h1
-              variants={fadeUp}
-              className="text-5xl sm:text-6xl lg:text-[4.2rem] font-heading font-bold tracking-tight leading-[1.05] text-slate-900 dark:text-white"
-            >
-              Internships that
-              <br />
-              actually{' '}
-              <span className="text-violet-600 dark:text-violet-400 relative">
-                compile.
-                <svg className="absolute w-full h-3 -bottom-1 left-0 text-amber-400/40" viewBox="0 0 100 10" preserveAspectRatio="none">
-                  <path d="M0 5 Q 50 15 100 5" stroke="currentColor" strokeWidth="4" fill="none" strokeLinecap="round" />
-                </svg>
-              </span>
-            </motion.h1>
-
-            <motion.p variants={fadeUp} className="text-lg sm:text-xl text-slate-600 dark:text-slate-400 leading-relaxed max-w-xl mx-auto lg:mx-0">
-              Real codebases, real mentors, real deadlines — not another video course. Apply, get matched with a cohort, and ship production work from week one.
-            </motion.p>
-
-            <motion.div variants={fadeUp} className="flex flex-col sm:flex-row items-center gap-4 pt-2 justify-center lg:justify-start">
-              <Link
-                to="/register"
-                className="w-full sm:w-auto px-8 py-4 bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-500 hover:to-amber-600 text-ink-950 text-base font-bold rounded-2xl shadow-lg shadow-amber-400/25 hover:shadow-xl hover:shadow-amber-400/30 hover:-translate-y-0.5 transition-all duration-300 flex items-center justify-center gap-2"
-              >
-                Start Learning Free <FiArrowRight className="w-5 h-5" />
-              </Link>
-              <Link
-                to="/internships"
-                className="w-full sm:w-auto px-8 py-4 bg-white hover:bg-slate-50 dark:bg-ink-900 dark:hover:bg-ink-800 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-ink-700 text-base font-bold rounded-2xl transition-all duration-300 flex items-center justify-center shadow-sm hover:shadow-md"
-              >
-                Browse Internships
-              </Link>
-            </motion.div>
-          </motion.div>
-
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95, y: 20 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            transition={{ delay: 0.3, duration: 0.6, type: 'spring' }}
-            className="relative"
-          >
-            <div className="absolute -inset-4 bg-gradient-to-br from-violet-500/20 to-amber-400/10 rounded-[2.5rem] blur-2xl -z-10" />
-            <TerminalHero />
-          </motion.div>
-        </div>
-      </section>
 
       {/* ==================== BENTO GRID SHOWCASE ==================== */}
       <section className="py-20 sm:py-24 z-10 relative">

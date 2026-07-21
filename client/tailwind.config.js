@@ -90,11 +90,19 @@ export default {
         heading: ['"Space Grotesk"', 'sans-serif'],
         body: ['"DM Sans"', 'sans-serif'],
         mono: ['"JetBrains Mono"', 'ui-monospace', 'SFMono-Regular', 'monospace'],
+        // Hero section typography (scoped to src/components/hero/*)
+        'hero-heading': ['"Cormorant Garamond"', 'Georgia', 'serif'],
+        'hero-body': ['"Plus Jakarta Sans"', 'sans-serif'],
       },
       boxShadow: {
         'glow-iris': '0 0 50px -12px rgba(139, 92, 246, 0.5)',
         'glow-iris-sm': '0 0 25px -8px rgba(139, 92, 246, 0.4)',
         'glow-gold': '0 0 40px -10px rgba(251, 191, 36, 0.45)',
+        // Hero section ambient glows
+        'glow-blue': '0 0 50px -12px rgba(37, 99, 235, 0.4)',
+        'glow-blue-sm': '0 0 25px -8px rgba(37, 99, 235, 0.3)',
+        'glow-orange': '0 0 40px -10px rgba(249, 115, 22, 0.35)',
+        'glow-orange-sm': '0 0 20px -8px rgba(249, 115, 22, 0.25)',
       },
       animation: {
         blink: 'blink 1.1s step-end infinite',
