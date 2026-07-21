@@ -30,7 +30,7 @@ const AdminInternshipsPage = () => {
   const [form, setForm] = useState({
     title: '', description: '', shortDescription: '', category: '', duration: '',
     mode: 'Remote', fees: '', openings: 1, skills: '', requirements: '',
-    responsibilities: '', startDate: '', endDate: '', status: 'active',
+    responsibilities: '', status: 'active',
   });
   const [image, setImage] = useState(null);
 
@@ -58,7 +58,7 @@ const AdminInternshipsPage = () => {
 
   const openCreateModal = () => {
     setEditing(null);
-    setForm({ title: '', description: '', shortDescription: '', category: '', duration: '', mode: 'Remote', fees: '', openings: 1, skills: '', requirements: '', responsibilities: '', startDate: '', endDate: '', status: 'active' });
+    setForm({ title: '', description: '', shortDescription: '', category: '', duration: '', mode: 'Remote', fees: '', openings: 1, skills: '', requirements: '', responsibilities: '', status: 'active' });
     setImage(null);
     setModalOpen(true);
   };
@@ -72,7 +72,6 @@ const AdminInternshipsPage = () => {
       openings: intern.openings,
       skills: intern.skills?.join(', ') || '', requirements: intern.requirements?.join('\n') || '',
       responsibilities: intern.responsibilities?.join('\n') || '',
-      startDate: intern.startDate?.split('T')[0] || '', endDate: intern.endDate?.split('T')[0] || '',
       status: intern.status,
     });
     setImage(null);
@@ -165,8 +164,6 @@ const AdminInternshipsPage = () => {
             <Input name="fees" label="Fees" type="text" placeholder="e.g. 500, 500 - 1000, or Discussed after application" value={form.fees} onChange={handleChange} />
             <Input name="openings" label="Openings" type="number" value={form.openings} onChange={handleChange} required />
             <Input name="status" label="Status" type="select" options={[{value:'active',label:'Active'},{value:'closed',label:'Closed'},{value:'draft',label:'Draft'}]} value={form.status} onChange={handleChange} />
-            <Input name="startDate" label="Start Date" type="date" value={form.startDate} onChange={handleChange} />
-            <Input name="endDate" label="End Date" type="date" value={form.endDate} onChange={handleChange} />
           </div>
           <Input name="shortDescription" label="Short Description" value={form.shortDescription} onChange={handleChange} />
           <Input name="description" label="Full Description" textarea rows={4} value={form.description} onChange={handleChange} required />

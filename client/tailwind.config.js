@@ -60,11 +60,47 @@ export default {
           900: '#0f172a',
           950: '#020617',
         },
+        // Dark OLED surface scale from design-system/internhub/MASTER.md
+        // (Background #0F0F23, Muted #27273B). Purple primary (#8B5CF6) and
+        // gold accent (#FBBF24) aren't duplicated here — they're exactly
+        // Tailwind's built-in violet-500 and amber-400, so violet-*/amber-*
+        // are used directly wherever the new pages need them.
+        ink: {
+          50: '#f4f4fa',
+          100: '#e8e8f5',
+          200: '#c6c6e0',
+          300: '#a3a3ca',
+          400: '#6e6e9a',
+          500: '#4a4a72',
+          600: '#35354f',
+          700: '#27273B',
+          800: '#1c1c30',
+          850: '#161628',
+          900: '#131324',
+          950: '#0F0F23',
+        },
       },
       fontFamily: {
         sans: ['"Inter"', 'sans-serif'],
         display: ['"Plus Jakarta Sans"', 'sans-serif'],
         serif: ['"Instrument Serif"', 'Georgia', 'serif'],
+        // InternHub "Bento/Terminal" identity (design-system/internhub/MASTER.md).
+        // Added alongside the existing families above — nothing here overrides
+        // font-sans/font-display, so pages that don't opt in are unaffected.
+        heading: ['"Space Grotesk"', 'sans-serif'],
+        body: ['"DM Sans"', 'sans-serif'],
+        mono: ['"JetBrains Mono"', 'ui-monospace', 'SFMono-Regular', 'monospace'],
+      },
+      boxShadow: {
+        'glow-iris': '0 0 50px -12px rgba(139, 92, 246, 0.5)',
+        'glow-iris-sm': '0 0 25px -8px rgba(139, 92, 246, 0.4)',
+        'glow-gold': '0 0 40px -10px rgba(251, 191, 36, 0.45)',
+      },
+      animation: {
+        blink: 'blink 1.1s step-end infinite',
+      },
+      keyframes: {
+        blink: { '0%, 100%': { opacity: 1 }, '50%': { opacity: 0 } },
       },
     },
   },

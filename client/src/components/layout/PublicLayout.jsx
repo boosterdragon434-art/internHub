@@ -8,7 +8,7 @@ import Footer from './Footer';
  */
 const PublicLayout = () => {
   return (
-    <div className="flex flex-col min-h-screen bg-slate-50 dark:bg-slate-950 transition-colors">
+    <div className="flex flex-col min-h-screen bg-slate-50 dark:bg-ink-950 transition-colors">
       <Navbar />
       <main className="flex-grow">
         <Outlet />

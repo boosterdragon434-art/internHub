@@ -33,6 +33,18 @@ const INTERNSHIP_STATUS = {
   DRAFT: 'draft',
 };
 
+const INTERNSHIP_DOMAINS = [
+  'Web Development',
+  'Full Stack Development',
+  'UI/UX Design',
+  'Java Development',
+  'Python Development',
+  'Human Resources (HR)',
+  'Finance',
+  'AI & ML',
+  'Other',
+];
+
 const USER_ROLES = {
   STUDENT: 'student',
   ADMIN: 'admin',
@@ -119,6 +131,7 @@ module.exports = {
   PAYMENT_STATUS,
   INTERNSHIP_MODE,
   INTERNSHIP_STATUS,
+  INTERNSHIP_DOMAINS,
   USER_ROLES,
   ATTENDANCE_STATUS,
   NOTIFICATION_TYPES,

@@ -476,14 +476,20 @@ const _resolveCertificateFields = async (application, overrides = {}, templateDe
   const grade = overrides.grade || (templateDefaults ? templateDefaults.get('grade') : null) || 'A';
   const performance = overrides.performance || (templateDefaults ? templateDefaults.get('performance') : null) || 'Good';
 
+  // Prefer student-selected dates from application, fallback to internship dates
+  const resolvedStartDate = application.dateOfJoining || internship.startDate || null;
+  const resolvedEndDate = application.dateOfCompletion || internship.endDate || null;
+
   return {
     studentName: student.name,
     internshipTitle: internship.title,
     duration: internship.duration || '3 Months',
     guideName,
-    startDate: internship.startDate,
-    endDate: internship.endDate,
+    startDate: resolvedStartDate,
+    endDate: resolvedEndDate,
+    joiningDate: resolvedStartDate, // Used by {{start_date}} placeholder in certificate service
     collegeName: application.college || student.college || 'College Name',
+    department: application.department || student.department || '',
     companyName: 'InternHub',
     skills: skillsText,
     skillsAcquiredArray: skills,

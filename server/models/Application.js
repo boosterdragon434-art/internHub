@@ -1,8 +1,10 @@
 const mongoose = require('mongoose');
-const { APPLICATION_STATUS } = require('../config/constants');
+const { APPLICATION_STATUS, INTERNSHIP_DOMAINS } = require('../config/constants');
 
 /**
  * Application Schema — represents a student's application to an internship.
+ * Updated to capture comprehensive student details including personal info,
+ * addresses, internship dates, domain, and uploaded documents.
  */
 const applicationSchema = new mongoose.Schema(
   {
@@ -16,10 +18,23 @@ const applicationSchema = new mongoose.Schema(
       ref: 'Internship',
       required: [true, 'Internship is required'],
     },
+
+    // ── Personal Information ──
     name: {
       type: String,
       required: [true, 'Name is required'],
       trim: true,
+      uppercase: true, // Store in CAPS as per ID card
+    },
+    rollNo: {
+      type: String,
+      trim: true,
+      default: '',
+    },
+    degree: {
+      type: String,
+      trim: true,
+      default: '',
     },
     email: {
       type: String,
@@ -44,15 +59,69 @@ const applicationSchema = new mongoose.Schema(
     },
     yearOfStudy: {
       type: String,
-      required: [true, 'Year of study is required'],
-      enum: ['1st Year', '2nd Year', '3rd Year', '4th Year', 'Graduated', 'Other'],
+      enum: ['1st Year', '2nd Year', '3rd Year', '4th Year', 'Graduated', 'Other', ''],
+      default: '',
     },
+
+    // ── Address Information ──
+    currentAddress: {
+      type: String,
+      trim: true,
+      default: '',
+    },
+    permanentAddress: {
+      type: String,
+      trim: true,
+      default: '',
+    },
+    district: {
+      type: String,
+      trim: true,
+      default: '',
+    },
+    stateCountry: {
+      type: String,
+      trim: true,
+      default: '',
+    },
+    pinCode: {
+      type: String,
+      trim: true,
+      default: '',
+    },
+
+    // ── Internship Dates (Student-selected) ──
+    dateOfJoining: {
+      type: Date,
+      default: null,
+    },
+    dateOfCompletion: {
+      type: Date,
+      default: null,
+    },
+
+    // ── Domain of Internship ──
+    domain: {
+      type: String,
+      enum: [...INTERNSHIP_DOMAINS, ''],
+      default: '',
+      trim: true,
+    },
+
+    // ── Legacy date field (kept for backward compat) ──
+    joiningDate: {
+      type: Date,
+    },
+
+    // ── Skills ──
     skills: [
       {
         type: String,
         trim: true,
       },
     ],
+
+    // ── Document Uploads ──
     resumeUrl: {
       type: String,
       default: '',
@@ -61,10 +130,32 @@ const applicationSchema = new mongoose.Schema(
       type: String,
       default: '',
     },
-    joiningDate: {
-      type: Date,
+    aadharUrl: {
+      type: String,
+      default: '',
     },
-    // ── Step 2: Motivation fields ──
+    aadharPublicId: {
+      type: String,
+      default: '',
+    },
+    passportPhotoUrl: {
+      type: String,
+      default: '',
+    },
+    passportPhotoPublicId: {
+      type: String,
+      default: '',
+    },
+    idCardUrl: {
+      type: String,
+      default: '',
+    },
+    idCardPublicId: {
+      type: String,
+      default: '',
+    },
+
+    // ── Step 2: Motivation fields (legacy multi-step) ──
     motivation: {
       type: String,
       default: '',
@@ -80,7 +171,8 @@ const applicationSchema = new mongoose.Schema(
       default: '',
       trim: true,
     },
-    // ── Step 3: Availability fields ──
+
+    // ── Step 3: Availability fields (legacy multi-step) ──
     availableFrom: {
       type: Date,
       default: null,
@@ -96,11 +188,13 @@ const applicationSchema = new mongoose.Schema(
       enum: ['Remote', 'Hybrid', 'On-site'],
       default: 'Remote',
     },
+
     // ── Step 4: Confirmation ──
     confirmAccuracy: {
       type: Boolean,
       default: false,
     },
+
     // ── Certificate (populated on completion) ──
     certificateUrl: {
       type: String,

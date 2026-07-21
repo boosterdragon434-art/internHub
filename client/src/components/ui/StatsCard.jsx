@@ -37,6 +37,16 @@ const StatsCard = ({
       text: 'text-purple-600 dark:text-purple-400',
       ring: 'ring-purple-100 dark:ring-purple-900/10',
     },
+    emerald: {
+      bg: 'bg-emerald-50 dark:bg-emerald-950/20',
+      text: 'text-emerald-600 dark:text-emerald-400',
+      ring: 'ring-emerald-100 dark:ring-emerald-900/10',
+    },
+    violet: {
+      bg: 'bg-violet-50 dark:bg-violet-500/10',
+      text: 'text-violet-600 dark:text-violet-400',
+      ring: 'ring-violet-100 dark:ring-violet-900/10',
+    },
   };
 
   const scheme = colorSchemes[color] || colorSchemes.indigo;

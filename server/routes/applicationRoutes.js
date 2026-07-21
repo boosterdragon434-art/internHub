@@ -17,10 +17,10 @@ const {
 const { protect, authorize } = require('../middleware/auth');
 const validate = require('../middleware/validate');
 const applicationValidator = require('../validators/applicationValidator');
-const { uploadResume } = require('../middleware/upload');
+const { uploadApplicationDocuments } = require('../middleware/upload');
 
 // Student routes
-router.post('/', protect, authorize('student'), uploadResume, validate(applicationValidator.create), createApplication);
+router.post('/', protect, authorize('student'), uploadApplicationDocuments, validate(applicationValidator.create), createApplication);
 router.get('/my', protect, authorize('student'), getMyApplications);
 router.get('/my-enrollments', protect, authorize('student'), getMyEnrollments);
 

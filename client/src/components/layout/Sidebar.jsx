@@ -25,14 +25,18 @@ import {
  * Collapsible admin/student/guide sidebar with active route highlighting.
  * Student links are enrollment-aware: locked features show a lock icon when not enrolled.
  * Includes a mobile drawer overlay triggered externally via prop.
+ *
+ * Note: useEnrollment() is now called unconditionally (React's Rules of
+ * Hooks forbid calling a hook behind a condition) — its result is simply
+ * only *used* when role === 'student'.
  */
 const Sidebar = ({ role = 'admin', mobileOpen = false, onMobileClose }) => {
   const [collapsed, setCollapsed] = useState(false);
   const { logout } = useAuth();
   const navigate = useNavigate();
 
-  // Only use enrollment hook for students
-  const enrollmentData = role === 'student' ? useEnrollment() : { isEnrolled: true, loading: false };
+  const enrollmentHook = useEnrollment();
+  const enrollmentData = role === 'student' ? enrollmentHook : { isEnrolled: true, loading: false };
   const { isEnrolled } = enrollmentData;
 
   const adminLinks = [
@@ -129,21 +133,28 @@ const Sidebar = ({ role = 'admin', mobileOpen = false, onMobileClose }) => {
               end={link.to.endsWith('dashboard')}
               onClick={handleNavClick}
               className={({ isActive }) =>
-                `flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 group ${
+                `relative flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 group ${
                   isLocked
                     ? 'text-slate-400/60 dark:text-slate-600 cursor-default'
                     : isActive
-                      ? 'bg-accent-50 dark:bg-accent-950/30 text-accent-700 dark:text-accent-400 shadow-sm'
-                      : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-900 hover:text-slate-900 dark:hover:text-slate-200'
+                      ? 'bg-violet-50 dark:bg-violet-500/10 text-violet-700 dark:text-violet-300'
+                      : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-ink-900 hover:text-slate-900 dark:hover:text-slate-200'
                 }`
               }
             >
-              <link.icon className={`h-5 w-5 flex-shrink-0 ${collapsed && !mobileOpen ? 'mx-auto' : ''} ${isLocked ? 'opacity-40' : ''}`} />
-              {(!collapsed || mobileOpen) && (
-                <span className={`truncate flex-1 ${isLocked ? 'opacity-50' : ''}`}>{link.label}</span>
-              )}
-              {(!collapsed || mobileOpen) && isLocked && (
-                <FiLock className="h-3 w-3 flex-shrink-0 text-slate-400/50 dark:text-slate-600" />
+              {({ isActive }) => (
+                <>
+                  {isActive && !isLocked && (
+                    <span className="absolute left-0 top-1.5 bottom-1.5 w-[3px] rounded-full bg-violet-500" />
+                  )}
+                  <link.icon className={`h-5 w-5 flex-shrink-0 ${collapsed && !mobileOpen ? 'mx-auto' : ''} ${isLocked ? 'opacity-40' : ''}`} />
+                  {(!collapsed || mobileOpen) && (
+                    <span className={`truncate flex-1 ${isLocked ? 'opacity-50' : ''}`}>{link.label}</span>
+                  )}
+                  {(!collapsed || mobileOpen) && isLocked && (
+                    <FiLock className="h-3 w-3 flex-shrink-0 text-slate-400/50 dark:text-slate-600" />
+                  )}
+                </>
               )}
             </NavLink>
           );
@@ -151,7 +162,7 @@ const Sidebar = ({ role = 'admin', mobileOpen = false, onMobileClose }) => {
       </nav>
 
       {/* Footer Controls */}
-      <div className="p-2 border-t border-slate-200 dark:border-slate-800 space-y-1">
+      <div className="p-2 border-t border-slate-200 dark:border-ink-800 space-y-1">
         <button
           onClick={handleLogout}
           className={`flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-sm font-medium text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/20 transition-colors ${
@@ -166,7 +177,7 @@ const Sidebar = ({ role = 'admin', mobileOpen = false, onMobileClose }) => {
         {!mobileOpen && (
           <button
             onClick={() => setCollapsed(!collapsed)}
-            className="flex items-center justify-center w-full px-3 py-2 rounded-xl text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-900 transition-colors"
+            className="flex items-center justify-center w-full px-3 py-2 rounded-xl text-slate-400 hover:bg-slate-100 dark:hover:bg-ink-900 transition-colors"
             aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
           >
             {collapsed ? (
@@ -184,7 +195,7 @@ const Sidebar = ({ role = 'admin', mobileOpen = false, onMobileClose }) => {
     <>
       {/* Desktop Sidebar */}
       <aside
-        className={`hidden md:flex sticky top-16 h-[calc(100vh-4rem)] bg-white dark:bg-slate-950 border-r border-slate-200 dark:border-slate-800 flex-col transition-all duration-300 ${
+        className={`hidden md:flex sticky top-16 h-[calc(100vh-4rem)] bg-white dark:bg-ink-950 border-r border-slate-200 dark:border-ink-800 flex-col transition-all duration-300 ${
           collapsed ? 'w-16' : 'w-56'
         }`}
       >
@@ -202,15 +213,15 @@ const Sidebar = ({ role = 'admin', mobileOpen = false, onMobileClose }) => {
           />
 
           {/* Drawer */}
-          <aside className="fixed inset-y-0 left-0 z-50 w-64 bg-white dark:bg-slate-950 border-r border-slate-200 dark:border-slate-800 flex flex-col md:hidden animate-slide-in-left">
+          <aside className="fixed inset-y-0 left-0 z-50 w-64 bg-white dark:bg-ink-950 border-r border-slate-200 dark:border-ink-800 flex flex-col md:hidden animate-slide-in-left">
             {/* Close button */}
-            <div className="flex items-center justify-between p-4 border-b border-slate-200 dark:border-slate-800">
-              <span className="text-sm font-bold text-slate-700 dark:text-slate-200">
+            <div className="flex items-center justify-between p-4 border-b border-slate-200 dark:border-ink-800">
+              <span className="text-sm font-heading font-bold text-slate-700 dark:text-slate-200">
                 Menu
               </span>
               <button
                 onClick={onMobileClose}
-                className="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-900 transition-colors"
+                className="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100 dark:hover:bg-ink-900 transition-colors"
                 aria-label="Close menu"
               >
                 <FiX className="h-5 w-5" />

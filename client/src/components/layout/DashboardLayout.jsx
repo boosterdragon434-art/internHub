@@ -12,7 +12,7 @@ const DashboardLayout = ({ role = 'admin' }) => {
   const [mobileOpen, setMobileOpen] = useState(false);
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
+    <div className="min-h-screen bg-slate-50 dark:bg-ink-950">
       <Navbar />
       <div className="flex">
         <Sidebar
@@ -26,7 +26,7 @@ const DashboardLayout = ({ role = 'admin' }) => {
           <div className="md:hidden mb-4">
             <button
               onClick={() => setMobileOpen(true)}
-              className="inline-flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-medium text-slate-600 dark:text-slate-300 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors shadow-sm"
+              className="inline-flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-medium text-slate-600 dark:text-slate-300 bg-white dark:bg-ink-900 border border-slate-200 dark:border-ink-800 hover:bg-slate-50 dark:hover:bg-ink-800 transition-colors shadow-sm"
               aria-label="Open menu"
             >
               <FiMenu className="h-5 w-5" />

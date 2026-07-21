@@ -293,27 +293,70 @@ const AdminApplicationsPage = () => {
         {detailModal && (
           <div className="space-y-5">
             
-            {/* Applicant Details Grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-5">
-              {[
-                ['Name', detailModal.name],
-                ['Email', detailModal.email],
-                ['Phone', detailModal.phone],
-                ['Institution', detailModal.college],
-                ['Department', detailModal.department],
-                ['Year', detailModal.yearOfStudy],
-                ['Mode', detailModal.preferredMode || 'Remote'],
-                ['Hours/Week', detailModal.hoursPerWeek ? `${detailModal.hoursPerWeek}h` : '20h'],
-                ['Available From', detailModal.availableFrom ? formatDate(detailModal.availableFrom) : 'Flexible'],
-              ].map(([label, value]) => (
-                <div key={label} className="bg-white dark:bg-slate-900 shadow-sm hover:shadow-md transition-shadow rounded-2xl p-5 border border-slate-200 dark:border-slate-800 flex flex-col justify-center">
-                  <span className="text-[10px] text-slate-500 uppercase font-bold tracking-wider">{label}</span>
-                  <p className="text-sm font-semibold text-slate-900 dark:text-slate-50 mt-1.5 truncate" title={value}>{value || 'N/A'}</p>
-                </div>
-              ))}
+            {/* Personal Information */}
+            <div>
+              <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-3">Personal Information</h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                {[
+                  ['Name', detailModal.name],
+                  ['Roll No', detailModal.rollNo],
+                  ['Degree', detailModal.degree],
+                  ['Email', detailModal.email],
+                  ['Phone', detailModal.phone],
+                  ['College', detailModal.college],
+                  ['Department', detailModal.department],
+                  ['Domain', detailModal.domain],
+                  ['Year', detailModal.yearOfStudy],
+                ].map(([label, value]) => (
+                  <div key={label} className="bg-white dark:bg-slate-900 shadow-sm hover:shadow-md transition-shadow rounded-2xl p-4 border border-slate-200 dark:border-slate-800">
+                    <span className="text-[10px] text-slate-500 uppercase font-bold tracking-wider">{label}</span>
+                    <p className="text-sm font-semibold text-slate-900 dark:text-slate-50 mt-1 truncate" title={value}>{value || 'N/A'}</p>
+                  </div>
+                ))}
+              </div>
             </div>
 
-            {/* Extended Details */}
+            {/* Address & Location */}
+            {(detailModal.currentAddress || detailModal.permanentAddress || detailModal.district) && (
+              <div>
+                <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-3">Address & Location</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                  {[
+                    ['Current Address', detailModal.currentAddress],
+                    ['Permanent Address', detailModal.permanentAddress],
+                    ['District', detailModal.district],
+                    ['State & Country', detailModal.stateCountry],
+                    ['PIN Code', detailModal.pinCode],
+                  ].map(([label, value]) => (
+                    <div key={label} className="bg-white dark:bg-slate-900 shadow-sm hover:shadow-md transition-shadow rounded-2xl p-4 border border-slate-200 dark:border-slate-800">
+                      <span className="text-[10px] text-slate-500 uppercase font-bold tracking-wider">{label}</span>
+                      <p className="text-sm font-semibold text-slate-900 dark:text-slate-50 mt-1 truncate" title={value}>{value || 'N/A'}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Internship Dates */}
+            {(detailModal.dateOfJoining || detailModal.dateOfCompletion) && (
+              <div>
+                <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-3">Internship Dates</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                  {[
+                    ['Date of Joining', detailModal.dateOfJoining ? formatDate(detailModal.dateOfJoining) : 'N/A'],
+                    ['Date of Completion', detailModal.dateOfCompletion ? formatDate(detailModal.dateOfCompletion) : 'N/A'],
+                    ['Preferred Mode', detailModal.preferredMode || 'Remote'],
+                  ].map(([label, value]) => (
+                    <div key={label} className="bg-white dark:bg-slate-900 shadow-sm hover:shadow-md transition-shadow rounded-2xl p-4 border border-slate-200 dark:border-slate-800">
+                      <span className="text-[10px] text-slate-500 uppercase font-bold tracking-wider">{label}</span>
+                      <p className="text-sm font-semibold text-slate-900 dark:text-slate-50 mt-1">{value}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Extended Details (Motivation, Experience, Portfolio) */}
             {detailModal.motivation && (
               <div className="bg-white dark:bg-slate-900 shadow-sm hover:shadow-md transition-shadow rounded-2xl p-5 border border-slate-200 dark:border-slate-800">
                 <span className="text-[10px] text-slate-500 uppercase font-bold tracking-wider mb-2 block">Motivation</span>
@@ -340,13 +383,26 @@ const AdminApplicationsPage = () => {
               </div>
             )}
 
-            {detailModal.resumeUrl && (
-              <div>
-                <a href={detailModal.resumeUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-xs font-semibold text-brand-600 dark:text-brand-400 hover:underline bg-brand-50 dark:bg-brand-900/20 px-3 py-1.5 rounded-lg">
-                  View Resume Document →
-                </a>
+            {/* Uploaded Documents */}
+            <div>
+              <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-3">Uploaded Documents</h3>
+              <div className="flex flex-wrap gap-2">
+                {[
+                  ['Resume', detailModal.resumeUrl],
+                  ['Aadhar Card', detailModal.aadharUrl],
+                  ['Passport Photo', detailModal.passportPhotoUrl],
+                  ['ID Card / Bonafide', detailModal.idCardUrl],
+                ].map(([label, url]) => url ? (
+                  <a key={label} href={url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-xs font-semibold text-brand-600 dark:text-brand-400 hover:underline bg-brand-50 dark:bg-brand-900/20 px-3 py-1.5 rounded-lg transition-colors">
+                    {label} →
+                  </a>
+                ) : (
+                  <span key={label} className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-400 bg-slate-50 dark:bg-slate-800 px-3 py-1.5 rounded-lg">
+                    {label}: Not uploaded
+                  </span>
+                ))}
               </div>
-            )}
+            </div>
 
             {/* ── Status Update & Action Area ── */}
             <div className="border-t border-slate-200 dark:border-slate-800 pt-5 space-y-4">

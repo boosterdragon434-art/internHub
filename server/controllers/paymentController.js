@@ -234,14 +234,19 @@ const adminVerifyPayment = async (req, res, next) => {
           { session }
         );
 
-        // Create EnrollmentInstance
+        // Create EnrollmentInstance — prefer student-selected dates from application
         const internshipObj = await mongoose.model('Internship').findById(payment.internship._id);
+        const fullApplication = await Application.findById(payment.application._id);
         
         let startDate = new Date();
         let endDate = new Date();
         endDate.setMonth(endDate.getMonth() + 3); // Default to 3 months if not specified
 
-        if (internshipObj && internshipObj.startDate && internshipObj.endDate) {
+        // Priority: 1) Student-selected dates, 2) Internship dates, 3) Duration-based
+        if (fullApplication && fullApplication.dateOfJoining && fullApplication.dateOfCompletion) {
+          startDate = new Date(fullApplication.dateOfJoining);
+          endDate = new Date(fullApplication.dateOfCompletion);
+        } else if (internshipObj && internshipObj.startDate && internshipObj.endDate) {
           startDate = new Date(internshipObj.startDate);
           endDate = new Date(internshipObj.endDate);
         } else if (internshipObj && internshipObj.duration) {

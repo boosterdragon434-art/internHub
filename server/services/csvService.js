@@ -45,34 +45,54 @@ class CsvService {
     const csvStringifier = createObjectCsvStringifier({
       header: [
         { id: 'name', title: 'Name' },
+        { id: 'rollNo', title: 'Roll No' },
+        { id: 'degree', title: 'Degree' },
         { id: 'email', title: 'Email' },
         { id: 'phone', title: 'Phone' },
         { id: 'college', title: 'College' },
         { id: 'department', title: 'Department' },
         { id: 'yearOfStudy', title: 'Year of Study' },
+        { id: 'domain', title: 'Domain' },
         { id: 'internship', title: 'Internship' },
         { id: 'skills', title: 'Skills' },
+        { id: 'currentAddress', title: 'Current Address' },
+        { id: 'permanentAddress', title: 'Permanent Address' },
+        { id: 'district', title: 'District' },
+        { id: 'stateCountry', title: 'State & Country' },
+        { id: 'pinCode', title: 'PIN Code' },
+        { id: 'dateOfJoining', title: 'Date of Joining' },
+        { id: 'dateOfCompletion', title: 'Date of Completion' },
         { id: 'status', title: 'Status' },
         { id: 'assignedPaymentAmount', title: 'Payment Amount' },
-        { id: 'joiningDate', title: 'Joining Date' },
         { id: 'appliedAt', title: 'Applied At' },
       ],
     });
 
     const rawRecords = applications.map((app) => ({
       name: app.name,
+      rollNo: app.rollNo || 'N/A',
+      degree: app.degree || 'N/A',
       email: app.email,
       phone: app.phone,
       college: app.college,
       department: app.department,
-      yearOfStudy: app.yearOfStudy,
+      yearOfStudy: app.yearOfStudy || 'N/A',
+      domain: app.domain || 'N/A',
       internship: app.internship?.title || 'N/A',
       skills: (app.skills || []).join(', '),
+      currentAddress: app.currentAddress || 'N/A',
+      permanentAddress: app.permanentAddress || 'N/A',
+      district: app.district || 'N/A',
+      stateCountry: app.stateCountry || 'N/A',
+      pinCode: app.pinCode || 'N/A',
+      dateOfJoining: app.dateOfJoining
+        ? new Date(app.dateOfJoining).toLocaleDateString()
+        : 'N/A',
+      dateOfCompletion: app.dateOfCompletion
+        ? new Date(app.dateOfCompletion).toLocaleDateString()
+        : 'N/A',
       status: app.status,
       assignedPaymentAmount: app.assignedPaymentAmount || 'N/A',
-      joiningDate: app.joiningDate
-        ? new Date(app.joiningDate).toLocaleDateString()
-        : 'N/A',
       appliedAt: new Date(app.createdAt).toLocaleDateString(),
     }));
 

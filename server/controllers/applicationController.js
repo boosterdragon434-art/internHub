@@ -57,17 +57,39 @@ const createApplication = async (req, res, next) => {
       );
     }
 
-    // Upload resume to R2 object storage
+    // ── Upload documents to R2 object storage ──
+    const files = req.files || {};
+
     let resumeUrl = '';
     let resumePublicId = '';
-    if (req.file) {
-      const result = await r2Service.uploadFile(
-        req.file.buffer,
-        'internhub/resumes',
-        'auto'
-      );
+    if (files.resume && files.resume[0]) {
+      const result = await r2Service.uploadFile(files.resume[0].buffer, 'internhub/resumes', 'auto');
       resumeUrl = result.secureUrl;
       resumePublicId = result.publicId;
+    }
+
+    let aadharUrl = '';
+    let aadharPublicId = '';
+    if (files.aadharCard && files.aadharCard[0]) {
+      const result = await r2Service.uploadFile(files.aadharCard[0].buffer, 'internhub/documents/aadhar', 'auto');
+      aadharUrl = result.secureUrl;
+      aadharPublicId = result.publicId;
+    }
+
+    let passportPhotoUrl = '';
+    let passportPhotoPublicId = '';
+    if (files.passportPhoto && files.passportPhoto[0]) {
+      const result = await r2Service.uploadFile(files.passportPhoto[0].buffer, 'internhub/documents/photos', 'image');
+      passportPhotoUrl = result.secureUrl;
+      passportPhotoPublicId = result.publicId;
+    }
+
+    let idCardUrl = '';
+    let idCardPublicId = '';
+    if (files.idCard && files.idCard[0]) {
+      const result = await r2Service.uploadFile(files.idCard[0].buffer, 'internhub/documents/idcards', 'auto');
+      idCardUrl = result.secureUrl;
+      idCardPublicId = result.publicId;
     }
 
     const {
@@ -79,7 +101,18 @@ const createApplication = async (req, res, next) => {
       yearOfStudy,
       skills,
       joiningDate,
-      // New fields from multi-step form
+      // New comprehensive fields
+      rollNo,
+      degree,
+      currentAddress,
+      permanentAddress,
+      district,
+      stateCountry,
+      pinCode,
+      dateOfJoining,
+      dateOfCompletion,
+      domain,
+      // Legacy multi-step form fields
       motivation,
       relevantExperience,
       portfolioUrl,
@@ -97,12 +130,30 @@ const createApplication = async (req, res, next) => {
       phone,
       college,
       department,
-      yearOfStudy,
+      yearOfStudy: yearOfStudy || '',
       skills,
       joiningDate,
+      // New fields
+      rollNo: rollNo || '',
+      degree: degree || '',
+      currentAddress: currentAddress || '',
+      permanentAddress: permanentAddress || '',
+      district: district || '',
+      stateCountry: stateCountry || '',
+      pinCode: pinCode || '',
+      dateOfJoining: dateOfJoining || null,
+      dateOfCompletion: dateOfCompletion || null,
+      domain: domain || '',
+      // Document uploads
       resumeUrl,
       resumePublicId,
-      // New fields
+      aadharUrl,
+      aadharPublicId,
+      passportPhotoUrl,
+      passportPhotoPublicId,
+      idCardUrl,
+      idCardPublicId,
+      // Legacy form fields
       motivation: motivation || '',
       relevantExperience: relevantExperience || '',
       portfolioUrl: portfolioUrl || '',
@@ -495,13 +546,17 @@ const assignPayment = async (req, res, next) => {
           { session }
         );
 
-        // Compute enrollment dates (same logic as payment verification flow)
+        // Compute enrollment dates — prefer student-selected dates from application
         const internshipObj = application.internship;
         let startDate = new Date();
         let endDate = new Date();
         endDate.setMonth(endDate.getMonth() + 3); // Default 3 months
 
-        if (internshipObj && internshipObj.startDate && internshipObj.endDate) {
+        // Priority: 1) Student-selected dates, 2) Internship dates, 3) Duration-based
+        if (application.dateOfJoining && application.dateOfCompletion) {
+          startDate = new Date(application.dateOfJoining);
+          endDate = new Date(application.dateOfCompletion);
+        } else if (internshipObj && internshipObj.startDate && internshipObj.endDate) {
           startDate = new Date(internshipObj.startDate);
           endDate = new Date(internshipObj.endDate);
         } else if (internshipObj && internshipObj.duration) {

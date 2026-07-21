@@ -1,15 +1,30 @@
 import React, { useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { FiCheck, FiUpload, FiArrowRight, FiArrowLeft, FiGithub, FiGlobe } from 'react-icons/fi';
+import {
+  FiCheck, FiUpload, FiArrowRight, FiArrowLeft, FiX,
+  FiUser, FiMapPin, FiFileText, FiImage, FiCalendar,
+} from 'react-icons/fi';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import { submitApplication } from '../../api/applicationApi';
 
-const STEPS = ['Personal Brief', 'Motivation', 'Availability', 'Review & Submit'];
+const STEPS = ['Personal Info', 'Address & Dates', 'Documents', 'Review & Submit'];
+
+const DOMAIN_OPTIONS = [
+  'Web Development', 'Full Stack Development', 'UI/UX Design',
+  'Java Development', 'Python Development', 'Human Resources (HR)',
+  'Finance', 'AI & ML', 'Other',
+];
+
+const DEGREE_OPTIONS = [
+  'B.Tech', 'B.E.', 'B.Sc', 'B.Com', 'B.A.', 'BBA', 'BCA',
+  'M.Tech', 'M.E.', 'M.Sc', 'M.Com', 'M.A.', 'MBA', 'MCA',
+  'Ph.D', 'Diploma', 'Other',
+];
 
 /**
  * InternshipApplicationForm — 4-step inline form rendered inside the drawer.
- * Manages all state internally. On submit, posts to API and shows success state.
+ * Collects comprehensive student information, addresses, dates, and documents.
  */
 const InternshipApplicationForm = ({ internship, onClose, onSuccess }) => {
   const { user } = useAuth();
@@ -18,65 +33,97 @@ const InternshipApplicationForm = ({ internship, onClose, onSuccess }) => {
   const [step, setStep] = useState(0);
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+
+  // File states
   const [resume, setResume] = useState(null);
+  const [aadharCard, setAadharCard] = useState(null);
+  const [passportPhoto, setPassportPhoto] = useState(null);
+  const [idCard, setIdCard] = useState(null);
 
   const [form, setForm] = useState({
-    name: user?.name || '',
+    name: (user?.name || '').toUpperCase(),
+    rollNo: '',
+    degree: '',
+    department: user?.department || '',
+    college: user?.college || '',
     email: user?.email || '',
     phone: user?.phone || '',
-    college: user?.college || '',
-    department: user?.department || '',
-    yearOfStudy: user?.yearOfStudy || '',
-    motivation: '',
-    relevantExperience: '',
-    portfolioUrl: '',
-    availableFrom: '',
-    hoursPerWeek: 20,
-    preferredMode: 'Remote',
-    confirmAccuracy: false,
+    currentAddress: '',
+    permanentAddress: '',
+    district: '',
+    stateCountry: '',
+    pinCode: '',
+    dateOfJoining: '',
+    dateOfCompletion: '',
+    domain: '',
   });
 
   const handleChange = useCallback((e) => {
-    const { name, value, type, checked } = e.target;
-    setForm((prev) => ({ ...prev, [name]: type === 'checkbox' ? checked : value }));
+    const { name, value } = e.target;
+    setForm((prev) => ({
+      ...prev,
+      [name]: name === 'name' ? value.toUpperCase() : value,
+    }));
   }, []);
 
-  const handleSlider = useCallback((e) => {
-    setForm((prev) => ({ ...prev, hoursPerWeek: parseInt(e.target.value, 10) }));
-  }, []);
-
-  const handleFileChange = useCallback((e) => {
+  const handleFileChange = useCallback((setter, accept) => (e) => {
     const file = e.target.files[0];
-    if (file) {
-      if (file.type !== 'application/pdf') { toast.error('Only PDF files are allowed.'); return; }
-      if (file.size > 5 * 1024 * 1024) { toast.error('File size must be under 5MB.'); return; }
-      setResume(file);
+    if (!file) return;
+    const allowedPdf = ['application/pdf'];
+    const allowedImages = ['image/jpeg', 'image/png', 'image/webp'];
+    const allowedAll = [...allowedPdf, ...allowedImages];
+    const allowed = accept === 'pdf' ? allowedPdf : accept === 'image' ? allowedImages : allowedAll;
+
+    if (!allowed.includes(file.type)) {
+      toast.error(accept === 'pdf' ? 'Only PDF files are allowed.' : accept === 'image' ? 'Only image files are allowed.' : 'Only PDF or image files are allowed.');
+      return;
     }
+    if (file.size > 10 * 1024 * 1024) { toast.error('File size must be under 10MB.'); return; }
+    setter(file);
   }, [toast]);
 
-  const yearOptions = [
-    '1st Year', '2nd Year', '3rd Year', '4th Year', 'Graduated', 'Other',
-  ];
-
-  const modeOptions = ['Remote', 'Hybrid', 'On-site'];
+  // ── Input styles ──
+  const inputClass = 'w-full px-3 py-2.5 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-800 dark:text-slate-200 outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500/20 transition-all placeholder:text-slate-400';
+  const labelClass = 'block text-[11px] font-semibold text-slate-600 dark:text-slate-400 mb-1.5';
+  const selectStyle = {
+    backgroundImage: `url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3E%3Cpath stroke='%236B7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m6 8 4 4 4-4'/%3E%3C/svg%3E")`,
+    backgroundPosition: 'right 0.5rem center',
+    backgroundSize: '1.25rem',
+  };
 
   // ── Step Validation ──
   const validateStep = (s) => {
     if (s === 0) {
-      if (!form.name || !form.email || !form.phone || !form.college || !form.department || !form.yearOfStudy) {
+      if (!form.name || !form.rollNo || !form.degree || !form.department || !form.college || !form.phone) {
         toast.error('Please fill in all required fields.');
         return false;
       }
     }
     if (s === 1) {
-      if (form.motivation && form.motivation.length < 100) {
-        toast.error('Motivation must be at least 100 characters.');
+      if (!form.currentAddress || !form.permanentAddress || !form.district || !form.stateCountry || !form.pinCode) {
+        toast.error('Please fill in all address fields.');
+        return false;
+      }
+      if (!/^\d{4,10}$/.test(form.pinCode.trim())) {
+        toast.error('PIN Code must be 4-10 digits.');
+        return false;
+      }
+      if (!form.dateOfJoining || !form.dateOfCompletion) {
+        toast.error('Please select both Date of Joining and Date of Completion.');
+        return false;
+      }
+      if (new Date(form.dateOfCompletion) <= new Date(form.dateOfJoining)) {
+        toast.error('Completion date must be after Joining date.');
+        return false;
+      }
+      if (!form.domain) {
+        toast.error('Please select a Domain of Internship.');
         return false;
       }
     }
-    if (s === 3) {
-      if (!form.confirmAccuracy) {
-        toast.error('Please confirm that all information is accurate.');
+    if (s === 2) {
+      if (!aadharCard || !passportPhoto || !idCard) {
+        toast.error('Please upload all required documents.');
         return false;
       }
     }
@@ -88,7 +135,7 @@ const InternshipApplicationForm = ({ internship, onClose, onSuccess }) => {
 
   // ── Submit ──
   const handleSubmit = async () => {
-    if (!validateStep(3)) return;
+    if (!validateStep(2)) { setStep(2); return; }
     setSubmitting(true);
     try {
       const formData = new FormData();
@@ -98,15 +145,22 @@ const InternshipApplicationForm = ({ internship, onClose, onSuccess }) => {
       formData.append('phone', form.phone);
       formData.append('college', form.college);
       formData.append('department', form.department);
-      formData.append('yearOfStudy', form.yearOfStudy);
-      formData.append('motivation', form.motivation);
-      formData.append('relevantExperience', form.relevantExperience);
-      formData.append('portfolioUrl', form.portfolioUrl);
-      formData.append('preferredMode', form.preferredMode);
-      formData.append('hoursPerWeek', form.hoursPerWeek);
-      formData.append('confirmAccuracy', form.confirmAccuracy);
-      if (form.availableFrom) formData.append('availableFrom', form.availableFrom);
+      formData.append('rollNo', form.rollNo);
+      formData.append('degree', form.degree);
+      formData.append('currentAddress', form.currentAddress);
+      formData.append('permanentAddress', form.permanentAddress);
+      formData.append('district', form.district);
+      formData.append('stateCountry', form.stateCountry);
+      formData.append('pinCode', form.pinCode);
+      formData.append('dateOfJoining', form.dateOfJoining);
+      formData.append('dateOfCompletion', form.dateOfCompletion);
+      formData.append('domain', form.domain);
+      formData.append('confirmAccuracy', 'true');
+
       if (resume) formData.append('resume', resume);
+      if (aadharCard) formData.append('aadharCard', aadharCard);
+      if (passportPhoto) formData.append('passportPhoto', passportPhoto);
+      if (idCard) formData.append('idCard', idCard);
 
       const skills = user?.skills || [];
       skills.forEach((s) => formData.append('skills[]', s));
@@ -162,10 +216,30 @@ const InternshipApplicationForm = ({ internship, onClose, onSuccess }) => {
     );
   }
 
-  // ── Shared input styles ──
-  const inputClass = 'w-full px-3 py-2.5 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-800 dark:text-slate-200 outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500/20 transition-all placeholder:text-slate-400';
-  const labelClass = 'block text-[11px] font-semibold text-slate-600 dark:text-slate-400 mb-1.5';
-  const readOnlyClass = 'w-full px-3 py-2.5 text-xs bg-slate-100 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-500 dark:text-slate-500 cursor-not-allowed';
+  /** Mini file upload widget for drawer */
+  const MiniFileUpload = ({ label, file, onChange, onRemove, accept, hint }) => (
+    <div>
+      <label className={labelClass}>{label}</label>
+      {file ? (
+        <div className="flex items-center gap-2 bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800/40 rounded-xl p-2.5">
+          <div className="w-8 h-8 rounded-lg bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center shrink-0">
+            {file.type.startsWith('image/') ? <FiImage className="w-3.5 h-3.5 text-emerald-600" /> : <FiFileText className="w-3.5 h-3.5 text-emerald-600" />}
+          </div>
+          <p className="text-[10px] font-semibold text-emerald-700 dark:text-emerald-400 truncate flex-1">{file.name}</p>
+          <button onClick={onRemove} className="text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/20 rounded-md p-1" type="button">
+            <FiX className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      ) : (
+        <label className="flex flex-col items-center gap-1.5 p-4 border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-xl cursor-pointer hover:border-brand-500 dark:hover:border-brand-600 transition-colors">
+          <FiUpload className="w-5 h-5 text-slate-400" />
+          <span className="text-[10px] text-slate-500">Click to upload</span>
+          {hint && <span className="text-[9px] text-slate-400">{hint}</span>}
+          <input type="file" accept={accept} onChange={onChange} className="hidden" />
+        </label>
+      )}
+    </div>
+  );
 
   return (
     <div className="flex flex-col h-full">
@@ -199,171 +273,125 @@ const InternshipApplicationForm = ({ internship, onClose, onSuccess }) => {
             exit={{ opacity: 0, x: -40 }}
             transition={{ duration: 0.25 }}
           >
-            {/* ── STEP 0: Personal Brief ── */}
+            {/* ── STEP 0: Personal Info ── */}
             {step === 0 && (
               <div className="space-y-3 pt-2">
                 <div>
-                  <label className={labelClass}>Full Name</label>
-                  <input name="name" value={form.name} readOnly className={readOnlyClass} />
+                  <label className={labelClass}>Name (IN CAPS) *</label>
+                  <input name="name" value={form.name} onChange={handleChange} placeholder="AS PER ID CARD" className={`${inputClass} uppercase`} />
                 </div>
-                <div>
-                  <label className={labelClass}>Email</label>
-                  <input name="email" value={form.email} readOnly className={readOnlyClass} />
-                </div>
-                <div>
-                  <label className={labelClass}>Phone Number *</label>
-                  <input name="phone" value={form.phone} onChange={handleChange} placeholder="+91 98765 43210" className={inputClass} />
-                </div>
-                <div>
-                  <label className={labelClass}>Current Institution *</label>
-                  <input name="college" value={form.college} onChange={handleChange} placeholder="University / College name" className={inputClass} />
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className={labelClass}>Roll No. *</label>
+                    <input name="rollNo" value={form.rollNo} onChange={handleChange} placeholder="Roll number" className={inputClass} />
+                  </div>
+                  <div>
+                    <label className={labelClass}>Degree *</label>
+                    <select name="degree" value={form.degree} onChange={handleChange} className={`${inputClass} appearance-none bg-no-repeat`} style={selectStyle}>
+                      <option value="">Select</option>
+                      {DEGREE_OPTIONS.map((d) => <option key={d} value={d}>{d}</option>)}
+                    </select>
+                  </div>
                 </div>
                 <div>
                   <label className={labelClass}>Department *</label>
                   <input name="department" value={form.department} onChange={handleChange} placeholder="Computer Science" className={inputClass} />
                 </div>
                 <div>
-                  <label className={labelClass}>Year of Study *</label>
-                  <div className="flex flex-wrap gap-1.5">
-                    {yearOptions.map((yr) => (
-                      <button
-                        key={yr}
-                        type="button"
-                        onClick={() => setForm((p) => ({ ...p, yearOfStudy: yr }))}
-                        className={`px-3 py-1.5 rounded-full text-[11px] font-semibold transition-all ${
-                          form.yearOfStudy === yr
-                            ? 'bg-brand-600 text-white'
-                            : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
-                        }`}
-                      >
-                        {yr}
-                      </button>
-                    ))}
-                  </div>
+                  <label className={labelClass}>College Name *</label>
+                  <input name="college" value={form.college} onChange={handleChange} placeholder="Your institution" className={inputClass} />
+                </div>
+                <div>
+                  <label className={labelClass}>Email</label>
+                  <input name="email" value={form.email} readOnly className={`${inputClass} bg-slate-100 dark:bg-slate-800/50 text-slate-500 cursor-not-allowed`} />
+                </div>
+                <div>
+                  <label className={labelClass}>Mobile Number *</label>
+                  <input name="phone" value={form.phone} onChange={handleChange} placeholder="+91 98765 43210" className={inputClass} />
                 </div>
               </div>
             )}
 
-            {/* ── STEP 1: Motivation ── */}
+            {/* ── STEP 1: Address & Dates ── */}
             {step === 1 && (
               <div className="space-y-3 pt-2">
                 <div>
-                  <div className="flex items-center justify-between mb-1.5">
-                    <label className={labelClass} style={{ marginBottom: 0 }}>Why this internship?</label>
-                    <span className={`text-[10px] font-medium ${form.motivation.length >= 100 ? 'text-emerald-500' : 'text-slate-400'}`}>
-                      {form.motivation.length}/100 min
-                    </span>
+                  <label className={labelClass}>Current Address *</label>
+                  <textarea name="currentAddress" value={form.currentAddress} onChange={handleChange} rows={2} placeholder="Current residential address" className={`${inputClass} resize-none`} />
+                </div>
+                <div>
+                  <label className={labelClass}>Permanent Address *</label>
+                  <textarea name="permanentAddress" value={form.permanentAddress} onChange={handleChange} rows={2} placeholder="Permanent address" className={`${inputClass} resize-none`} />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className={labelClass}>District *</label>
+                    <input name="district" value={form.district} onChange={handleChange} className={inputClass} />
                   </div>
-                  <textarea
-                    name="motivation"
-                    value={form.motivation}
-                    onChange={handleChange}
-                    rows={4}
-                    placeholder="What excites you about this opportunity? What do you hope to learn?"
-                    className={`${inputClass} resize-none`}
-                  />
+                  <div>
+                    <label className={labelClass}>State & Country *</label>
+                    <input name="stateCountry" value={form.stateCountry} onChange={handleChange} placeholder="Tamil Nadu, India" className={inputClass} />
+                  </div>
                 </div>
                 <div>
-                  <label className={labelClass}>Relevant experience or projects</label>
-                  <textarea
-                    name="relevantExperience"
-                    value={form.relevantExperience}
-                    onChange={handleChange}
-                    rows={3}
-                    placeholder="Describe any relevant coursework, projects, or work experience..."
-                    className={`${inputClass} resize-none`}
-                  />
+                  <label className={labelClass}>PIN Code *</label>
+                  <input name="pinCode" value={form.pinCode} onChange={handleChange} maxLength={10} placeholder="600001" className={inputClass} />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className={labelClass}>Date of Joining *</label>
+                    <input type="date" name="dateOfJoining" value={form.dateOfJoining} onChange={handleChange} className={inputClass} />
+                  </div>
+                  <div>
+                    <label className={labelClass}>Date of Completion *</label>
+                    <input type="date" name="dateOfCompletion" value={form.dateOfCompletion} onChange={handleChange} className={inputClass} />
+                  </div>
                 </div>
                 <div>
-                  <label className={labelClass}>
-                    <span className="flex items-center gap-1"><FiGlobe className="w-3 h-3" /> Portfolio / GitHub URL</span>
-                  </label>
-                  <input
-                    name="portfolioUrl"
-                    value={form.portfolioUrl}
-                    onChange={handleChange}
-                    placeholder="https://github.com/username"
-                    className={inputClass}
-                  />
-                </div>
-                <div>
-                  <label className={labelClass}>Resume (PDF only, max 5MB)</label>
-                  <label
-                    htmlFor="drawer-resume-upload"
-                    className="flex flex-col items-center gap-2 p-6 border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-xl cursor-pointer hover:border-brand-500 dark:hover:border-brand-600 transition-colors"
-                  >
-                    <FiUpload className="w-6 h-6 text-slate-400" />
-                    <span className="text-xs text-slate-500">
-                      {resume ? (
-                        <span className="text-brand-600 dark:text-brand-400 font-semibold">{resume.name}</span>
-                      ) : (
-                        'Click to upload'
-                      )}
-                    </span>
-                  </label>
-                  <input
-                    id="drawer-resume-upload"
-                    type="file"
-                    accept=".pdf"
-                    onChange={handleFileChange}
-                    className="hidden"
-                  />
+                  <label className={labelClass}>Domain of Internship *</label>
+                  <select name="domain" value={form.domain} onChange={handleChange} className={`${inputClass} appearance-none bg-no-repeat`} style={selectStyle}>
+                    <option value="">Select domain</option>
+                    {DOMAIN_OPTIONS.map((d) => <option key={d} value={d}>{d}</option>)}
+                  </select>
                 </div>
               </div>
             )}
 
-            {/* ── STEP 2: Availability ── */}
+            {/* ── STEP 2: Documents ── */}
             {step === 2 && (
-              <div className="space-y-4 pt-2">
-                <div>
-                  <label className={labelClass}>Available from</label>
-                  <input
-                    type="date"
-                    name="availableFrom"
-                    value={form.availableFrom}
-                    onChange={handleChange}
-                    className={inputClass}
-                  />
-                </div>
-                <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <label className={labelClass} style={{ marginBottom: 0 }}>Hours per week</label>
-                    <span className="text-sm font-bold text-brand-600 dark:text-brand-400">{form.hoursPerWeek}h</span>
-                  </div>
-                  <input
-                    type="range"
-                    min="10"
-                    max="40"
-                    step="5"
-                    value={form.hoursPerWeek}
-                    onChange={handleSlider}
-                    className="w-full h-2 bg-slate-200 dark:bg-slate-700 rounded-full appearance-none cursor-pointer accent-brand-600"
-                  />
-                  <div className="flex justify-between text-[10px] text-slate-400 mt-1">
-                    <span>10h</span>
-                    <span>25h</span>
-                    <span>40h</span>
-                  </div>
-                </div>
-                <div>
-                  <label className={labelClass}>Preferred mode</label>
-                  <div className="flex gap-2">
-                    {modeOptions.map((m) => (
-                      <button
-                        key={m}
-                        type="button"
-                        onClick={() => setForm((p) => ({ ...p, preferredMode: m }))}
-                        className={`flex-1 py-2.5 rounded-xl text-xs font-semibold transition-all border ${
-                          form.preferredMode === m
-                            ? 'bg-brand-600 text-white border-brand-600'
-                            : 'bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700 hover:border-brand-400'
-                        }`}
-                      >
-                        {m}
-                      </button>
-                    ))}
-                  </div>
-                </div>
+              <div className="space-y-3 pt-2">
+                <MiniFileUpload
+                  label="Aadhar Card *"
+                  file={aadharCard}
+                  onChange={handleFileChange(setAadharCard, 'all')}
+                  onRemove={() => setAadharCard(null)}
+                  accept=".pdf,.jpg,.jpeg,.png,.webp"
+                  hint="PDF or image, max 10MB"
+                />
+                <MiniFileUpload
+                  label="Passport Size Photo *"
+                  file={passportPhoto}
+                  onChange={handleFileChange(setPassportPhoto, 'image')}
+                  onRemove={() => setPassportPhoto(null)}
+                  accept=".jpg,.jpeg,.png,.webp"
+                  hint="Image only, max 10MB"
+                />
+                <MiniFileUpload
+                  label="ID Card / Bonafide Certificate *"
+                  file={idCard}
+                  onChange={handleFileChange(setIdCard, 'all')}
+                  onRemove={() => setIdCard(null)}
+                  accept=".pdf,.jpg,.jpeg,.png,.webp"
+                  hint="PDF or image, max 10MB"
+                />
+                <MiniFileUpload
+                  label="Resume"
+                  file={resume}
+                  onChange={handleFileChange(setResume, 'pdf')}
+                  onRemove={() => setResume(null)}
+                  accept=".pdf"
+                  hint="PDF only, max 10MB (optional)"
+                />
               </div>
             )}
 
@@ -373,46 +401,35 @@ const InternshipApplicationForm = ({ internship, onClose, onSuccess }) => {
                 <div className="grid grid-cols-2 gap-2">
                   {[
                     ['Name', form.name],
-                    ['Email', form.email],
-                    ['Phone', form.phone],
-                    ['Institution', form.college],
+                    ['Roll No', form.rollNo],
+                    ['Degree', form.degree],
                     ['Department', form.department],
-                    ['Year', form.yearOfStudy],
-                    ['Mode', form.preferredMode],
-                    ['Hours/Week', `${form.hoursPerWeek}h`],
-                    ['Available', form.availableFrom || 'Flexible'],
+                    ['College', form.college],
+                    ['Email', form.email],
+                    ['Mobile', form.phone],
+                    ['District', form.district],
+                    ['State', form.stateCountry],
+                    ['PIN Code', form.pinCode],
+                    ['Joining', form.dateOfJoining ? new Date(form.dateOfJoining).toLocaleDateString('en-IN') : 'N/A'],
+                    ['Completion', form.dateOfCompletion ? new Date(form.dateOfCompletion).toLocaleDateString('en-IN') : 'N/A'],
+                    ['Domain', form.domain],
+                    ['Aadhar', aadharCard?.name || 'Not uploaded'],
+                    ['Photo', passportPhoto?.name || 'Not uploaded'],
+                    ['ID Card', idCard?.name || 'Not uploaded'],
                     ['Resume', resume?.name || 'Not uploaded'],
                   ].map(([label, value]) => (
                     <div key={label} className="bg-slate-50 dark:bg-slate-800/50 rounded-lg p-2.5">
                       <span className="text-[9px] font-semibold text-slate-400 uppercase tracking-wider">{label}</span>
-                      <p className="text-[11px] font-semibold text-slate-800 dark:text-slate-200 mt-0.5 truncate">{value}</p>
+                      <p className="text-[11px] font-semibold text-slate-800 dark:text-slate-200 mt-0.5 truncate">{value || 'N/A'}</p>
                     </div>
                   ))}
                 </div>
-                {form.motivation && (
+                {form.currentAddress && (
                   <div className="bg-slate-50 dark:bg-slate-800/50 rounded-lg p-3">
-                    <span className="text-[9px] font-semibold text-slate-400 uppercase tracking-wider">Motivation</span>
-                    <p className="text-[11px] text-slate-600 dark:text-slate-400 mt-1 line-clamp-3">{form.motivation}</p>
+                    <span className="text-[9px] font-semibold text-slate-400 uppercase tracking-wider">Current Address</span>
+                    <p className="text-[11px] text-slate-600 dark:text-slate-400 mt-1 line-clamp-2">{form.currentAddress}</p>
                   </div>
                 )}
-                {form.portfolioUrl && (
-                  <div className="bg-slate-50 dark:bg-slate-800/50 rounded-lg p-3">
-                    <span className="text-[9px] font-semibold text-slate-400 uppercase tracking-wider">Portfolio</span>
-                    <p className="text-[11px] text-brand-600 dark:text-brand-400 mt-1 truncate">{form.portfolioUrl}</p>
-                  </div>
-                )}
-                <label className="flex items-start gap-2.5 pt-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    name="confirmAccuracy"
-                    checked={form.confirmAccuracy}
-                    onChange={handleChange}
-                    className="mt-0.5 w-4 h-4 rounded border-slate-300 text-brand-600 focus:ring-brand-500"
-                  />
-                  <span className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
-                    I confirm all information provided is accurate and complete.
-                  </span>
-                </label>
               </div>
             )}
           </motion.div>
@@ -442,7 +459,7 @@ const InternshipApplicationForm = ({ internship, onClose, onSuccess }) => {
         ) : (
           <button
             onClick={handleSubmit}
-            disabled={submitting || !form.confirmAccuracy}
+            disabled={submitting}
             className="flex items-center gap-1.5 px-5 py-2.5 bg-brand-600 text-white text-xs font-semibold rounded-xl hover:bg-brand-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {submitting ? (
