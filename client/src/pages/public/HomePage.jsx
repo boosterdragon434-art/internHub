@@ -142,7 +142,6 @@ const HomePage = () => {
     { q: 'Will I receive a verifiable certificate?', a: 'Yes! Upon successful completion of your internship tasks and milestone reviews, you will receive a secure credential complete with a dynamic QR validation signature code.' },
   ];
 
-  const spotsLeft = (i) => Math.max(0, (i.openings || 0) - (i.filledPositions || 0));
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-ink-950 text-slate-900 dark:text-slate-50 relative overflow-hidden font-body selection:bg-violet-200 selection:text-violet-900 dark:selection:bg-violet-500/30 dark:selection:text-violet-50">
@@ -341,11 +340,7 @@ const HomePage = () => {
                       <span className="absolute top-4 left-4 text-[10px] font-bold uppercase tracking-wider px-3 py-1.5 rounded-full bg-white/90 dark:bg-ink-900/90 backdrop-blur-md text-slate-900 dark:text-white shadow-sm">
                         {internship.mode}
                       </span>
-                      {spotsLeft(internship) > 0 && spotsLeft(internship) <= 3 && (
-                        <span className="absolute top-4 right-4 text-[10px] font-bold uppercase tracking-wider px-3 py-1.5 rounded-full bg-rose-500/90 backdrop-blur-md text-white shadow-sm">
-                          {spotsLeft(internship)} left
-                        </span>
-                      )}
+
                     </div>
 
                     <div className="p-6 text-left flex-1 flex flex-col">

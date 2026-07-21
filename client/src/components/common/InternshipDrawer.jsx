@@ -241,11 +241,7 @@ const InternshipDrawer = ({ internship, isOpen, onClose }) => {
                       <span className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-slate-100 dark:bg-ink-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-ink-700">
                         {formatDisplayAmount(internship.fees, 'Free')}
                       </span>
-                      {internship.openings > 0 && spotsLeft <= 3 && (
-                        <span className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-rose-50 text-rose-600 border border-rose-200 dark:bg-rose-900/20 dark:text-rose-400 dark:border-rose-800">
-                          Only {spotsLeft} spot{spotsLeft !== 1 ? 's' : ''} left
-                        </span>
-                      )}
+
                     </div>
 
                     {/* Description */}
@@ -383,11 +379,7 @@ const InternshipDrawer = ({ internship, isOpen, onClose }) => {
                       <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full border ${MODE_STYLES[internship.mode] || MODE_STYLES.Offline}`}>
                         {internship.mode}
                       </span>
-                      {internship.openings > 0 && spotsLeft <= 3 && (
-                        <span className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-rose-50 text-rose-600 border border-rose-200 dark:bg-rose-900/20 dark:text-rose-400 dark:border-rose-800">
-                          {spotsLeft} spot{spotsLeft !== 1 ? 's' : ''} left
-                        </span>
-                      )}
+
                     </div>
 
                     <div>
