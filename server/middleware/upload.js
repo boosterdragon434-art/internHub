@@ -168,9 +168,11 @@ const handleUpload = (uploadFn) => {
           return next(ApiError.badRequest('File size exceeds the allowed limit.'));
         }
         if (err.code === 'LIMIT_UNEXPECTED_FILE') {
+          const logger = require('../utils/logger');
+          logger.error(`Multer LIMIT_UNEXPECTED_FILE: field="${err.field}", storageErrors=${err.storageErrors || 'none'}`);
           return next(
             ApiError.badRequest(
-              `Unexpected file field "${err.field}". Check that file field names match the expected upload fields.`
+              `Unexpected file field "${err.field}". Allowed file fields are: resume, aadharCard, passportPhoto, idCard.`
             )
           );
         }
