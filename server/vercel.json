@@ -6,12 +6,7 @@
       "memory": 1024
     }
   },
-  "builds": [
-    {
-      "src": "app.js",
-      "use": "@vercel/node"
-    }
-  ],
+
   "routes": [
     {
       "src": "/(.*)",
