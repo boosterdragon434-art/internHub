@@ -2,9 +2,9 @@ import api from './axios';
 
 export const submitApplication = async (formData) => {
   const response = await api.post('/applications', formData, {
-    headers: {
-      'Content-Type': 'multipart/form-data',
-    },
+    // Remove default Content-Type so Axios auto-sets multipart/form-data with boundary
+    transformRequest: [(data) => data],
+    headers: {},
   });
   return response.data;
 };
