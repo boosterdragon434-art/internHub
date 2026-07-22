@@ -13,6 +13,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import Button from '../../components/common/Button';
 import { FullPageLoader } from '../../components/common/Loader';
+import useEnrollment from '../../hooks/useEnrollment';
 
 /** Domain options for the internship */
 const DOMAIN_OPTIONS = [
@@ -120,6 +121,15 @@ const ApplicationFormPage = () => {
     dateOfCompletion: '',
     domain: '',
   });
+
+  const { isEnrolled, loading: enrollmentLoading } = useEnrollment();
+
+  useEffect(() => {
+    if (!enrollmentLoading && isEnrolled) {
+      toast.error('You are already enrolled in an active internship. You must complete it before applying to another one.');
+      navigate('/student/applications');
+    }
+  }, [isEnrolled, enrollmentLoading, navigate, toast]);
 
   useEffect(() => {
     const fetchInternship = async () => {

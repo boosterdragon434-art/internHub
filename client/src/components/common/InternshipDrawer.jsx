@@ -7,6 +7,7 @@ import { useAuth } from '../../context/AuthContext';
 import { getMyApplications } from '../../api/applicationApi';
 import { formatDate, formatDisplayAmount } from '../../utils/formatters';
 import InternshipApplicationForm from './InternshipApplicationForm';
+import useEnrollment from '../../hooks/useEnrollment';
 
 /**
  * Application statuses that represent an application still "in flight" for this
@@ -52,6 +53,8 @@ const InternshipDrawer = ({ internship, isOpen, onClose }) => {
   const [mode, setMode] = useState('detail'); // 'detail' | 'apply'
   const [hasApplied, setHasApplied] = useState(false);
   const [checkingApplied, setCheckingApplied] = useState(false);
+  
+  const { isEnrolled } = useEnrollment();
 
   // Reset mode when internship changes
   useEffect(() => {
@@ -110,9 +113,9 @@ const InternshipDrawer = ({ internship, isOpen, onClose }) => {
       navigate(`/login?redirect=/internships`);
       return;
     }
-    if (hasApplied) return;
+    if (hasApplied || isEnrolled) return;
     setMode('apply');
-  }, [isAuthenticated, hasApplied, navigate]);
+  }, [isAuthenticated, hasApplied, isEnrolled, navigate]);
 
   if (!internship) return null;
 
@@ -135,21 +138,25 @@ const InternshipDrawer = ({ internship, isOpen, onClose }) => {
     exit: { y: '100%', opacity: 0, transition: { duration: 0.2 } },
   };
 
-  const ApplyButton = ({ compact }) => (
-    <button
-      onClick={handleApplyClick}
-      disabled={hasApplied || checkingApplied}
-      className={`w-full ${compact ? 'py-3' : 'py-3.5'} rounded-xl text-sm font-bold transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 ${
-        hasApplied
-          ? 'bg-slate-100 dark:bg-ink-800 text-slate-500 dark:text-slate-400'
-          : 'bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-500 hover:to-amber-600 text-ink-950 shadow-md shadow-amber-400/25'
-      }`}
-    >
-      {checkingApplied ? 'Checking...' : hasApplied ? 'Already Applied' : (
-        <>Apply for this Role <FiArrowRight className="w-4 h-4" /></>
-      )}
-    </button>
-  );
+  const ApplyButton = ({ compact }) => {
+    const isDisabled = hasApplied || isEnrolled || checkingApplied;
+    
+    return (
+      <button
+        onClick={handleApplyClick}
+        disabled={isDisabled}
+        className={`w-full ${compact ? 'py-3' : 'py-3.5'} rounded-xl text-sm font-bold transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 ${
+          isDisabled
+            ? 'bg-slate-100 dark:bg-ink-800 text-slate-500 dark:text-slate-400'
+            : 'bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-500 hover:to-amber-600 text-ink-950 shadow-md shadow-amber-400/25'
+        }`}
+      >
+        {checkingApplied ? 'Checking...' : isEnrolled ? 'Active Internship Ongoing' : hasApplied ? 'Already Applied' : (
+          <>Apply for this Role <FiArrowRight className="w-4 h-4" /></>
+        )}
+      </button>
+    );
+  };
 
   return (
     <AnimatePresence>

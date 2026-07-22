@@ -41,6 +41,17 @@ const createApplication = async (req, res, next) => {
       return next(ApiError.badRequest('No openings available for this internship.'));
     }
 
+    // Check if user is already enrolled in an active internship
+    const EnrollmentInstance = mongoose.model('EnrollmentInstance');
+    const activeEnrollment = await EnrollmentInstance.findOne({
+      student: userId,
+      status: 'active',
+    });
+    
+    if (activeEnrollment) {
+      return next(ApiError.badRequest('You are already enrolled in an active internship. You must complete it before applying to another one.'));
+    }
+
     // Check Cooldown model for specific student and internship
     const activeCooldown = await Cooldown.findOne({
       student: userId,
