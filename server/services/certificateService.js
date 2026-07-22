@@ -2,7 +2,7 @@ const crypto = require('crypto');
 const PDFDocument = require('pdfkit');
 const QRCode = require('qrcode');
 const JsBarcode = require('jsbarcode');
-const { createCanvas } = require('canvas');
+const { createCanvas } = require('@napi-rs/canvas');
 const logger = require('../utils/logger');
 const { CERTIFICATE_ID_PREFIX } = require('../config/constants');
 
