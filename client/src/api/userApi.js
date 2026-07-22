@@ -8,7 +8,7 @@ export const updateProfile = async (profileData) => {
 export const reuploadResume = async (formData) => {
   const response = await api.put('/users/resume', formData, {
     headers: {
-      'Content-Type': 'multipart/form-data',
+      'Content-Type': undefined,
     },
   });
   return response.data;

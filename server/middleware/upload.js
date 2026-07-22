@@ -167,6 +167,13 @@ const handleUpload = (uploadFn) => {
         if (err.code === 'LIMIT_FILE_SIZE') {
           return next(ApiError.badRequest('File size exceeds the allowed limit.'));
         }
+        if (err.code === 'LIMIT_UNEXPECTED_FILE') {
+          return next(
+            ApiError.badRequest(
+              `Unexpected file field "${err.field}". Check that file field names match the expected upload fields.`
+            )
+          );
+        }
         return next(ApiError.badRequest(err.message));
       }
       if (err) {

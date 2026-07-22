@@ -18,7 +18,7 @@ export const getInternshipStats = async () => {
 export const createInternship = async (formData) => {
   const response = await api.post('/internships', formData, {
     headers: {
-      'Content-Type': 'multipart/form-data',
+      'Content-Type': undefined,
     },
   });
   return response.data;
@@ -27,7 +27,7 @@ export const createInternship = async (formData) => {
 export const updateInternship = async (id, formData) => {
   const response = await api.put(`/internships/${id}`, formData, {
     headers: {
-      'Content-Type': 'multipart/form-data',
+      'Content-Type': undefined,
     },
   });
   return response.data;

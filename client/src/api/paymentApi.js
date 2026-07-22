@@ -8,7 +8,7 @@ export const submitUtr = async (applicationId, utrNumber, receiptFile) => {
     formData.append('image', receiptFile);
   }
   const response = await api.post('/payments/submit-utr', formData, {
-    headers: { 'Content-Type': 'multipart/form-data' },
+    headers: { 'Content-Type': undefined },
   });
   return response.data;
 };

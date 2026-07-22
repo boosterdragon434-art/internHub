@@ -163,7 +163,7 @@ const InternshipApplicationForm = ({ internship, onClose, onSuccess }) => {
       if (idCard) formData.append('idCard', idCard);
 
       const skills = user?.skills || [];
-      skills.forEach((s) => formData.append('skills[]', s));
+      skills.forEach((s) => formData.append('skills', s));
 
       const res = await submitApplication(formData);
       if (res.success) {
