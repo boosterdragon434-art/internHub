@@ -1,21 +1,22 @@
 import { useState, useEffect, useCallback } from 'react';
 import { getMyEnrollments } from '../api/enrollmentApi';
+import { useAuth } from '../context/AuthContext';
 
 /**
  * useEnrollment — Custom hook providing enrollment state for the current student.
- *
- * Returns:
- * - enrollments: Full array of enrollment instances
- * - activeEnrollment: The most recent 'active' enrollment (primary context)
- * - isEnrolled: Whether the student has at least one active enrollment
- * - loading: Initial fetch in progress
- * - refetch: Re-fetch enrollment data (e.g. after payment verification)
  */
 const useEnrollment = () => {
+  const { user } = useAuth();
   const [enrollments, setEnrollments] = useState([]);
   const [loading, setLoading] = useState(true);
 
   const fetchEnrollments = useCallback(async () => {
+    // Only fetch if user exists and is a student
+    if (!user || user.role !== 'student') {
+      setLoading(false);
+      return;
+    }
+    
     try {
       const res = await getMyEnrollments();
       if (res.success) {

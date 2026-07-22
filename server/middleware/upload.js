@@ -84,18 +84,41 @@ const uploadCertificateTemplate = multer({
   limits: { fileSize: FILE_LIMITS.CERTIFICATE_TEMPLATE_MAX_SIZE },
 }).single('template');
 
-/** Upload middleware for application documents (multi-field) */
+/** Upload middleware for application documents (accepts any file fields to bypass unexpected field errors) */
 const APPLICATION_DOC_MAX_SIZE = 10 * 1024 * 1024; // 10MB per file
-const uploadApplicationDocuments = multer({
+const uploadApplicationDocumentsRaw = multer({
   storage,
   fileFilter: documentFilter,
   limits: { fileSize: APPLICATION_DOC_MAX_SIZE },
-}).fields([
-  { name: 'resume', maxCount: 1 },
-  { name: 'aadharCard', maxCount: 1 },
-  { name: 'passportPhoto', maxCount: 1 },
-  { name: 'idCard', maxCount: 1 },
-]);
+}).any();
+
+const uploadApplicationDocuments = (req, res, next) => {
+  uploadApplicationDocumentsRaw(req, res, (err) => {
+    if (err) {
+      if (err instanceof multer.MulterError) {
+        if (err.code === 'LIMIT_FILE_SIZE') {
+          return next(ApiError.badRequest('File size exceeds the allowed limit.'));
+        }
+        return next(ApiError.badRequest(err.message));
+      }
+      return next(err);
+    }
+
+    // Convert req.files from array to object map to match .fields() behavior expected by the controller
+    if (req.files && Array.isArray(req.files)) {
+      const filesObj = {};
+      req.files.forEach((file) => {
+        if (!filesObj[file.fieldname]) {
+          filesObj[file.fieldname] = [];
+        }
+        filesObj[file.fieldname].push(file);
+      });
+      req.files = filesObj;
+    }
+
+    next();
+  });
+};
 
 /**
  * MIME magic-byte validation.

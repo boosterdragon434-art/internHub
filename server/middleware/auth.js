@@ -39,7 +39,10 @@ const protect = async (req, _res, next) => {
     req.user = user;
     next();
   } catch (error) {
-    return next(ApiError.unauthorized('Not authorized. Invalid token.'));
+    if (error.name === 'JsonWebTokenError' || error.name === 'TokenExpiredError' || error.name === 'NotBeforeError') {
+      return next(ApiError.unauthorized('Not authorized. Invalid token.'));
+    }
+    return next(error);
   }
 };
 
