@@ -415,7 +415,7 @@ const AdminAttendancePage = () => {
     try {
       setMonthlyLoading(true);
       const res = await getAdminMonthlyHours({ month: monthlyMonth, page: pageNum, limit: 15 });
-      setMonthlyData(res.data?.data || []);
+      setMonthlyData(res.data?.data?.interns || []);
       setMonthlyPagination(res.data?.pagination || null);
     } catch (error) {
       console.error('Failed to fetch monthly hours:', error);
