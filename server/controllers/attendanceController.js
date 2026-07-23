@@ -11,6 +11,8 @@ const { generateAttendanceExcel } = require('../services/attendanceService');
 const logger = require('../utils/logger');
 const { getTodayIST, getISTNow, getISTMinutesSinceMidnight, getISTHour } = require('../utils/istTime');
 const escapeRegex = require('../utils/escapeRegex');
+const { getDayType, getNonWorkingDaysInRange } = require('../utils/workingDays');
+const Holiday = require('../models/Holiday');
 
 /**
  * Parse an HH:MM time string into total minutes since midnight.
@@ -241,8 +243,17 @@ const checkIn = async (req, res, next) => {
       );
     }
 
-    // Detect late arrival
+    // Fetch settings once for all checks below
     const settings = await AttendanceSettings.getSettings();
+
+    // Block check-in on non-working days (weekly-off or holiday)
+    const dayType = await getDayType(today, settings);
+    if (!dayType.isWorkingDay) {
+      const label = dayType.reason === 'holiday' ? `Holiday (${dayType.holidayName})` : 'Weekly Off';
+      return next(ApiError.badRequest(`Today is a non-working day (${label}). Check-in is not required.`));
+    }
+
+    // Detect late arrival
     const istNow = getISTNow();
 
     if (istNow.getUTCHours() >= settings.autoCheckoutHour) {
@@ -580,12 +591,17 @@ const getMyStatus = async (req, res, next) => {
     if (!enrollmentInstanceId) {
       // It's possible the user has no active internship yet (e.g. pending payment)
       // Return neutral state instead of throwing 400 error which breaks the UI
+      const earlySettings = await AttendanceSettings.getSettings();
+      const earlyDayType = await getDayType(today, earlySettings);
       return ApiResponse.success(res, 200, 'Current attendance status fetched.', {
         session: null,
         liveWorkMinutes: 0,
         today,
-        autoCheckoutHour: 22,
-        expectedCheckInTime: '09:00',
+        autoCheckoutHour: earlySettings.autoCheckoutHour || 22,
+        expectedCheckInTime: earlySettings.expectedCheckInTime || '09:00',
+        isWorkingDay: earlyDayType.isWorkingDay,
+        offReason: earlyDayType.reason,
+        holidayName: earlyDayType.holidayName,
       });
     }
 
@@ -620,6 +636,7 @@ const getMyStatus = async (req, res, next) => {
     }
 
     const settings = await AttendanceSettings.getSettings();
+    const dayType = await getDayType(today, settings);
 
     ApiResponse.success(res, 200, 'Current attendance status fetched.', {
       session: session || null,
@@ -627,6 +644,9 @@ const getMyStatus = async (req, res, next) => {
       today,
       autoCheckoutHour: settings.autoCheckoutHour,
       expectedCheckInTime: settings.expectedCheckInTime,
+      isWorkingDay: dayType.isWorkingDay,
+      offReason: dayType.reason,
+      holidayName: dayType.holidayName,
     });
   } catch (error) {
     next(error);
@@ -707,26 +727,28 @@ const getMyStats = async (req, res, next) => {
       (sum, s) => sum + (s.totalWorkDuration || 0),
       0
     );
-    const avgWorkMinutes =
-      checkedOutDays > 0 ? Math.round(totalWorkMinutes / checkedOutDays) : 0;
+    const finalizedDays = allSessions.filter(
+      (s) => s.attendanceStatus === 'checked-out' || s.attendanceStatus === 'missed-checkout'
+    ).length;
+    const avgWorkMinutes = finalizedDays > 0 ? Math.round(totalWorkMinutes / finalizedDays) : 0;
 
-    // Attendance streak (consecutive days present)
+    // Attendance streak (consecutive days present, skipping off-days)
     let streak = 0;
     const today = getTodayIST();
-    const sortedDates = allSessions.map((s) => s.date).sort().reverse();
-    if (sortedDates.length > 0) {
-      let checkDate = today;
-      for (const d of sortedDates) {
-        if (d === checkDate) {
-          streak++;
-          // Previous day
-          const prev = new Date(checkDate + 'T00:00:00Z');
-          prev.setDate(prev.getDate() - 1);
-          checkDate = prev.toISOString().split('T')[0];
-        } else if (d < checkDate) {
-          break;
-        }
+    const settings = await AttendanceSettings.getSettings();
+    const sessionDateSet = new Set(allSessions.map((s) => s.date));
+    let checkDate = today;
+    for (let i = 0; i < 730; i++) {
+      if (sessionDateSet.has(checkDate)) {
+        streak++;
+      } else {
+        const dt = await getDayType(checkDate, settings);
+        if (dt.isWorkingDay) break; // real absence — streak ends here
+        // else: off day, don't break, don't increment, just continue walking back
       }
+      const prev = new Date(checkDate + 'T00:00:00Z');
+      prev.setUTCDate(prev.getUTCDate() - 1);
+      checkDate = prev.toISOString().split('T')[0];
     }
 
     // This month stats
@@ -869,7 +891,8 @@ const getGuideAnalytics = async (req, res, next) => {
     }).lean();
 
     const todayPresent = todaySessions.length;
-    const todayAbsent = studentIds.length - todayPresent;
+    const todayType = await getDayType(today);
+    const todayAbsent = todayType.isWorkingDay ? Math.max(0, studentIds.length - todayPresent) : 0;
     const todayLate = todaySessions.filter((s) => s.isLate).length;
     const todayOnBreak = todaySessions.filter(
       (s) => s.attendanceStatus === 'on-break'
@@ -1066,7 +1089,9 @@ const getAdminAnalytics = async (req, res, next) => {
     const todaySessions = await AttendanceSession.find({ date: today }).lean();
 
     const todayPresent = todaySessions.filter(s => s.attendanceStatus !== 'missed-checkout').length;
-    const todayAbsent = Math.max(0, totalStudents - todaySessions.length);
+    const settings = await AttendanceSettings.getSettings();
+    const todayType = await getDayType(today, settings);
+    const todayAbsent = todayType.isWorkingDay ? Math.max(0, totalStudents - todaySessions.length) : 0;
     const todayUnchecked = todaySessions.filter(s => s.attendanceStatus === 'missed-checkout').length;
     const todayLate = todaySessions.filter((s) => s.isLate).length;
     const todayOnBreak = todaySessions.filter(
@@ -1093,6 +1118,7 @@ const getAdminAnalytics = async (req, res, next) => {
       { $sort: { _id: 1 } },
     ]);
 
+    const nonWorkingMap = await getNonWorkingDaysInRange(weekStartStr, today, settings);
     const weeklyMap = new Map(weeklyAgg.map(r => [r._id, r]));
     const weeklyData = [];
     for (let i = 6; i >= 0; i--) {
@@ -1101,12 +1127,14 @@ const getAdminAnalytics = async (req, res, next) => {
       const dateStr = d.toISOString().split('T')[0];
       const dayName = d.toLocaleDateString('en-US', { weekday: 'short' });
       const dayData = weeklyMap.get(dateStr);
+      const isOff = nonWorkingMap.has(dateStr);
       weeklyData.push({
         date: dateStr,
         day: dayName,
         present: dayData ? dayData.count : 0,
         late: dayData ? dayData.lateCount : 0,
-        absent: totalStudents - (dayData ? dayData.count : 0),
+        absent: isOff ? 0 : Math.max(0, totalStudents - (dayData ? dayData.count : 0)),
+        isOff,
       });
     }
 
@@ -1230,6 +1258,7 @@ const updateAttendanceSettings = async (req, res, next) => {
       'maxBreakMinutes',
       'autoCheckoutHour',
       'workingDaysPerWeek',
+      'weeklyOffDays',
       'minimumWorkHours',
       'overtimeThresholdHours',
     ];
@@ -1261,6 +1290,7 @@ const getLiveStatus = async (req, res, next) => {
   try {
     // Removed global autoCheckoutActiveSessions() — cron handles this now
     const today = getTodayIST();
+    const todayType = await getDayType(today);
 
     // Get all active students
     const students = await User.find({ role: 'student', isActive: true })
@@ -1277,17 +1307,27 @@ const getLiveStatus = async (req, res, next) => {
 
     const liveStatuses = students.map((student) => {
       const session = sessionMap.get(student._id.toString());
+      let status;
+      if (session) {
+        status = session.attendanceStatus;
+      } else if (!todayType.isWorkingDay) {
+        status = todayType.reason === 'holiday' ? 'holiday' : 'weekly-off';
+      } else {
+        status = 'absent';
+      }
       return {
         _id: student._id,
         name: student.name,
         email: student.email,
         avatar: student.avatar,
-        status: session ? session.attendanceStatus : 'absent',
+        status,
         checkInTime: session?.checkInTime || null,
         team: session?.team || null,
         isLate: session?.isLate || false,
       };
     });
+
+    const noSessionCount = students.length - sessions.length;
 
     ApiResponse.success(res, 200, 'Live attendance status fetched.', {
       statuses: liveStatuses,
@@ -1305,7 +1345,9 @@ const getLiveStatus = async (req, res, next) => {
         unchecked: sessions.filter(
           (s) => s.attendanceStatus === 'missed-checkout'
         ).length,
-        absent: Math.max(0, students.length - sessions.length),
+        absent: todayType.isWorkingDay ? Math.max(0, noSessionCount) : 0,
+        weeklyOff: !todayType.isWorkingDay && todayType.reason === 'weekly-off' ? noSessionCount : 0,
+        holiday: !todayType.isWorkingDay && todayType.reason === 'holiday' ? noSessionCount : 0,
       },
     });
   } catch (error) {
@@ -1398,6 +1440,57 @@ const buildMonthlyHoursPipeline = (matchFilter, month, skip, limit) => {
 };
 
 /**
+ * Enrich monthly-hours intern data with working-days/absence/percentage.
+ * Clips to each student's enrollment window and never counts future dates.
+ * @param {Array} interns - Aggregated monthly data
+ * @param {string} month - YYYY-MM string
+ * @returns {Promise<Array>}
+ */
+const enrichWithWorkingDays = async (interns, month) => {
+  const [year, mon] = month.split('-').map(Number);
+  const monthStart = `${month}-01`;
+  const lastDay = new Date(Date.UTC(year, mon, 0)).getUTCDate();
+  const todayIST = getTodayIST();
+  const monthEndCapped = month === todayIST.substring(0, 7) ? todayIST : `${month}-${String(lastDay).padStart(2, '0')}`;
+
+  const nonWorking = await getNonWorkingDaysInRange(monthStart, monthEndCapped);
+
+  for (const intern of interns) {
+    const internId = intern.user?._id || intern._id;
+    const enrollments = await EnrollmentInstance.find({
+      student: internId,
+      startDate: { $lte: monthEndCapped + 'T23:59:59.999Z' },
+      endDate: { $gte: monthStart },
+    }).select('startDate endDate').lean();
+
+    let workingDays = 0;
+    if (enrollments.length) {
+      const countedDates = new Set();
+      for (const e of enrollments) {
+        const eStart = e.startDate.toISOString().split('T')[0];
+        const eEnd = e.endDate.toISOString().split('T')[0];
+        const clipStart = eStart > monthStart ? eStart : monthStart;
+        const clipEnd = eEnd < monthEndCapped ? eEnd : monthEndCapped;
+        if (clipStart > clipEnd) continue;
+        const cursor = new Date(clipStart + 'T00:00:00Z');
+        const end = new Date(clipEnd + 'T00:00:00Z');
+        while (cursor <= end) {
+          const ds = cursor.toISOString().split('T')[0];
+          if (!nonWorking.has(ds)) countedDates.add(ds);
+          cursor.setUTCDate(cursor.getUTCDate() + 1);
+        }
+      }
+      workingDays = countedDates.size;
+    }
+
+    intern.totalWorkingDays = workingDays;
+    intern.absentDays = Math.max(0, workingDays - (intern.presentDays || 0));
+    intern.attendancePercentage = workingDays > 0 ? Math.round(((intern.presentDays || 0) / workingDays) * 1000) / 10 : null;
+  }
+  return interns;
+};
+
+/**
  * @desc    Get monthly hours for all interns (admin)
  * @route   GET /api/attendance/admin/monthly-hours
  * @access  Admin
@@ -1427,6 +1520,8 @@ const getAdminMonthlyHours = async (req, res, next) => {
 
     const data = result.data || [];
     const total = result.totalCount[0]?.count || 0;
+
+    await enrichWithWorkingDays(data, currentMonth);
 
     ApiResponse.success(res, 200, 'Admin monthly hours fetched.', {
       month: currentMonth,
@@ -1480,6 +1575,8 @@ const getGuideMonthlyHours = async (req, res, next) => {
     const data = result.data || [];
     const total = result.totalCount[0]?.count || 0;
 
+    await enrichWithWorkingDays(data, currentMonth);
+
     ApiResponse.success(res, 200, 'Guide monthly hours fetched.', {
       month: currentMonth,
       interns: data,
@@ -1506,10 +1603,140 @@ const getMyMonthlyHours = async (req, res, next) => {
 
     const data = result.data[0] || null;
 
+    if (data) {
+      await enrichWithWorkingDays([data], currentMonth);
+    }
+
     ApiResponse.success(res, 200, 'Monthly hours fetched.', {
       month: currentMonth,
       summary: data,
     });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// ═══════════════════════════════════════════════
+//  HOLIDAYS & WORKING DAYS (Phase 5)
+// ═══════════════════════════════════════════════
+
+const Notification = require('../models/Notification');
+const { NOTIFICATION_TYPES } = require('../config/constants');
+
+/**
+ * @desc    Get working days info for a month (any authenticated role)
+ * @route   GET /api/attendance/working-days?month=YYYY-MM
+ * @access  Student, Guide, Admin
+ */
+const getWorkingDaysInfo = async (req, res, next) => {
+  try {
+    const month = req.query.month || getTodayIST().substring(0, 7);
+    const [year, mon] = month.split('-').map(Number);
+    const monthStart = `${month}-01`;
+    const lastDay = new Date(Date.UTC(year, mon, 0)).getUTCDate();
+    const monthEnd = `${month}-${String(lastDay).padStart(2, '0')}`;
+
+    const settings = await AttendanceSettings.getSettings();
+    const nonWorking = await getNonWorkingDaysInRange(monthStart, monthEnd, settings);
+
+    const holidaysInMonth = Array.from(nonWorking.entries())
+      .filter(([, v]) => v.reason === 'holiday')
+      .map(([date, v]) => ({ date, name: v.holidayName }));
+
+    ApiResponse.success(res, 200, 'Working days info fetched.', {
+      month,
+      weeklyOffDays: settings.weeklyOffDays?.length ? settings.weeklyOffDays : [0],
+      holidays: holidaysInMonth,
+      nonWorkingDates: Array.from(nonWorking.keys()),
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * @desc    Get all holidays (admin only, no pagination — small dataset)
+ * @route   GET /api/attendance/admin/holidays
+ * @access  Admin
+ */
+const getAdminHolidays = async (req, res, next) => {
+  try {
+    const holidays = await Holiday.find().sort('date').lean();
+    ApiResponse.success(res, 200, 'Holidays fetched.', { holidays });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * @desc    Create a new holiday
+ * @route   POST /api/attendance/admin/holidays
+ * @access  Admin
+ */
+const createHolidayHandler = async (req, res, next) => {
+  try {
+    const holiday = await Holiday.create({ ...req.body, createdBy: req.user.id });
+    logger.info(`Holiday created: ${holiday.date} (${holiday.name}) by admin=${req.user.id}`);
+
+    // Phase 8 — Notify active students about the new holiday
+    try {
+      const students = await User.find({ role: 'student', isActive: true }).select('_id').lean();
+      if (students.length) {
+        await Notification.insertMany(
+          students.map((s) => ({
+            user: s._id,
+            title: `Upcoming Holiday: ${holiday.name}`,
+            message: `${holiday.name} on ${holiday.date} has been declared a holiday. No check-in required.`,
+            type: NOTIFICATION_TYPES.ATTENDANCE,
+          }))
+        );
+      }
+    } catch (notifErr) {
+      logger.warn(`Holiday notification failed (non-blocking): ${notifErr.message}`);
+    }
+
+    ApiResponse.success(res, 201, 'Holiday created.', { holiday });
+  } catch (error) {
+    if (error.code === 11000) {
+      return next(ApiError.conflict('A holiday already exists on that date.'));
+    }
+    next(error);
+  }
+};
+
+/**
+ * @desc    Update an existing holiday
+ * @route   PUT /api/attendance/admin/holidays/:id
+ * @access  Admin
+ */
+const updateHolidayHandler = async (req, res, next) => {
+  try {
+    const holiday = await Holiday.findByIdAndUpdate(req.params.id, req.body, {
+      new: true,
+      runValidators: true,
+    });
+    if (!holiday) return next(ApiError.notFound('Holiday not found.'));
+    logger.info(`Holiday updated: ${holiday._id} by admin=${req.user.id}`);
+    ApiResponse.success(res, 200, 'Holiday updated.', { holiday });
+  } catch (error) {
+    if (error.code === 11000) {
+      return next(ApiError.conflict('A holiday already exists on that date.'));
+    }
+    next(error);
+  }
+};
+
+/**
+ * @desc    Delete a holiday
+ * @route   DELETE /api/attendance/admin/holidays/:id
+ * @access  Admin
+ */
+const deleteHolidayHandler = async (req, res, next) => {
+  try {
+    const holiday = await Holiday.findByIdAndDelete(req.params.id);
+    if (!holiday) return next(ApiError.notFound('Holiday not found.'));
+    logger.info(`Holiday deleted: ${req.params.id} (${holiday.date}, ${holiday.name}) by admin=${req.user.id}`);
+    ApiResponse.success(res, 200, 'Holiday deleted.');
   } catch (error) {
     next(error);
   }
@@ -1536,4 +1763,9 @@ module.exports = {
   getAdminMonthlyHours,
   getGuideMonthlyHours,
   getMyMonthlyHours,
+  getWorkingDaysInfo,
+  getAdminHolidays,
+  createHolidayHandler,
+  updateHolidayHandler,
+  deleteHolidayHandler,
 };

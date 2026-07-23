@@ -58,6 +58,7 @@ const updateSettings = Joi.object({
   maxBreakMinutes: Joi.number().integer().min(0).max(180).optional(),
   autoCheckoutHour: Joi.number().integer().min(12).max(23).optional(),
   workingDaysPerWeek: Joi.number().integer().min(1).max(7).optional(),
+  weeklyOffDays: Joi.array().items(Joi.number().integer().min(0).max(6)).max(6).optional(),
   minimumWorkHours: Joi.number().integer().min(1).max(16).optional(),
   overtimeThresholdHours: Joi.number().integer().min(1).max(16).optional(),
 });
@@ -76,6 +77,24 @@ const monthlyHours = Joi.object({
   limit: Joi.number().integer().min(1).max(100).default(20),
 });
 
+const createHoliday = Joi.object({
+  date: Joi.string().pattern(/^\d{4}-\d{2}-\d{2}$/).required(),
+  name: Joi.string().trim().min(1).max(150).required(),
+  description: Joi.string().trim().max(500).allow('').optional(),
+  recurringAnnually: Joi.boolean().default(false),
+});
+
+const updateHoliday = Joi.object({
+  date: Joi.string().pattern(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  name: Joi.string().trim().min(1).max(150).optional(),
+  description: Joi.string().trim().max(500).allow('').optional(),
+  recurringAnnually: Joi.boolean().optional(),
+}).min(1);
+
+const workingDaysQuery = Joi.object({
+  month: Joi.string().pattern(/^\d{4}-\d{2}$/).optional(),
+});
+
 module.exports = {
   checkIn,
   breakAction,
@@ -84,4 +103,7 @@ module.exports = {
   exportAttendance,
   updateSettings,
   monthlyHours,
+  createHoliday,
+  updateHoliday,
+  workingDaysQuery,
 };

@@ -20,10 +20,24 @@ const {
   getAdminMonthlyHours,
   getGuideMonthlyHours,
   getMyMonthlyHours,
+  getWorkingDaysInfo,
+  getAdminHolidays,
+  createHolidayHandler,
+  updateHolidayHandler,
+  deleteHolidayHandler,
 } = require('../controllers/attendanceController');
 const { protect, authorize } = require('../middleware/auth');
 const validate = require('../middleware/validate');
 const attendanceValidator = require('../validators/attendanceValidator');
+
+// ─── Cross-role routes ─────────────────────────────────────────────────
+router.get(
+  '/working-days',
+  protect,
+  authorize('student', 'guide', 'admin'),
+  validate(attendanceValidator.workingDaysQuery),
+  getWorkingDaysInfo
+);
 
 // ─── Student routes (any authenticated student) ─────────────────────
 router.post(
@@ -129,5 +143,23 @@ router.get(
   authorize('admin'),
   getAdminMonthlyHours
 );
+
+// ─── Admin Holiday routes ─────────────────────────────────────────
+router.get('/admin/holidays', protect, authorize('admin'), getAdminHolidays);
+router.post(
+  '/admin/holidays',
+  protect,
+  authorize('admin'),
+  validate(attendanceValidator.createHoliday),
+  createHolidayHandler
+);
+router.put(
+  '/admin/holidays/:id',
+  protect,
+  authorize('admin'),
+  validate(attendanceValidator.updateHoliday),
+  updateHolidayHandler
+);
+router.delete('/admin/holidays/:id', protect, authorize('admin'), deleteHolidayHandler);
 
 module.exports = router;

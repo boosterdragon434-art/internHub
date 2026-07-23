@@ -14,6 +14,12 @@ import {
   FiBarChart2,
   FiCalendar,
   FiCheckCircle,
+  FiSun,
+  FiChevronLeft,
+  FiChevronRight,
+  FiPlus,
+  FiEdit2,
+  FiTrash2,
 } from 'react-icons/fi';
 import toast from 'react-hot-toast';
 import StatsCard from '../../components/ui/StatsCard';
@@ -29,7 +35,15 @@ import {
   getLiveStatus,
   getAdminMonthlyHours,
   getAdminAttendance,
+  getWorkingDaysInfo,
+  getAdminHolidays,
+  createHoliday,
+  updateHoliday,
+  deleteHoliday,
 } from '../../api/attendanceApi';
+import Modal from '../../components/common/Modal';
+import ConfirmDialog from '../../components/common/ConfirmDialog';
+import Button from '../../components/common/Button';
 
 const formatDuration = (minutes) => {
   if (!minutes || minutes <= 0) return '0m';
@@ -54,6 +68,236 @@ const statusColors = {
   'checked-out': { bg: 'bg-slate-50 dark:bg-slate-900/30', text: 'text-slate-600 dark:text-slate-400', dot: 'bg-slate-400', label: 'Checked Out' },
   'missed-checkout': { bg: 'bg-rose-50 dark:bg-rose-950/20', text: 'text-rose-600 dark:text-rose-400', dot: 'bg-rose-500', label: 'Missed' },
   absent: { bg: 'bg-slate-50 dark:bg-slate-900/30', text: 'text-slate-400', dot: 'bg-slate-300', label: 'Absent' },
+  'weekly-off': { bg: 'bg-amber-50 dark:bg-amber-950/20', text: 'text-amber-600 dark:text-amber-400', dot: 'bg-amber-400', label: 'Weekly Off' },
+  holiday: { bg: 'bg-amber-50 dark:bg-amber-950/20', text: 'text-amber-700 dark:text-amber-300', dot: 'bg-amber-500', label: 'Holiday' },
+};
+
+const Input = ({ label, name, type = 'text', value, onChange, error, placeholder, required }) => (
+  <div className="mb-4">
+    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
+      {label} {required && <span className="text-rose-500">*</span>}
+    </label>
+    {type === 'textarea' ? (
+      <textarea
+        name={name}
+        value={value}
+        onChange={onChange}
+        placeholder={placeholder}
+        className={`w-full px-3 py-2 rounded-xl border ${error ? 'border-rose-300 focus:ring-rose-500' : 'border-slate-200 dark:border-slate-700 focus:ring-accent-500'} bg-slate-50 dark:bg-slate-800 text-sm outline-none focus:ring-2`}
+        rows={3}
+      />
+    ) : type === 'checkbox' ? (
+      <div className="flex items-center gap-2">
+        <input
+          type="checkbox"
+          name={name}
+          checked={value}
+          onChange={onChange}
+          className="rounded border-slate-300 text-accent-600 focus:ring-accent-500"
+        />
+        <span className="text-sm text-slate-600 dark:text-slate-300">Repeat annually on this date</span>
+      </div>
+    ) : (
+      <input
+        type={type}
+        name={name}
+        value={value}
+        onChange={onChange}
+        placeholder={placeholder}
+        className={`w-full px-3 py-2 rounded-xl border ${error ? 'border-rose-300 focus:ring-rose-500' : 'border-slate-200 dark:border-slate-700 focus:ring-accent-500'} bg-slate-50 dark:bg-slate-800 text-sm outline-none focus:ring-2`}
+      />
+    )}
+    {error && <p className="mt-1.5 text-xs text-rose-500">{error}</p>}
+  </div>
+);
+
+const HolidaysTab = ({
+  calMonth, setCalMonth, calData, allHolidays,
+  modal, setModal, form, setForm, saving, setSaving,
+  deleteConfirm, setDeleteConfirm, deleteLoading, setDeleteLoading
+}) => {
+  const { year, month } = calMonth;
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const firstDay = new Date(year, month, 1).getDay();
+
+  const handleCreate = () => {
+    setForm({ date: '', name: '', description: '', recurringAnnually: false });
+    setModal({ open: true, mode: 'create', holiday: null });
+  };
+
+  const handleEdit = (holiday) => {
+    setForm({
+      date: holiday.date,
+      name: holiday.name,
+      description: holiday.description || '',
+      recurringAnnually: holiday.recurringAnnually || false,
+    });
+    setModal({ open: true, mode: 'edit', holiday });
+  };
+
+  const handleSave = async (e) => {
+    e.preventDefault();
+    if (!form.date || !form.name) return toast.error('Date and Name are required');
+    setSaving(true);
+    try {
+      if (modal.mode === 'create') {
+        await createHoliday(form);
+        toast.success('Holiday created successfully!');
+      } else {
+        await updateHoliday(modal.holiday._id, form);
+        toast.success('Holiday updated successfully!');
+      }
+      setModal({ open: false, mode: 'create', holiday: null });
+      // The parent component will refetch automatically
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to save holiday');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    setDeleteLoading(true);
+    try {
+      await deleteHoliday(deleteConfirm.id);
+      toast.success('Holiday deleted successfully!');
+      setDeleteConfirm({ open: false, id: null, name: '' });
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to delete holiday');
+    } finally {
+      setDeleteLoading(false);
+    }
+  };
+
+  const navigateMonth = (direction) => {
+    setCalMonth((prev) => {
+      let m = prev.month + direction;
+      let y = prev.year;
+      if (m < 0) { m = 11; y--; }
+      else if (m > 11) { m = 0; y++; }
+      return { year: y, month: m };
+    });
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Calendar Section */}
+      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm p-5">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-4">
+          <div>
+            <h3 className="text-lg font-bold text-slate-900 dark:text-slate-50 flex items-center gap-2">
+              <FiCalendar className="text-accent-500" /> Holiday Calendar
+            </h3>
+            <p className="text-xs text-slate-500 mt-1">Manage weekly off days and declared holidays</p>
+          </div>
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 rounded-lg p-1">
+              <button onClick={() => navigateMonth(-1)} className="p-1.5 hover:bg-white dark:hover:bg-slate-700 rounded-md transition-colors"><FiChevronLeft className="h-4 w-4" /></button>
+              <span className="text-xs font-bold min-w-[100px] text-center">{new Date(year, month).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}</span>
+              <button onClick={() => navigateMonth(1)} className="p-1.5 hover:bg-white dark:hover:bg-slate-700 rounded-md transition-colors"><FiChevronRight className="h-4 w-4" /></button>
+            </div>
+            <Button variant="primary" size="sm" icon={FiPlus} onClick={handleCreate}>Add Holiday</Button>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-7 gap-2 mb-2">
+          {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(d => (
+            <div key={d} className="text-center text-xs font-bold text-slate-400 uppercase py-2">{d}</div>
+          ))}
+        </div>
+        <div className="grid grid-cols-7 gap-2">
+          {Array.from({ length: firstDay }).map((_, i) => <div key={`empty-${i}`} />)}
+          {Array.from({ length: daysInMonth }).map((_, i) => {
+            const d = i + 1;
+            const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+            const dow = new Date(Date.UTC(year, month, d)).getUTCDay();
+            const isWeeklyOff = calData.weeklyOffDays.includes(dow);
+            const holiday = calData.holidays.find(h => h.date === dateStr);
+            const isNonWorking = isWeeklyOff || holiday;
+
+            return (
+              <div key={dateStr} className={`relative aspect-square md:aspect-auto md:h-24 p-2 rounded-xl border transition-all ${isNonWorking ? 'bg-amber-50 dark:bg-amber-950/10 border-amber-200/50 dark:border-amber-900/30' : 'border-slate-100 dark:border-slate-800/60'}`}>
+                <span className={`text-sm font-bold ${isNonWorking ? 'text-amber-700 dark:text-amber-400' : 'text-slate-700 dark:text-slate-300'}`}>{d}</span>
+                {isWeeklyOff && <div className="mt-1 text-[10px] font-semibold text-amber-600 dark:text-amber-500 bg-amber-100/50 dark:bg-amber-900/20 px-1.5 py-0.5 rounded inline-block">Weekly Off</div>}
+                {holiday && (
+                  <div className="mt-1 text-[10px] font-bold text-white bg-amber-500 px-1.5 py-0.5 rounded leading-tight line-clamp-2">
+                    {holiday.name}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Holiday List Section */}
+      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
+        <div className="px-5 py-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
+          <h3 className="text-sm font-bold text-slate-900 dark:text-slate-50">All Declared Holidays</h3>
+        </div>
+        {allHolidays.length === 0 ? (
+          <div className="p-8 text-center text-slate-500 text-sm">No holidays declared yet.</div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left">
+              <thead>
+                <tr className="bg-slate-50 dark:bg-slate-900/50 border-b border-slate-200 dark:border-slate-800">
+                  <th className="px-5 py-3 text-xs font-semibold text-slate-500 uppercase">Date</th>
+                  <th className="px-5 py-3 text-xs font-semibold text-slate-500 uppercase">Name</th>
+                  <th className="px-5 py-3 text-xs font-semibold text-slate-500 uppercase">Type</th>
+                  <th className="px-5 py-3 text-xs font-semibold text-slate-500 uppercase text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {allHolidays.map(h => (
+                  <tr key={h._id} className="border-b border-slate-100 dark:border-slate-800/60">
+                    <td className="px-5 py-3.5 text-sm font-medium text-slate-900 dark:text-slate-200">
+                      {new Date(h.date + 'T00:00:00Z').toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'UTC' })}
+                    </td>
+                    <td className="px-5 py-3.5 text-sm text-slate-700 dark:text-slate-300 font-semibold">{h.name}</td>
+                    <td className="px-5 py-3.5">
+                      {h.recurringAnnually ? (
+                        <span className="inline-flex items-center gap-1 text-[10px] font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full"><FiRefreshCw className="h-3 w-3" /> Annual</span>
+                      ) : (
+                        <span className="inline-flex items-center text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">One-off</span>
+                      )}
+                    </td>
+                    <td className="px-5 py-3.5 text-right space-x-2">
+                      <button onClick={() => handleEdit(h)} className="p-1.5 text-slate-400 hover:text-accent-600 hover:bg-accent-50 rounded-lg transition-colors"><FiEdit2 className="h-4 w-4" /></button>
+                      <button onClick={() => setDeleteConfirm({ open: true, id: h._id, name: h.name })} className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"><FiTrash2 className="h-4 w-4" /></button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      <Modal isOpen={modal.open} onClose={() => setModal({ open: false, mode: 'create', holiday: null })} title={modal.mode === 'create' ? 'Add Holiday' : 'Edit Holiday'}>
+        <form onSubmit={handleSave} className="space-y-4">
+          <Input label="Date" name="date" type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} required />
+          <Input label="Holiday Name" name="name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="e.g. Diwali, Christmas" required />
+          <Input label="Description (Optional)" name="description" type="textarea" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="Additional details..." />
+          <Input label="Recurring Annually" name="recurringAnnually" type="checkbox" value={form.recurringAnnually} onChange={(e) => setForm({ ...form, recurringAnnually: e.target.checked })} />
+          <div className="pt-4 flex justify-end gap-3">
+            <Button type="button" variant="outline" onClick={() => setModal({ open: false })}>Cancel</Button>
+            <Button type="submit" variant="primary" loading={saving}>{modal.mode === 'create' ? 'Create Holiday' : 'Save Changes'}</Button>
+          </div>
+        </form>
+      </Modal>
+
+      <ConfirmDialog
+        isOpen={deleteConfirm.open}
+        onClose={() => setDeleteConfirm({ open: false, id: null, name: '' })}
+        onConfirm={handleDelete}
+        title="Delete Holiday"
+        description={`Are you sure you want to delete "${deleteConfirm.name}"? This action cannot be undone.`}
+        confirmText="Delete Holiday"
+        loading={deleteLoading}
+      />
+    </div>
+  );
 };
 
 const AdminAttendancePage = () => {
@@ -90,6 +334,20 @@ const AdminAttendancePage = () => {
   const [monthlyLoading, setMonthlyLoading] = useState(false);
   const [monthlyPage, setMonthlyPage] = useState(1);
   const [monthlyPagination, setMonthlyPagination] = useState(null);
+
+  // Holidays Tab
+  const [holidayCalMonth, setHolidayCalMonth] = useState(() => {
+    const now = new Date();
+    return { year: now.getFullYear(), month: now.getMonth() };
+  });
+  const [holidayCalData, setHolidayCalData] = useState({ weeklyOffDays: [0], nonWorkingDates: [], holidays: [] });
+  const [allHolidays, setAllHolidays] = useState([]);
+  const [holidaysLoading, setHolidaysLoading] = useState(false);
+  const [holidayModal, setHolidayModal] = useState({ open: false, mode: 'create', holiday: null, date: '' });
+  const [holidayForm, setHolidayForm] = useState({ date: '', name: '', description: '', recurringAnnually: false });
+  const [holidaySaving, setHolidaySaving] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState({ open: false, id: null, name: '' });
+  const [deleteLoading, setDeleteLoading] = useState(false);
 
   // Fetch analytics
   const fetchAnalytics = useCallback(async () => {
@@ -172,6 +430,30 @@ const AdminAttendancePage = () => {
     }
   }, [activeTab, monthlyMonth, fetchMonthly]);
 
+  // Fetch Holidays & Calendar Data
+  const fetchHolidayData = useCallback(async () => {
+    try {
+      setHolidaysLoading(true);
+      const monthStr = `${holidayCalMonth.year}-${String(holidayCalMonth.month + 1).padStart(2, '0')}`;
+      const [calRes, allRes] = await Promise.all([
+        getWorkingDaysInfo({ month: monthStr }),
+        getAdminHolidays()
+      ]);
+      setHolidayCalData(calRes.data?.data || { weeklyOffDays: [0], nonWorkingDates: [], holidays: [] });
+      setAllHolidays(allRes.data?.data?.holidays || []);
+    } catch (error) {
+      console.error('Failed to fetch holiday data:', error);
+    } finally {
+      setHolidaysLoading(false);
+    }
+  }, [holidayCalMonth.year, holidayCalMonth.month]);
+
+  useEffect(() => {
+    if (activeTab === 'holidays' && !holidayModal.open && !holidaySaving && !deleteLoading) {
+      fetchHolidayData();
+    }
+  }, [activeTab, holidayCalMonth, holidayModal.open, holidaySaving, deleteLoading, fetchHolidayData]);
+
   // Export handler
   const handleExport = async () => {
     try {
@@ -222,6 +504,7 @@ const AdminAttendancePage = () => {
     { id: 'records', label: 'Records', icon: FiClock },
     { id: 'live', label: 'Live Status', icon: FiUsers },
     { id: 'monthly', label: 'Monthly Hours', icon: FiCalendar },
+    { id: 'holidays', label: 'Holidays', icon: FiSun },
     { id: 'analytics', label: 'Analytics', icon: FiBarChart2 },
   ];
 
@@ -609,12 +892,15 @@ const AdminAttendancePage = () => {
                       <tr className="bg-slate-50 dark:bg-slate-900/50 border-b border-slate-200 dark:border-slate-800">
                         <th className="px-5 py-3 text-xs font-semibold text-slate-500 uppercase">Student</th>
                         <th className="px-5 py-3 text-xs font-semibold text-slate-500 uppercase">Total Hrs</th>
-                        <th className="px-5 py-3 text-xs font-semibold text-slate-500 uppercase">Present Days</th>
+                        <th className="px-5 py-3 text-xs font-semibold text-slate-500 uppercase">Present</th>
+                        <th className="px-5 py-3 text-xs font-semibold text-slate-500 uppercase">Working Days</th>
+                        <th className="px-5 py-3 text-xs font-semibold text-slate-500 uppercase">Absent</th>
+                        <th className="px-5 py-3 text-xs font-semibold text-slate-500 uppercase">Att. %</th>
                         <th className="px-5 py-3 text-xs font-semibold text-slate-500 uppercase">Late Days</th>
                         <th className="px-5 py-3 text-xs font-semibold text-slate-500 uppercase text-center" colSpan={4}>Day Classification</th>
                       </tr>
                       <tr className="bg-slate-50 dark:bg-slate-900/50 border-b border-slate-200 dark:border-slate-800">
-                        <th colSpan={4}></th>
+                        <th colSpan={7}></th>
                         <th className="px-3 py-2 text-[10px] font-semibold text-emerald-600 text-center border-l border-slate-200 dark:border-slate-800">Full</th>
                         <th className="px-3 py-2 text-[10px] font-semibold text-amber-600 text-center">Half</th>
                         <th className="px-3 py-2 text-[10px] font-semibold text-purple-600 text-center">OT</th>
@@ -630,6 +916,15 @@ const AdminAttendancePage = () => {
                           </td>
                           <td className="px-5 py-3.5 text-sm font-bold text-slate-900 dark:text-slate-200">{d.totalWorkHours}</td>
                           <td className="px-5 py-3.5 text-sm text-slate-600 dark:text-slate-400">{d.presentDays}</td>
+                          <td className="px-5 py-3.5 text-sm text-slate-600 dark:text-slate-400">{d.totalWorkingDays ?? '—'}</td>
+                          <td className="px-5 py-3.5 text-sm text-slate-600 dark:text-slate-400">{d.absentDays ?? '—'}</td>
+                          <td className="px-5 py-3.5 text-sm font-semibold">
+                            {d.attendancePercentage != null ? (
+                              <span className={`${d.attendancePercentage >= 80 ? 'text-emerald-600' : d.attendancePercentage >= 60 ? 'text-amber-600' : 'text-rose-600'}`}>
+                                {d.attendancePercentage}%
+                              </span>
+                            ) : '—'}
+                          </td>
                           <td className="px-5 py-3.5 text-sm text-slate-600 dark:text-slate-400">{d.lateDays}</td>
                           <td className="px-3 py-3.5 text-sm text-center border-l border-slate-100 dark:border-slate-800/60 font-semibold text-emerald-600">{d.classification?.fullDays || 0}</td>
                           <td className="px-3 py-3.5 text-sm text-center font-semibold text-amber-600">{d.classification?.halfDays || 0}</td>
@@ -653,6 +948,30 @@ const AdminAttendancePage = () => {
             )}
           </div>
         </motion.div>
+      )}
+
+      {/* ─── Holidays Tab ──────────────────────────────────────────────── */}
+      {activeTab === 'holidays' && (
+        <HolidaysTab
+          calMonth={holidayCalMonth}
+          setCalMonth={setHolidayCalMonth}
+          calData={holidayCalData}
+          setCalData={setHolidayCalData}
+          allHolidays={allHolidays}
+          setAllHolidays={setAllHolidays}
+          loading={holidaysLoading}
+          setLoading={setHolidaysLoading}
+          modal={holidayModal}
+          setModal={setHolidayModal}
+          form={holidayForm}
+          setForm={setHolidayForm}
+          saving={holidaySaving}
+          setSaving={setHolidaySaving}
+          deleteConfirm={deleteConfirm}
+          setDeleteConfirm={setDeleteConfirm}
+          deleteLoading={deleteLoading}
+          setDeleteLoading={setDeleteLoading}
+        />
       )}
 
       {/* ─── Analytics Tab ────────────────────────────────────────────── */}

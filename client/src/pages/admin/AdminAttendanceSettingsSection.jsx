@@ -17,6 +17,7 @@ const AdminAttendanceSettingsSection = () => {
     maxBreakMinutes: 60,
     autoCheckoutHour: 22,
     workingDaysPerWeek: 5,
+    weeklyOffDays: [0], // 0 = Sunday
     minimumWorkHours: 6,
     overtimeThresholdHours: 8,
   });
@@ -36,6 +37,7 @@ const AdminAttendanceSettingsSection = () => {
             maxBreakMinutes: settings.maxBreakMinutes ?? 60,
             autoCheckoutHour: settings.autoCheckoutHour ?? 22,
             workingDaysPerWeek: settings.workingDaysPerWeek ?? 5,
+            weeklyOffDays: settings.weeklyOffDays ?? [0],
             minimumWorkHours: settings.minimumWorkHours ?? 6,
             overtimeThresholdHours: settings.overtimeThresholdHours ?? 8,
           });
@@ -107,6 +109,16 @@ const AdminAttendanceSettingsSection = () => {
     if (errors[name]) {
       setErrors((prev) => ({ ...prev, [name]: '' }));
     }
+  };
+
+  const handleWeeklyOffChange = (dayIndex) => {
+    setSettingsForm((prev) => {
+      const current = prev.weeklyOffDays || [];
+      const newDays = current.includes(dayIndex)
+        ? current.filter((d) => d !== dayIndex)
+        : [...current, dayIndex].sort();
+      return { ...prev, weeklyOffDays: newDays };
+    });
   };
 
   const handleSubmit = async (e) => {
@@ -284,6 +296,33 @@ const AdminAttendanceSettingsSection = () => {
             <p className="text-[10px] text-slate-400 dark:text-slate-500 -mt-2 leading-relaxed">
               Standard scheduled weekly count to calculate attendance percentages and compliance targets.
             </p>
+            <div className="pt-4 border-t border-slate-100 dark:border-slate-800">
+              <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">
+                Weekly Off Days
+              </label>
+              <div className="flex flex-wrap gap-2">
+                {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day, idx) => {
+                  const isSelected = settingsForm.weeklyOffDays?.includes(idx);
+                  return (
+                    <button
+                      key={day}
+                      type="button"
+                      onClick={() => handleWeeklyOffChange(idx)}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
+                        isSelected
+                          ? 'bg-accent-500 text-white shadow-sm'
+                          : 'bg-slate-100 dark:bg-slate-800 text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-700'
+                      }`}
+                    >
+                      {day}
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-2 leading-relaxed">
+                Check-ins on these days are blocked. Analytics will not count these days as absences.
+              </p>
+            </div>
           </div>
         </div>
 

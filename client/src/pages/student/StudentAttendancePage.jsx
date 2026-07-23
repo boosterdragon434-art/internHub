@@ -15,6 +15,7 @@ import {
   FiChevronLeft,
   FiChevronRight,
   FiXCircle,
+  FiSun,
 } from 'react-icons/fi';
 import toast from 'react-hot-toast';
 import StatsCard from '../../components/ui/StatsCard';
@@ -112,6 +113,9 @@ const StudentAttendancePage = () => {
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [autoCheckoutHour, setAutoCheckoutHour] = useState(22);
+  const [isWorkingDay, setIsWorkingDay] = useState(true);
+  const [offReason, setOffReason] = useState(null);
+  const [holidayName, setHolidayName] = useState(null);
 
   // Stats
   const [stats, setStats] = useState(null);
@@ -142,6 +146,9 @@ const StudentAttendancePage = () => {
         if (data.autoCheckoutHour) {
           setAutoCheckoutHour(data.autoCheckoutHour);
         }
+        setIsWorkingDay(data.isWorkingDay !== false);
+        setOffReason(data.offReason || null);
+        setHolidayName(data.holidayName || null);
         if (data.session) {
           setSession(data.session);
           setStatus(data.session.attendanceStatus);
@@ -415,6 +422,27 @@ const StudentAttendancePage = () => {
         </motion.div>
       </div>
 
+      {/* Off-Day Banner */}
+      {!isWorkingDay && status === 'absent' && (
+        <motion.div
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="flex items-center gap-3 px-5 py-4 rounded-2xl bg-amber-50 dark:bg-amber-950/20 border border-amber-200/60 dark:border-amber-800/40"
+        >
+          <div className="p-2 bg-amber-100 dark:bg-amber-900/40 rounded-xl">
+            <FiSun className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+          </div>
+          <div>
+            <p className="text-sm font-bold text-amber-800 dark:text-amber-300">
+              {offReason === 'holiday' ? `Holiday: ${holidayName}` : 'Weekly Off'}
+            </p>
+            <p className="text-xs text-amber-600 dark:text-amber-400/80 mt-0.5">
+              No check-in required today. Enjoy your day off!
+            </p>
+          </div>
+        </motion.div>
+      )}
+
       {/* ─── Main Action Card ─────────────────────────────────────────── */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
@@ -485,15 +513,15 @@ const StudentAttendancePage = () => {
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
               onClick={handleCheckIn}
-              disabled={status !== 'absent' || actionLoading || isPastAutoCheckout()}
+              disabled={status !== 'absent' || actionLoading || isPastAutoCheckout() || !isWorkingDay}
               className={`flex flex-col items-center gap-2 p-4 md:p-5 rounded-xl font-semibold text-sm transition-all duration-200 ${
-                status === 'absent' && !isPastAutoCheckout()
+                status === 'absent' && !isPastAutoCheckout() && isWorkingDay
                   ? 'bg-emerald-500 hover:bg-emerald-600 text-white shadow-lg shadow-emerald-500/25 cursor-pointer'
                   : 'bg-slate-100 dark:bg-slate-800 text-slate-400 cursor-not-allowed'
               }`}
             >
               <FiPlay className="h-6 w-6" />
-              <span>{isPastAutoCheckout() ? 'Closed (EOD)' : 'Check In'}</span>
+              <span>{!isWorkingDay ? (offReason === 'holiday' ? 'Holiday' : 'Weekly Off') : isPastAutoCheckout() ? 'Closed (EOD)' : 'Check In'}</span>
             </motion.button>
 
             {/* Break Start */}
@@ -566,8 +594,8 @@ const StudentAttendancePage = () => {
           className="grid grid-cols-2 md:grid-cols-4 gap-4"
         >
           <StatsCard
-            title="Total Days"
-            value={stats.totalDays}
+            title="Working Days (Month)"
+            value={monthlySummary?.totalWorkingDays ?? '—'}
             icon={FiCalendar}
             color="indigo"
           />
@@ -578,10 +606,10 @@ const StudentAttendancePage = () => {
             color="teal"
           />
           <StatsCard
-            title="Late Days"
-            value={stats.lateDays}
-            icon={FiAlertCircle}
-            color="rose"
+            title="Att. % (Month)"
+            value={monthlySummary?.attendancePercentage != null ? `${monthlySummary.attendancePercentage}%` : '—'}
+            icon={FiCheckCircle}
+            color="emerald"
           />
           <StatsCard
             title="Current Streak"
@@ -842,15 +870,15 @@ const StudentAttendancePage = () => {
         <div className="grid grid-cols-4 gap-2">
           <button
             onClick={handleCheckIn}
-            disabled={status !== 'absent' || actionLoading || isPastAutoCheckout()}
+            disabled={status !== 'absent' || actionLoading || isPastAutoCheckout() || !isWorkingDay}
             className={`flex flex-col items-center gap-1 py-2.5 rounded-xl text-xs font-bold transition-all active:scale-95 ${
-              status === 'absent' && !isPastAutoCheckout()
+              status === 'absent' && !isPastAutoCheckout() && isWorkingDay
                 ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/20'
                 : 'bg-slate-100 dark:bg-slate-800 text-slate-400 opacity-80'
             }`}
           >
             <FiPlay className="h-5 w-5" />
-            {isPastAutoCheckout() ? 'Closed' : 'In'}
+            {!isWorkingDay ? 'Off' : isPastAutoCheckout() ? 'Closed' : 'In'}
           </button>
           <button
             onClick={handleBreakStart}

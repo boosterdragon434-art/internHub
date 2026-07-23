@@ -48,6 +48,21 @@ const attendanceSettingsSchema = new mongoose.Schema(
       min: [1, 'Overtime threshold must be at least 1'],
       max: [16, 'Overtime threshold cannot exceed 16'],
     },
+    weeklyOffDays: {
+      type: [Number], // 0=Sunday ... 6=Saturday, matches JS Date.getUTCDay()
+      default: [0],
+      validate: {
+        validator: function (arr) {
+          return (
+            Array.isArray(arr) &&
+            arr.length <= 6 && // must leave at least 1 working day
+            arr.every((n) => Number.isInteger(n) && n >= 0 && n <= 6) &&
+            new Set(arr).size === arr.length // no duplicates
+          );
+        },
+        message: 'weeklyOffDays must be unique integers 0-6 and must leave at least one working day.',
+      },
+    },
   },
   { timestamps: true }
 );
@@ -70,6 +85,7 @@ attendanceSettingsSchema.statics.getSettings = async function () {
         workingDaysPerWeek: 5,
         minimumWorkHours: 6,
         overtimeThresholdHours: 8,
+        weeklyOffDays: [0],
       },
     },
     { upsert: true, new: true, lean: true }

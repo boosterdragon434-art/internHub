@@ -83,3 +83,20 @@ export const getLiveStatus = () => api.get('/attendance/admin/live-status');
 /** Get admin monthly hours for all interns */
 export const getAdminMonthlyHours = (params = {}) =>
   api.get('/attendance/admin/monthly-hours', { params });
+
+// ─── Holidays / Working Days ──────────────────────────────────────────
+
+/** Get working days info for a month (any role) */
+export const getWorkingDaysInfo = (params = {}) => api.get('/attendance/working-days', { params });
+
+/** Get all holidays (admin only) */
+export const getAdminHolidays = () => api.get('/attendance/admin/holidays');
+
+/** Create a new holiday (admin only) */
+export const createHoliday = (data) => api.post('/attendance/admin/holidays', data);
+
+/** Update an existing holiday (admin only) */
+export const updateHoliday = (id, data) => api.put(`/attendance/admin/holidays/${id}`, data);
+
+/** Delete a holiday (admin only) */
+export const deleteHoliday = (id) => api.delete(`/attendance/admin/holidays/${id}`);
