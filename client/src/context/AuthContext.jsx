@@ -7,7 +7,7 @@ const AuthContext = createContext(null);
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(() => {
     try {
-      const cached = localStorage.getItem('user');
+      const cached = sessionStorage.getItem('user');
       return cached ? JSON.parse(cached) : null;
     } catch {
       return null;
@@ -18,9 +18,9 @@ export const AuthProvider = ({ children }) => {
   // Check if user is logged in on app load (Stale-While-Revalidate pattern)
   useEffect(() => {
     const checkLoggedIn = async () => {
-      const token = localStorage.getItem('token');
+      const token = sessionStorage.getItem('token');
       if (!token) {
-        localStorage.removeItem('user');
+        sessionStorage.removeItem('user');
         setUser(null);
         setLoading(false);
         return;
@@ -29,11 +29,11 @@ export const AuthProvider = ({ children }) => {
         const response = await api.get('/auth/me');
         if (response.data && response.data.success) {
           const freshUser = response.data.data.user;
-          localStorage.setItem('user', JSON.stringify(freshUser));
+          sessionStorage.setItem('user', JSON.stringify(freshUser));
           setUser(freshUser);
         } else {
-          localStorage.removeItem('token');
-          localStorage.removeItem('user');
+          sessionStorage.removeItem('token');
+          sessionStorage.removeItem('user');
           setUser(null);
         }
       } catch (error) {
@@ -41,8 +41,8 @@ export const AuthProvider = ({ children }) => {
         // Only clear credentials if the error is an explicit 401/403 authorization failure,
         // preventing logouts during network drops.
         if (error.response && [401, 403].includes(error.response.status)) {
-          localStorage.removeItem('token');
-          localStorage.removeItem('user');
+          sessionStorage.removeItem('token');
+          sessionStorage.removeItem('user');
           setUser(null);
         }
       } finally {
@@ -69,8 +69,8 @@ export const AuthProvider = ({ children }) => {
       const response = await api.post('/auth/register', userData);
       if (response.data && response.data.success) {
         const { token, user: registeredUser } = response.data.data;
-        localStorage.setItem('token', token);
-        localStorage.setItem('user', JSON.stringify(registeredUser));
+        sessionStorage.setItem('token', token);
+        sessionStorage.setItem('user', JSON.stringify(registeredUser));
         setUser(registeredUser);
         return { success: true, message: response.data.message };
       }
@@ -86,8 +86,8 @@ export const AuthProvider = ({ children }) => {
       const response = await api.post('/auth/login', { email, password });
       if (response.data && response.data.success) {
         const { token, user: loggedUser } = response.data.data;
-        localStorage.setItem('token', token);
-        localStorage.setItem('user', JSON.stringify(loggedUser));
+        sessionStorage.setItem('token', token);
+        sessionStorage.setItem('user', JSON.stringify(loggedUser));
         setUser(loggedUser);
         return { success: true, message: response.data.message };
       }
@@ -103,8 +103,8 @@ export const AuthProvider = ({ children }) => {
       const response = await api.post('/auth/admin/login', { email, password });
       if (response.data && response.data.success) {
         const { token, user: adminUser } = response.data.data;
-        localStorage.setItem('token', token);
-        localStorage.setItem('user', JSON.stringify(adminUser));
+        sessionStorage.setItem('token', token);
+        sessionStorage.setItem('user', JSON.stringify(adminUser));
         setUser(adminUser);
         return { success: true, message: response.data.message };
       }
@@ -120,8 +120,8 @@ export const AuthProvider = ({ children }) => {
       const response = await api.post('/auth/guide/login', { email, password });
       if (response.data && response.data.success) {
         const { token, user: guideUser } = response.data.data;
-        localStorage.setItem('token', token);
-        localStorage.setItem('user', JSON.stringify(guideUser));
+        sessionStorage.setItem('token', token);
+        sessionStorage.setItem('user', JSON.stringify(guideUser));
         setUser(guideUser);
         return { success: true, message: response.data.message };
       }
@@ -139,8 +139,8 @@ export const AuthProvider = ({ children }) => {
       // Network failure — still clear locally
     } finally {
       clearApiCache(); // clear axios cache
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
+      sessionStorage.removeItem('token');
+      sessionStorage.removeItem('user');
       setUser(null);
     }
   };
@@ -153,7 +153,7 @@ export const AuthProvider = ({ children }) => {
         ...prevUser,
         ...updatedUserFields,
       };
-      localStorage.setItem('user', JSON.stringify(updated));
+      sessionStorage.setItem('user', JSON.stringify(updated));
       return updated;
     });
   };

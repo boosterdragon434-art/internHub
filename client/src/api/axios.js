@@ -22,7 +22,7 @@ api.defaults.adapter = async (config) => {
   const isCacheableGet = config.method === 'get' && !noCacheEndpoints.some(ep => config.url?.includes(ep));
 
   if (isCacheableGet) {
-    const token = localStorage.getItem('token') || 'unauth';
+    const token = sessionStorage.getItem('token') || 'unauth';
     const cacheKey = token.slice(-10) + ':' + config.url + '?' + JSON.stringify(config.params || {});
     const cached = apiCache.get(cacheKey);
 
@@ -66,7 +66,7 @@ api.defaults.adapter = async (config) => {
 // Request interceptor to inject the JWT token
 api.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('token');
+    const token = sessionStorage.getItem('token');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
